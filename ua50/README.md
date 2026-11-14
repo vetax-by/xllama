@@ -1,4 +1,4 @@
-# UA50 source preparation and unsigned Windows build recipe
+# MoE source preparation and unsigned Windows build recipe
 
 The patch rationale, implementation and evidence limits have one home:
 [Demand-loaded MoE experts](../docs/ua50-ssd-moe.md).

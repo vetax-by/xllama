@@ -220,7 +220,7 @@ demo/               Capture scripts: what the demo video records, reviewable in 
 patches/            llama.cpp and vendor patches applied at UWP build time
 diffusion/          SD-Turbo → ONNX host toolchain (not inside the MSIX)
 paper/              Citable research package
-ua50/              Reviewed UA50 patch bundle and manual unsigned Windows recipe
+ua50/              Reviewed MoE patch bundle and manual unsigned Windows recipe
 llama.cpp/          Submodule. Do not edit in place.
 vendor/             Patched ORT / GenAI DLL hashes (vendor/*/SHA256SUMS)
 LICENSES/           Upstream licence texts for re-hosted models-v1 builds (SOURCES.md)

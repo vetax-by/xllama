@@ -2,7 +2,7 @@
 
 Technical notes and design decisions for xllama.
 
-The independent UA50 fork extension is documented in
+The independent MoE fork extension is documented in
 [Demand-loaded MoE experts](ua50-ssd-moe.md), including its source-preparation
 recipe and the boundary between tested behavior and future Xbox acceptance.
 

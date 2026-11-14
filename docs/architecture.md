@@ -7,7 +7,7 @@ snapshot), the perf SSOT [benchmarks.md](benchmarks.md), and the AppContainer
 constraints SSOT [uwp-constraints.md](uwp-constraints.md) — those own the numbers
 and the sandbox limits; this file owns the structure.
 
-## Experimental UA50 extension in this fork
+## Experimental MoE extension in this fork
 
 An internal, default-disabled CPU expert session can install an owned expert
 provider before ordinary tensor loading. The file reader, session lifetime and

@@ -1,4 +1,4 @@
-name: ua50-pinned-uwp-compile
+name: MoE pinned UWP compile
 on:
   workflow_dispatch:
     inputs:

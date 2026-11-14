@@ -1,4 +1,4 @@
-# UA50: demand-loaded MoE experts for xllama
+# Demand-loaded MoE experts for xllama
 
 ## Purpose
 
