@@ -5,11 +5,23 @@
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
   "patch_lock_sha256": "760ed6df52cffcc92de714fd35e1b796d6697ad82e354159f7de73f92c8d2846",
   "source_bundle_sha256": "6aa3f9f9cd1525ca652f134bfc277eb3c3fc1c552ee893a7f243a6a0c386f89e",
-  "operator_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "source_reviews": {
     "composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
     "operator": "ab5c81a17414121e287bce0bcf39b0fc27be4722d2ed9594ed5110a5cee01f8d"
   },
   "qualification": "Source composition/admission reviewed; not a Windows build or Xbox acceptance.",
-  "public_metadata_adjustment": "DEPENDENCIES.json omits runner.observed_lines captured tool-installation-path excerpts. Executable scripts, patch lock, four patches and admitted shipping/compiler inventories are unchanged."
+  "public_metadata_adjustment": "DEPENDENCIES.json omits captured tool-installation-path excerpts. Operator-only Windows checkout/Bash corrections are recorded separately; runtime patch lock, four patches and admitted shipping/compiler inventories are unchanged.",
+  "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
+  "operator_corrections": [
+    {
+      "scope": "Windows LF checkout policy",
+      "source_manifest_sha256": "919ba3d6f2099baafe8af91e543f4ecb018d60cb1d3038472f318017f0f43c66",
+      "review_sha256": "46c75b6beded919c6426bdcfe18347a59cb453cb2414a1bf5eee66786146cbe0"
+    },
+    {
+      "scope": "Explicit Git-for-Windows Bash selection",
+      "source_manifest_sha256": "dbab28cf7c42fd80f2a0edd1c84d01de17e3e8b9c2ea23d02dbd860e9468b003",
+      "review_sha256": "5dc4d8e5471fff7c12b9dd62a7ded6a06c9f0f4fd7c8f54a30d1034b38e0d618"
+    }
+  ]
 }

@@ -11,9 +11,12 @@ The patch rationale, implementation and evidence limits have one home:
   `760ed6df52cffcc92de714fd35e1b796d6697ad82e354159f7de73f92c8d2846`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
-`prepare_sources.py`, `build_unsigned.ps1`, the four patches and their pinned
-inventories are byte-identical to the reviewed source preparation candidate.
-The public workflow only relocates their paths under `ua50/` in this fork.
+The four patches, patch lock, shipping/import inventories and unsigned build
+script retain the reviewed source-preparation bytes. The workflow enforces LF
+checkout before both source checkouts. `prepare_sources.py` explicitly selects
+Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
+installation before submodule/network operations. These operator-only corrections
+and their reviews are listed in `PROVENANCE.json`. No WSL installation is required.
 `DEPENDENCIES.json` retains dependency versions and public source identities;
 captured tool-installation-path excerpts are omitted from its public summary.
 

@@ -109,6 +109,38 @@ def verify_shipping_postimages(source, entries):
             raise ValueError('shipping postimage missing/changed: ' + entry['target_path'])
     return len(entries)
 
+# The windows-2022 image documents this Git-for-Windows installation.
+# Never search PATH for bash on Windows: System32/bash.exe may be the WSL stub.
+WINDOWS_GIT_ROOT = Path('C:/Program Files/Git')
+
+def script_bash():
+    if sys.platform != 'win32':
+        return 'bash'  # Preserve the existing non-Windows invocation.
+    root = WINDOWS_GIT_ROOT
+    bash = root / 'bin' / 'bash.exe'
+    git_exe = root / 'cmd' / 'git.exe'
+    for path in (bash, git_exe):
+        if not path.is_absolute():
+            raise ValueError('absolute Git-for-Windows installation required')
+        # Refuse missing files, symlinks and Windows junction/reparse components.
+        for component in (*reversed(path.parents), path):
+            info = component.lstat()
+            if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
+                raise ValueError('Git-for-Windows symlink/reparse path refused')
+        if not stat.S_ISREG(path.lstat().st_mode):
+            raise ValueError('regular Git-for-Windows executable required')
+    git_version = subprocess.run([str(git_exe), '--version'], check=True,
+                                capture_output=True, text=True, timeout=10).stdout.strip()
+    bash_version = subprocess.run([str(bash), '--version'], check=True,
+                                 capture_output=True, text=True, timeout=10).stdout.strip()
+    if not re.fullmatch(r'git version [0-9][^\r\n]*\.windows\.[0-9]+', git_version):
+        raise ValueError('Git-for-Windows version required')
+    if not bash_version.startswith('GNU bash, version '):
+        raise ValueError('GNU Bash version required at explicit Git-for-Windows path')
+    print(json.dumps({'script_bash': str(bash), 'git_version': git_version,
+                      'bash_version': bash_version.splitlines()[0]}))
+    return str(bash)
+
 def main(source, operator, track, lock_sha=''):
     source, operator = Path(source).resolve(), Path(operator).resolve()
     if track not in ('baseline', 'patch'):
@@ -120,6 +152,8 @@ def main(source, operator, track, lock_sha=''):
     guards = list((source / 'patches').glob('0*-*.patch'))
     if [p.name for p in guards] != ['0001-uwp-appcontainer-guards.patch'] or hashlib.sha256(guards[0].read_bytes()).hexdigest() != STOCK_GUARD_SHA:
         raise ValueError('exact shipping stock guard inventory required')
+    # Validate the tool before submodule/network or any source mutation.
+    bash = script_bash()
     if git(source, 'rev-parse', 'HEAD') != XLLAMA:
         raise ValueError('xllama identity')
     if git(source, 'status', '--porcelain'):
@@ -127,7 +161,7 @@ def main(source, operator, track, lock_sha=''):
     git(source, 'submodule', 'update', '--init', '--depth', '1', '--', 'llama.cpp')
     if git(source / 'llama.cpp', 'rev-parse', 'HEAD') != LLAMA:
         raise ValueError('llama identity')
-    subprocess.run(['bash', 'scripts/apply-uwp-patches.sh'], cwd=source, check=True, timeout=60)
+    subprocess.run([bash, 'scripts/apply-uwp-patches.sh'], cwd=source, check=True, timeout=60)
     if track == 'patch':
         for entry in lock['patches']:
             patch = checked_patch(operator, entry)
@@ -137,7 +171,7 @@ def main(source, operator, track, lock_sha=''):
             git(target, 'apply', str(patch))
     if inventory is not None:
         verify_shipping_postimages(source, inventory)
-    subprocess.run(['bash', 'scripts/check-uwp-sources.sh'], cwd=source, check=True, timeout=60)
+    subprocess.run([bash, 'scripts/check-uwp-sources.sh'], cwd=source, check=True, timeout=60)
     # Do not permit the candidate to silently add model weights/signing keys.
     for path in source.rglob('*'):
         if path.is_file() and path.suffix.lower() in ('.gguf', '.safetensors', '.pfx', '.p12', '.pem', '.key'):
