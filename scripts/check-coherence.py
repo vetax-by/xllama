@@ -486,6 +486,10 @@ def main() -> int:
     host_only = {
         "cli.cpp",  # xllama-cli argument parsing; the app has no command line
     }
+    uwp_only = {
+        "cpu_expert_session.cpp",  # UA50 owner binds the Windows held-file reader
+        "held_file_sha256_win.cpp",  # BCrypt and Windows/UCRT held-file hashing
+    }
     cmake_srcs = set(
         re.findall(
             r"src/bridge/([a-z_0-9]+\.cpp)", (ROOT / "CMakeLists.txt").read_text()
@@ -498,7 +502,7 @@ def main() -> int:
         )
     )
     missing_uwp = sorted(cmake_srcs - vcx_srcs - host_only)
-    missing_host = sorted(vcx_srcs - cmake_srcs)
+    missing_host = sorted(vcx_srcs - cmake_srcs - uwp_only)
     for s in missing_uwp:
         err(
             f"src/bridge/{s} is in CMakeLists.txt but not uwp/xllama.vcxproj (link error on CI)"
@@ -510,7 +514,10 @@ def main() -> int:
     stale_exempt = sorted(host_only - cmake_srcs)
     for s in stale_exempt:
         err(f"host_only lists {s}, which CMakeLists.txt no longer builds")
-    if not missing_uwp and not missing_host and not stale_exempt:
+    stale_uwp = sorted((uwp_only - vcx_srcs) | (uwp_only & cmake_srcs))
+    for s in stale_uwp:
+        err(f"uwp_only lists {s}, which is not exclusive to uwp/xllama.vcxproj")
+    if not missing_uwp and not missing_host and not stale_exempt and not stale_uwp:
         good(
             f"bridge sources agree across both build systems ({len(cmake_srcs & vcx_srcs)} shared)"
         )

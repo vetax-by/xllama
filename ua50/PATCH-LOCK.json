@@ -1,0 +1,30 @@
+{
+  "xllama": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
+  "llama": "d81235049384534c167caea52b85a694f6103d14",
+  "patches": [
+    {
+      "file": "patch/runtime-root.patch",
+      "target": "xllama",
+      "bytes": 875,
+      "sha256": "a9f74d2ef56dacfb9cb78c39185aa7b4452f13c8146a0b62cb78004cea47963f"
+    },
+    {
+      "file": "patch/runtime-llama.patch",
+      "target": "llama",
+      "bytes": 43166,
+      "sha256": "8c080cce213616282c129d47ba85c7dafadf260a84343e11f822230d5e0bdff5"
+    },
+    {
+      "file": "patch/app-xllama.patch",
+      "target": "xllama",
+      "bytes": 57901,
+      "sha256": "04328eea4137c1413ad6ee1ef42f1f94c22993c47647e94a00e5e546e84d39ea"
+    },
+    {
+      "file": "patch/app-llama.patch",
+      "target": "llama",
+      "bytes": 4364,
+      "sha256": "95aba02ccf3126737fcb603ad66a595320827ca49a54ba893ff631aeaeb91e1d"
+    }
+  ]
+}

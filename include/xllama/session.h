@@ -22,9 +22,11 @@ namespace xllama {
 // (suffix or resolved on-disk layout: *.gguf -> LlamaCpp, else OrtGenAI).
 // Explicit values are honored when a build links both backends; single-backend
 // builds ignore this field.
+struct CpuExpertOptIn; // internal typed opt-in, never populated by UI/LAN defaults
 enum class Backend { Auto, OrtGenAI, LlamaCpp };
 
 struct SessionParams {
+    std::shared_ptr<const CpuExpertOptIn> cpu_experts; // null: original resident path
     std::string model_path;   // same semantics as InferenceParams::model_path
     int n_ctx = kDefaultNCtx; // one home, inference_params.h (#171)
     int n_threads = 0;        // 0 = auto
@@ -146,6 +148,8 @@ struct Session {
     // Create a session by loading the model once.
     // On failure returns nullptr and sets *err.
     static std::unique_ptr<Session> create(const SessionParams& params, std::string* err = nullptr);
+    // Internal admission identity predicate: disabled/null retain ordinary load behavior.
+    static bool expert_requested(const SessionParams&) noexcept;
 
     virtual InferenceResult generate(const GenerateParams& params) = 0;
 
@@ -205,6 +209,8 @@ struct Session {
         return nullptr;
     }
 
+    virtual bool reusable() const { return true; }
+    virtual void request_stop() noexcept {}
     virtual ~Session() = default;
 };
 

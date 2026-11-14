@@ -1,0 +1,409 @@
+{
+  "selected_materialized_files": [
+    {
+      "file": "postimage/CMakeLists.txt",
+      "target": "xllama",
+      "target_path": "CMakeLists.txt",
+      "bytes": 6282,
+      "sha256": "1fa8327399ec34ceba287c527a34863be4f226d69f4f81ecf01d6bbf7908f64a",
+      "stock_preimage_sha256": "1fa8327399ec34ceba287c527a34863be4f226d69f4f81ecf01d6bbf7908f64a",
+      "stock_git_blob": "64758c5feb5c47d1446898720a5d1ed403463c2e",
+      "changed_or_added": false
+    },
+    {
+      "file": "postimage/include/xllama/cpu_expert_session.h",
+      "target": "xllama",
+      "target_path": "include/xllama/cpu_expert_session.h",
+      "bytes": 3316,
+      "sha256": "ff231955ed7059d7d71b20216cc372c7d482528fbcaa446fad22eb977f93115c",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/include/xllama/session.h",
+      "target": "xllama",
+      "target_path": "include/xllama/session.h",
+      "bytes": 10464,
+      "sha256": "56743d876b6d93e369106315fef0831249e76612e42b6b1700a679f3643f6c99",
+      "stock_preimage_sha256": "707b27e7ef3808efb33f3ac7fb660673ebe3954eb9cabf389b08d617f6b25821",
+      "stock_git_blob": "22b9d149467fa9d827277d8fa08b9dfc6c3fb989",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/include/xllama/session_hub.h",
+      "target": "xllama",
+      "target_path": "include/xllama/session_hub.h",
+      "bytes": 5937,
+      "sha256": "ffe039cb043dfb266d582b61cac55a8cbcccdc22deb41d7b6c200fe11d8e4f14",
+      "stock_preimage_sha256": "3683faf9eb502c8f4febc6578b095236caf9209f622b49bebc8400f3fe404836",
+      "stock_git_blob": "950fdc345074d750efc7d2b1da6a5549a82ca217",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/include/xllama/session_spec.h",
+      "target": "xllama",
+      "target_path": "include/xllama/session_spec.h",
+      "bytes": 2647,
+      "sha256": "a607bdd7929cb08bc781743849a55f2b8fe59fab76e6708a5d3db6984c9aa6d7",
+      "stock_preimage_sha256": "0871f652d6b0c60ba5c444a51ea8e6b0f3f1709315d5d50ea73a07f3035ff6cf",
+      "stock_git_blob": "dd1d77c4e232a6ed94be9c975cefee81f7a44dba",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/common/common.cpp",
+      "target": "llama",
+      "target_path": "common/common.cpp",
+      "bytes": 82544,
+      "sha256": "9c29e758749c99bb87f9c42820dd447ec55bd25e92379dd2a09e89eceee88ff2",
+      "stock_preimage_sha256": "0f124bb94a2d82881fffdb745c3524b74fd23f41127b4a720dc9e9934b6eb883",
+      "stock_git_blob": "c301c22ca17a27faf61d3a07576f3b527fbfe26b",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/ggml/src/CMakeLists.txt",
+      "target": "llama",
+      "target_path": "ggml/src/CMakeLists.txt",
+      "bytes": 27327,
+      "sha256": "03e10b01aec941d0a8034686b62f8d84158b32e2d35425cd6f46effe75be4ca6",
+      "stock_preimage_sha256": "38ddf053a1adfc14bb84b7722e3c4ec01909694f7e51e32013f36e7a324fa4f0",
+      "stock_git_blob": "9477320002199d1e3a6df5885efe3f8c4d1b478c",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/ggml/src/ggml-alloc.c",
+      "target": "llama",
+      "target_path": "ggml/src/ggml-alloc.c",
+      "bytes": 45506,
+      "sha256": "0e29dbd6996055c4b5794b4bcda6e6ae69a5a6ff6dfc27a6964d2e3960b74399",
+      "stock_preimage_sha256": "9664bda3e9c4223f5c94ebfeb3c0381f0065a5091ddae707c09a800f7e419a39",
+      "stock_git_blob": "b0c067b491350275ffab568a23a16c95b88c2c7b",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/ggml/src/ggml-backend-dl.cpp",
+      "target": "llama",
+      "target_path": "ggml/src/ggml-backend-dl.cpp",
+      "bytes": 1563,
+      "sha256": "5e42eccc732317bc66b68c65d08a6cc0c610a2846507502a41e90309a86bb545",
+      "stock_preimage_sha256": "acd76df8b83bcdef6807bc7b0520f57b379d61b4ff1027c04aa4d140d16ad07f",
+      "stock_git_blob": "a65cf009055283d8b0b583326452d66c62908aed",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/ggml/src/ggml-cpu/CMakeLists.txt",
+      "target": "llama",
+      "target_path": "ggml/src/ggml-cpu/CMakeLists.txt",
+      "bytes": 32985,
+      "sha256": "528ef8f8b09a1c51fb4fab9fbb3c374e4ad655bc2b79deb80525bb92100f0fc8",
+      "stock_preimage_sha256": "158a405edbd0855602fd22ae14df9bc252fd10e5219cf77d4e21c9872ae2ef75",
+      "stock_git_blob": "71f55b490aa6cdf79757ed823b10321897fdf1ca",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "target": "llama",
+      "target_path": "ggml/src/ggml-cpu/ggml-cpu.c",
+      "bytes": 134192,
+      "sha256": "c8f481bb8441538a9309175f9aa2e90cf5ca794d968207e420ca1e51fb9ac5fd",
+      "stock_preimage_sha256": "45b22f8c83b2cbccabfc2f81a38ef8a5810223e1ce366b7c6f77d42faa5cc6f3",
+      "stock_git_blob": "7c274c03b7f1546cfd665ad7f60f01b80f47f592",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "target": "llama",
+      "target_path": "ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "bytes": 25527,
+      "sha256": "3335de35ed5ff7759a3df2edb3466c7ac35c30a5f01baaca6bd6a5195dc19f3f",
+      "stock_preimage_sha256": "ccf382d3fbf126b5ddb5850a0a970656fb24e00587da4003419439277c91cd01",
+      "stock_git_blob": "81ff5d79fa98dbfeb9c149e58883d922fe001743",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/llama-mmap.cpp",
+      "target": "llama",
+      "target_path": "src/llama-mmap.cpp",
+      "bytes": 30820,
+      "sha256": "c31b69a511c1a68df45edd8e6d825f1c6deaf07949be624826143778852c4586",
+      "stock_preimage_sha256": "ed859abec87282d5dd13a08b03b93b4ff3efb3f852f289d5347904b0c1cc017d",
+      "stock_git_blob": "045489df7a356f859669976837a0559e73f242b9",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/llama-model-loader.cpp",
+      "target": "llama",
+      "target_path": "src/llama-model-loader.cpp",
+      "bytes": 79576,
+      "sha256": "7233f27b3c3542e94f3182ba28eac5c3c847785eab105756df2ea8831d66c6b9",
+      "stock_preimage_sha256": "301f8250eef5b34d14617c7c9bf5c14bb60519d199751f4d829502a5107f0593",
+      "stock_git_blob": "6cc0b202887a6002375538be4080ec55d18d750a",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/llama-model-loader.h",
+      "target": "llama",
+      "target_path": "src/llama-model-loader.h",
+      "bytes": 9728,
+      "sha256": "3623647877af946fef50ef85445ba9ab6c95228a709901c0e62f5498bdfa4c4f",
+      "stock_preimage_sha256": "687dac85ea01c1fb0db19a4e53286144e29f351233c411e88932b99553538422",
+      "stock_git_blob": "9e51d0ce750503788d2236b4892b8fa3e409b478",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/llama-model.cpp",
+      "target": "llama",
+      "target_path": "src/llama-model.cpp",
+      "bytes": 164650,
+      "sha256": "560b10cd337bd4ae72d80594288e07c74e59191e6add10b4ebe7140da49148fc",
+      "stock_preimage_sha256": "c29d7f29c3e760f90855755748edc56fcdf62f0628b0c572f06ffb4c377db5f5",
+      "stock_git_blob": "97e0cee70e42c4960619008063e0705ea4c2fd31",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/llama-model.h",
+      "target": "llama",
+      "target_path": "src/llama-model.h",
+      "bytes": 34043,
+      "sha256": "7d4fdabd9378746ce4622ef1e1681998967c8e5b5cfde778f307c8896053aab3",
+      "stock_preimage_sha256": "426fd6b47b7d41906637963d394d6c1b124131437c50c958fd3090545f5d47f9",
+      "stock_git_blob": "2243377cc835c62c34a9726de64a5453cd09f83c",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/llama.cpp",
+      "target": "llama",
+      "target_path": "src/llama.cpp",
+      "bytes": 29238,
+      "sha256": "409530d8eaad9b49d2c7c2ba315928e14bd23ad03dadcf63710c87cb9737705d",
+      "stock_preimage_sha256": "8058a140d444b67bf64a1ce393d241dfd60080f4b117130c6f82e637e2109233",
+      "stock_git_blob": "9beb14841f9867f771c484a1a90882ee06481649",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/ua50/expert_cache.h",
+      "target": "llama",
+      "target_path": "src/ua50/expert_cache.h",
+      "bytes": 8362,
+      "sha256": "c3e895e62af119eec4242d7789ea22818d9d4e7a736231bff5fe98b15974101e",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/ua50/ggml-ua50.h",
+      "target": "llama",
+      "target_path": "src/ua50/ggml-ua50.h",
+      "bytes": 649,
+      "sha256": "f5e1b78df021be2991d56c293bd3b6b3b04e991738b37ba1d929599e3cdad2f4",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/ua50/native_provider.cpp",
+      "target": "llama",
+      "target_path": "src/ua50/native_provider.cpp",
+      "bytes": 7885,
+      "sha256": "01d9be7d70268a4f5100cb2f3ff423a30db2ec57abb3e3473a5865adcb268c08",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/ua50/native_provider.h",
+      "target": "llama",
+      "target_path": "src/ua50/native_provider.h",
+      "bytes": 2004,
+      "sha256": "92c60483dc3b190dbc83546d465e52da224bfcdfdf667c03971f25cb2300f21e",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/llama.cpp/src/ua50/owned_expert_load.h",
+      "target": "llama",
+      "target_path": "src/ua50/owned_expert_load.h",
+      "bytes": 1277,
+      "sha256": "381bca8bca8230f27439d5e1c50c17bbabc839104b5f626aa6d3face3a7b1821",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/scripts/apply-uwp-patches.sh",
+      "target": "xllama",
+      "target_path": "scripts/apply-uwp-patches.sh",
+      "bytes": 1103,
+      "sha256": "8d16c43a8705be00bf218d50370c327561cd6f3f0bec486b91d735e3c9104a10",
+      "stock_preimage_sha256": "8d16c43a8705be00bf218d50370c327561cd6f3f0bec486b91d735e3c9104a10",
+      "stock_git_blob": "913db5d573c953ac349bd96bb9ab7d85348448a3",
+      "changed_or_added": false
+    },
+    {
+      "file": "postimage/scripts/check-uwp-sources.sh",
+      "target": "xllama",
+      "target_path": "scripts/check-uwp-sources.sh",
+      "bytes": 2825,
+      "sha256": "01936e630eae70a958f7fe355d78172993d933355ce98b0bc71a022f1bae81de",
+      "stock_preimage_sha256": "01936e630eae70a958f7fe355d78172993d933355ce98b0bc71a022f1bae81de",
+      "stock_git_blob": "c54bf890c13857830416c9cd25bce496b26ce871",
+      "changed_or_added": false
+    },
+    {
+      "file": "postimage/src/bridge/chat_prompt.cpp",
+      "target": "xllama",
+      "target_path": "src/bridge/chat_prompt.cpp",
+      "bytes": 13097,
+      "sha256": "bc70ba4579da92ecfcf12934595320c01fe60057e0d82c3b5e53ab3e3689e096",
+      "stock_preimage_sha256": "ad39dcd18f98aecd543847d34927bb76a7031017b59e0a70f8876bae446b1482",
+      "stock_git_blob": "5addf368ca34b1279b5e184d912af060ed6c84f7",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/src/bridge/cpu_expert_app_session.inc",
+      "target": "xllama",
+      "target_path": "src/bridge/cpu_expert_app_session.inc",
+      "bytes": 5689,
+      "sha256": "26456f99bbcdd879e1ccb14e709cf35138427fec5fee7ef49a1c6e5b01b43f04",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/src/bridge/cpu_expert_session.cpp",
+      "target": "xllama",
+      "target_path": "src/bridge/cpu_expert_session.cpp",
+      "bytes": 8333,
+      "sha256": "5e7e92ef9491430b8355b55840f69894df54dd4c5b906dc8f8a21bedb4a186a3",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/src/bridge/held_file_sha256_win.cpp",
+      "target": "xllama",
+      "target_path": "src/bridge/held_file_sha256_win.cpp",
+      "bytes": 4498,
+      "sha256": "c09a84b25c23157b6131ea566a878a6bcfb61238202b666230ec101be2623c58",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/src/bridge/session.cpp",
+      "target": "xllama",
+      "target_path": "src/bridge/session.cpp",
+      "bytes": 64030,
+      "sha256": "31da412f7c13fca79585c1a05e585991cf03db0b76af68f86f87e05f8f18ea56",
+      "stock_preimage_sha256": "2af2911b8c8186965b9551807618547f0414e943c4764eb1d2aea595e4ed780e",
+      "stock_git_blob": "99aaad2c49038d79933e0520c88d12021a44e755",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/src/bridge/session_factory.inc",
+      "target": "xllama",
+      "target_path": "src/bridge/session_factory.inc",
+      "bytes": 2392,
+      "sha256": "580971e21f7fda10c1f3ad0279b6026a9eaba227ffd678eaf2659f2b1200d5e9",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/src/platform/ua50/staged_reader_core.h",
+      "target": "xllama",
+      "target_path": "src/platform/ua50/staged_reader_core.h",
+      "bytes": 4963,
+      "sha256": "c50f4128d08520a1b67ecc440d2fe6cfba9b806c9c8ec118478edf416f954f87",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/src/platform/ua50/windows_held_reader.cpp",
+      "target": "xllama",
+      "target_path": "src/platform/ua50/windows_held_reader.cpp",
+      "bytes": 10274,
+      "sha256": "94a1cd8a368f5f7a65ce5fe774d6ab1351bb7eba746480bde7fe4f55324ec410",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/src/platform/ua50/windows_held_reader.h",
+      "target": "xllama",
+      "target_path": "src/platform/ua50/windows_held_reader.h",
+      "bytes": 2259,
+      "sha256": "1e42fc3a6bdb075b02935ba83b76500fc5f87d9723d3749aa9f79de6d3e739d4",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/uwp/MainPage.cpp",
+      "target": "xllama",
+      "target_path": "uwp/MainPage.cpp",
+      "bytes": 205936,
+      "sha256": "9f9c4c72d1b83d25571b983a9f76a3d146b7187f83c88c105683165e496a238f",
+      "stock_preimage_sha256": "4ea41eb5a4c5bc55f3aaa42b312a09045580453b9b4c5fbff63beabf1fdcb3a9",
+      "stock_git_blob": "a8e722e0162a7a8a86a1d3761c239ca5356380a4",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/uwp/ggml-uwp.vcxproj",
+      "target": "xllama",
+      "target_path": "uwp/ggml-uwp.vcxproj",
+      "bytes": 10498,
+      "sha256": "c923feeb2d75cb9ce092582f9bd3df6e3d6b76948d8b82c1ca4e48745c991910",
+      "stock_preimage_sha256": "d7f2ad863c7ee37118b55021274684aacad559260342e7a28058d5d1d7ffb46b",
+      "stock_git_blob": "bbed002e8200f193095682aca4eafec2e14932a5",
+      "changed_or_added": true
+    },
+    {
+      "file": "postimage/uwp/llama-common-uwp.vcxproj",
+      "target": "xllama",
+      "target_path": "uwp/llama-common-uwp.vcxproj",
+      "bytes": 7312,
+      "sha256": "96a71bb48d2c098df0d26f45ca21e462ab13a32aafdb5f87d2de9b3f088e1f74",
+      "stock_preimage_sha256": "96a71bb48d2c098df0d26f45ca21e462ab13a32aafdb5f87d2de9b3f088e1f74",
+      "stock_git_blob": "8cdca231fa7e9aa9bfd1fcc46698d4fd932fba8b",
+      "changed_or_added": false
+    },
+    {
+      "file": "postimage/uwp/packages.config",
+      "target": "xllama",
+      "target_path": "uwp/packages.config",
+      "bytes": 435,
+      "sha256": "ca6ab5b987d67ee565150d5e8d67d886985be1c67de7ea16625c218325156ba0",
+      "stock_preimage_sha256": "ca6ab5b987d67ee565150d5e8d67d886985be1c67de7ea16625c218325156ba0",
+      "stock_git_blob": "84250f1f74a6db4c55793f0d2b6944d05cdfb2a4",
+      "changed_or_added": false
+    },
+    {
+      "file": "postimage/uwp/xllama.sln",
+      "target": "xllama",
+      "target_path": "uwp/xllama.sln",
+      "bytes": 1587,
+      "sha256": "37cedfbb825aadc9590e0f0e197403e429c72d8f0bf831e91411a9e6beb1a593",
+      "stock_preimage_sha256": "37cedfbb825aadc9590e0f0e197403e429c72d8f0bf831e91411a9e6beb1a593",
+      "stock_git_blob": "32b4660d664bd6280de850eef9b7d2c431f4fba6",
+      "changed_or_added": false
+    },
+    {
+      "file": "postimage/uwp/xllama.vcxproj",
+      "target": "xllama",
+      "target_path": "uwp/xllama.vcxproj",
+      "bytes": 23238,
+      "sha256": "705f655a86880e512726b8620a74f7fa05c6e2dfecc360193a65e601d720c0d4",
+      "stock_preimage_sha256": "636bc39c51709c702c5a2f989aa305320f90a7f2b8808b31116fe9a7bc8dd30e",
+      "stock_git_blob": "739e867e4175b9f2a7b404a9a9859ff4c9ad56b7",
+      "changed_or_added": true
+    }
+  ],
+  "count": 40,
+  "complete_checkout": false,
+  "required_checkout_root": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
+  "required_checkout_llama": "d81235049384534c167caea52b85a694f6103d14",
+  "excluded": "No tests/fakes/fixtures/local Linux reader/reference overlay files"
+}

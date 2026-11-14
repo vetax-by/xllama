@@ -1,0 +1,1058 @@
+--- /dev/null
++++ b/include/xllama/cpu_expert_session.h
+@@ -0,0 +1,63 @@
++#pragma once
++#include "llama.h"
++#include "ua50/owned_expert_load.h"
++#include "windows_held_reader.h"
++#include <atomic>
++#include <functional>
++#include <memory>
++#include <vector>
++#include <string>
++namespace xllama {
++// INTERNAL source candidate only. No UI/LAN/C ABI setting or automatic provider activation.
++struct CpuExpertOptIn {
++ bool enabled=false;
++ llama_model_params model=llama_model_default_params();
++ llama_context_params context=llama_context_default_params();
++ size_t slots=2,cache_ceiling=16u*1024u*1024u,stage_ceiling=4u*1024u*1024u;
++ std::function<ua50::uwp::WindowsInputCandidate()> admitted_source;
++ // Mandatory app quota/context/compute admission, not guessed from file size.
++ std::function<void(const ua50::ExpertLoadPlan&,const llama_context_params&)> admit_budget;
++};
++class CpuExpertSession final:public std::enable_shared_from_this<CpuExpertSession> {
++public:
++ enum class State { Opening,Ready,Decoding,Invalid,Closing,Closed };
++ static std::shared_ptr<CpuExpertSession> open_if_requested(const CpuExpertOptIn*);
++ ~CpuExpertSession();
++ void begin_fresh_turn(); // mandatory before each full plain prompt; no saved/raw-thinking KV reuse
++ int decode(llama_batch,std::atomic<bool>* turn_abort=nullptr);
++ void request_stop() noexcept;
++ bool close() noexcept; // false only for an active decode/close: caller must retain owner
++ std::vector<llama_token> tokenize(const std::string&) const;
++ std::string piece(llama_token,bool special=false) const;
++ llama_token sample(llama_sampler*);
++ const llama_model* model_view() const; // template/sampler vocabulary only, never context
++ uint32_t context_length() const;
++ uint32_t batch_length() const;
++ void invalidate(const char*) noexcept;
++ State state() const noexcept{return state_.load(std::memory_order_acquire);}
++ const char* first_failure_after_drain() const noexcept{return first_failure_;}
++ CpuExpertSession(const CpuExpertSession&)=delete;
++ CpuExpertSession& operator=(const CpuExpertSession&)=delete;
++private:
++ CpuExpertSession()=default;
++ struct ModelDelete{void operator()(llama_model*p)const noexcept{llama_model_free(p);}};
++ struct ContextDelete{void operator()(llama_context*p)const noexcept{llama_free(p);}};
++ std::shared_ptr<ua50::uwp::WindowsInputCandidate> input_; // held beyond context/model/Reader
++ std::unique_ptr<llama_model,ModelDelete> model_;
++ std::unique_ptr<llama_context,ContextDelete> context_;
++ std::atomic<State> state_{State::Opening};std::atomic<bool> stop_{false};
++ std::atomic<bool>* turn_abort_=nullptr; // serialized decode scope; callback only while llama_decode runs
++ char first_failure_[256]{};
++ static bool should_abort(void*) noexcept;
++ void latch_failure(const char*) noexcept;
++};
++// Mandatory full-held-file SHA callback implementation, Windows BCrypt system API.
++// Expected bytes/SHA must come from trusted app catalogue, not a LAN supplied claim.
++std::function<ua50::uwp::WindowsInputCandidate()> make_windows_expert_source(
++ const std::wstring& trusted_local_path,const ua50::uwp::ExpectedFile& trusted_expected,
++ std::shared_ptr<std::atomic<bool>> stop,ua50::uwp::Clock::time_point absolute_deadline,
++ size_t stage_ceiling=4u*1024u*1024u);
++ua50::uwp::ValidateHeldFile make_held_sha256_validator(
++ const ua50::uwp::ExpectedFile&,std::function<bool()> stop,
++ ua50::uwp::Clock::time_point absolute_deadline);
++}
+--- a/include/xllama/session.h
++++ b/include/xllama/session.h
+@@ -22,9 +22,11 @@
+ // (suffix or resolved on-disk layout: *.gguf -> LlamaCpp, else OrtGenAI).
+ // Explicit values are honored when a build links both backends; single-backend
+ // builds ignore this field.
++struct CpuExpertOptIn; // internal typed opt-in, never populated by UI/LAN defaults
+ enum class Backend { Auto, OrtGenAI, LlamaCpp };
+ 
+ struct SessionParams {
++    std::shared_ptr<const CpuExpertOptIn> cpu_experts; // null: original resident path
+     std::string model_path;   // same semantics as InferenceParams::model_path
+     int n_ctx = kDefaultNCtx; // one home, inference_params.h (#171)
+     int n_threads = 0;        // 0 = auto
+@@ -146,6 +148,8 @@
+     // Create a session by loading the model once.
+     // On failure returns nullptr and sets *err.
+     static std::unique_ptr<Session> create(const SessionParams& params, std::string* err = nullptr);
++    // Internal admission identity predicate: disabled/null retain ordinary load behavior.
++    static bool expert_requested(const SessionParams&) noexcept;
+ 
+     virtual InferenceResult generate(const GenerateParams& params) = 0;
+ 
+@@ -205,6 +209,8 @@
+         return nullptr;
+     }
+ 
++    virtual bool reusable() const { return true; }
++    virtual void request_stop() noexcept {}
+     virtual ~Session() = default;
+ };
+ 
+--- a/include/xllama/session_hub.h
++++ b/include/xllama/session_hub.h
+@@ -55,23 +55,47 @@
+     // before they attempt mtx (observed on-console during Phase C validation).
+     std::atomic<bool> preloading{false};
+ 
++    // A failed enabled opening has no Session, but its identity must survive.
++    // Allocated BEFORE factory admission so failure cannot require a throwing write.
++    struct FailedExpertLoad { std::string model; SessionParams params; };
++    std::unique_ptr<FailedExpertLoad> failed_expert_load;
++
++
+     // Under mtx: return the resident session for |model_id|, creating it (and
+     // destroying any other model's session FIRST — never 2x model in RAM) if
+     // needed. On creation failure the hub is left empty and nullptr returns.
+     Session* ensure_locked(const std::string& model_id, const SessionParams& sp,
+                            std::string* err = nullptr) {
++        if(failed_expert_load) {
++            if(failed_expert_load->model==model_id && same_load(failed_expert_load->params,sp)) {
++                if(err)*err="expert opening failed; explicit reset/new admission required";
++                return nullptr;
++            }
++            failed_expert_load.reset(); // an explicitly different load identity
++        }
++        // Terminal expert owner is a tombstone until explicit reset_locked/new load.
++        // A routine ensure must never recreate a failed owner automatically.
++        if(session && model==model_id && same_load(params,sp) && !session->reusable()) {
++            if(err)*err="terminal session; explicit reset/new admission required";
++            return nullptr;
++        }
+         // Reuse only the same load (ADR 0007): another adapter, context or
+         // GPU-layer split is a different model in RAM, so it reloads like a
+         // model switch. Matching the id alone let the first surface's load
+         // win (audit F03: the API reused or skipped the GUI's LoRA).
+-        if (session && model == model_id && same_load(params, sp))
++        if (session && session->reusable() && model == model_id && same_load(params, sp))
+             return session.get();
+         session.reset(); // release the old model before loading the new one
+         model.clear();
+         ++generation;
++        if(Session::expert_requested(sp)) {
++            auto failed=std::make_unique<FailedExpertLoad>(FailedExpertLoad{model_id,sp});
++            failed_expert_load=std::move(failed); // before source/hash/model/context can run
++        }
+         auto s = Session::create(sp, err);
+         if (!s)
+             return nullptr;
++        failed_expert_load.reset(); // successful opening; later errors use session->reusable()
+         session = std::move(s);
+         model = model_id;
+         params = sp;
+@@ -82,13 +106,15 @@
+     // Under mtx: the files behind |model_id| changed (pull, import, promotion),
+     // so a resident session of it is stale even with the same parameters.
+     void invalidate_locked(const std::string& model_id) {
+-        if (session && model == model_id)
++        if ((session && model == model_id) ||
++            (failed_expert_load && failed_expert_load->model == model_id))
+             reset_locked();
+     }
+ 
+     // Under mtx: drop the resident session (e.g. to free RAM on demand).
+     void reset_locked() {
+-        if (session) {
++        if (session || failed_expert_load) {
++            failed_expert_load.reset();
+             session.reset();
+             model.clear();
+             ++generation;
+--- a/include/xllama/session_spec.h
++++ b/include/xllama/session_spec.h
+@@ -52,7 +52,7 @@
+ // Two parameter sets load the same thing into RAM. Sampling is per generate and
+ // threads/batch are tuning knobs, so neither is part of the load identity.
+ inline bool same_load(const SessionParams& a, const SessionParams& b) {
+-    return a.model_path == b.model_path && a.backend == b.backend && a.n_ctx == b.n_ctx &&
++    return a.cpu_experts == b.cpu_experts && a.model_path == b.model_path && a.backend == b.backend && a.n_ctx == b.n_ctx &&
+            a.n_gpu_layers == b.n_gpu_layers && a.lora_path == b.lora_path &&
+            a.lora_scale == b.lora_scale && a.kv_q8 == b.kv_q8;
+ }
+--- a/src/bridge/chat_prompt.cpp
++++ b/src/bridge/chat_prompt.cpp
+@@ -43,6 +43,20 @@
+ std::string model_basename(const std::string& model_id) {
+     const size_t sep = model_id.find_last_of("/\\");
+     return sep == std::string::npos ? model_id : model_id.substr(sep + 1);
++}
++
++// Exact known unconditional-thinking LFM2.5 families, basename only.
++// Token boundary avoids A2B-like aliases or a directory selecting this policy.
++bool lfm25_always_thinking(const std::string& name) {
++    const auto b = to_lower(model_basename(name));
++    for (const auto* prefix : {"lfm25-24b-a2b", "lfm2.5-24b-a2b",
++                               "lfm25-8b-a1b", "lfm2.5-8b-a1b"}) {
++        const std::string p(prefix);
++        if (b.compare(0, p.size(), p) == 0 &&
++            (b.size() == p.size() || b[p.size()] == '-' || b[p.size()] == '.' || b[p.size()] == '_'))
++            return true;
++    }
++    return false;
+ }
+ 
+ } // namespace
+@@ -82,7 +96,7 @@
+     // the UI and — worse — leave KV snapshots enabled on a model that must be
+     // excluded from them, because the saved history is stripped while the KV
+     // holds the full CoT, so the prefix diff can never match (MainPage.cpp).
+-    return id.find("a1b") != std::string::npos;
++    return id.find("a1b") != std::string::npos || lfm25_always_thinking(model_id);
+ }
+ 
+ bool model_is_minicpm5(const std::string& model_id) {
+@@ -219,8 +233,9 @@
+         f.system_sep = "";
+         f.system_style = SystemStyle::DedicatedTurn;
+         f.stop_sequences = {"<|im_end|>"};
+-        f.gen_suffix = model_is_minicpm5(model_id) ? empty_think_block() + "\n\n"
+-                                                   : qwen_no_think_gen_suffix(model_id);
++        f.gen_suffix = lfm25_always_thinking(model_id) ? "<think>"
++                         : (model_is_minicpm5(model_id) ? empty_think_block() + "\n\n"
++                                                        : qwen_no_think_gen_suffix(model_id));
+         f.bos = model_is_minicpm5(model_id) ? "<s>" : "";
+         f.strip_thinking_content = model_is_thinking(model_id);
+     }
+@@ -233,6 +248,8 @@
+     // bos belongs here rather than in render_prompt: this is the one function
+     // both the prompt and the #169 pinned head go through, so a template BOS
+     // cannot be counted by one and missed by the other.
++    if (gen_suffix == "<think>" && system.empty())
++        return bos; // exact LFM template omits an empty system turn
+     if (system_style == SystemStyle::DedicatedTurn)
+         return bos + turn_open + system_tag + role_sep + system + turn_close;
+     return bos;
+@@ -258,7 +275,8 @@
+         p += turn_open + user_tag + role_sep + user_content(t.user) + turn_close;
+         // History assistant headers never carry gen_suffix (suffix only on the
+         // trailing header below), matching the legacy hand-built prompt.
+-        p += turn_open + assistant_tag + role_sep + t.assistant + turn_close;
++        const std::string answer = gen_suffix == "<think>" ? strip_thinking_blocks(t.assistant) : t.assistant;
++        p += turn_open + assistant_tag + role_sep + answer + turn_close;
+     }
+ 
+     p += turn_open + user_tag + role_sep + user_content(final_user) + turn_close;
+--- /dev/null
++++ b/src/bridge/cpu_expert_app_session.inc
+@@ -0,0 +1,81 @@
++// Internal opt-in Session adapter. Ordinary Session factory remains unchanged when null/disabled.
++// No raw context or ordinary decode loop is reachable in this branch.
++class CpuExpertAppSession final : public Session {
++    std::shared_ptr<CpuExpertSession> owner_;
++public:
++    explicit CpuExpertAppSession(std::shared_ptr<CpuExpertSession> owner):owner_(std::move(owner)){}
++    ~CpuExpertAppSession() override { owner_->request_stop(); (void)owner_->close(); }
++    bool reusable() const override { return owner_->state()==CpuExpertSession::State::Ready; }
++    void request_stop() noexcept override { owner_->request_stop(); }
++    int context_length() const override { return static_cast<int>(owner_->context_length()); }
++    const void* resident_llama_model() const override { return owner_->model_view(); }
++    int count_tokens(const std::string& s) override {
++        try { return static_cast<int>(owner_->tokenize(s).size()); }
++        catch(...) { owner_->invalidate("token count failed"); throw; }
++    }
++    InferenceResult generate(const GenerateParams& gp) override {
++        InferenceResult result;
++        try {
++            // First candidate is full plain prompt only: never silently degrade tools/KV modes.
++            if(gp.reuse_kv || gp.reset_kv || !gp.grammar.empty() || !gp.preserved_tokens.empty() || gp.n_predict<=0)
++                throw std::invalid_argument("expert Session requires full plain prompt; KV/tools unsupported");
++            if(gp.abort_flag && gp.abort_flag->load())throw std::runtime_error("turn cancelled");
++            owner_->begin_fresh_turn();
++            auto tokens=owner_->tokenize(gp.prompt); // ordinary Session flags: add_special=true, parse_special=true
++            const size_t capacity=owner_->context_length();
++            if(tokens.empty() || tokens.size()>=capacity || static_cast<size_t>(gp.n_predict)>capacity-tokens.size())
++                throw std::length_error("full prompt plus output does not fit; no trim");
++            const auto* vocab=llama_model_get_vocab(owner_->model_view());
++            LlamaSamplerPtr sampler(llama_sampler_chain_init(llama_sampler_chain_default_params()));
++            if(!sampler)throw std::runtime_error("sampler allocation failed");
++            add_sampler_stages(sampler.get(),gp.sampling(),vocab); // same sampler stages as ordinary Session
++            struct Batch {
++                llama_batch value;
++                explicit Batch(int n):value(llama_batch_init(n,0,1)) {
++                    if(!value.token || !value.pos || !value.n_seq_id || !value.seq_id || !value.logits){llama_batch_free(value);throw std::bad_alloc();}
++                }
++                ~Batch(){llama_batch_free(value);}
++            } batch(static_cast<int>(std::min<size_t>(tokens.size(),owner_->batch_length())));
++            auto decode=[&](const llama_token* ids,size_t n,size_t position){
++                if(gp.abort_flag && gp.abort_flag->load())throw std::runtime_error("turn cancelled");
++                batch.value.n_tokens=static_cast<int32_t>(n);
++                for(size_t i=0;i<n;++i){
++                    batch.value.token[i]=ids[i];batch.value.pos[i]=static_cast<llama_pos>(position+i);
++                    batch.value.n_seq_id[i]=1;batch.value.seq_id[i][0]=0;batch.value.logits[i]=(i+1==n);
++                }
++                if(owner_->decode(batch.value,gp.abort_flag)!=0)throw std::runtime_error("terminal expert decode failure");
++            };
++            const auto start=std::chrono::steady_clock::now();
++            for(size_t p=0;p<tokens.size();){size_t n=std::min<size_t>(owner_->batch_length(),tokens.size()-p);decode(tokens.data()+p,n,p);p+=n;}
++            const auto prefilled=std::chrono::steady_clock::now();
++            result.n_prompt=result.n_p_eval=static_cast<int>(tokens.size());
++            result.t_p_eval_ms=std::chrono::duration<double,std::milli>(prefilled-start).count();
++            for(int i=0;i<gp.n_predict;++i){
++                if(gp.abort_flag && gp.abort_flag->load())throw std::runtime_error("turn cancelled");
++                const llama_token token=owner_->sample(sampler.get());
++                if(llama_vocab_is_eog(vocab,token))break;
++                std::string piece=owner_->piece(token);result.output_text+=piece;++result.n_eval;
++                if(result.n_eval==1)result.t_first_token_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
++                bool stopped=false;
++                for(const auto& stop:gp.stop_sequences){
++                    if(stop.empty())continue;
++                    const auto at=result.output_text.find(stop);
++                    if(at!=std::string::npos){result.output_text.resize(at);result.ended_with_stop=true;stopped=true;break;}
++                }
++                if(stopped)break;
++                // Enabled expert mode publishes only a completed successful turn.
++                // llama_sampler_sample already accepts the token in the pinned API.
++                if(i+1<gp.n_predict)decode(&token,1,tokens.size()+static_cast<size_t>(i));
++            }
++            result.t_eval_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-prefilled).count();
++            if(gp.on_token && !result.output_text.empty())gp.on_token(result.output_text);
++            result.success=true;
++        }catch(const std::exception& e){
++            owner_->invalidate(e.what());result.success=false;result.output_text.clear();result.error_msg=e.what();
++        }catch(...){
++            owner_->invalidate("unknown Session failure");result.success=false;result.output_text.clear();result.error_msg="unknown expert Session failure";
++        }
++        return result;
++    }
++};
++
+--- /dev/null
++++ b/src/bridge/cpu_expert_session.cpp
+@@ -0,0 +1,118 @@
++#include "xllama/cpu_expert_session.h"
++#include "llama-context.h"
++#include "llama-model.h"
++#include "ggml-cpu.h"
++#include <stdexcept>
++#include <cstdio>
++#include <climits>
++namespace xllama {
++void CpuExpertSession::latch_failure(const char*s) noexcept {
++ if(!first_failure_[0])std::snprintf(first_failure_,sizeof(first_failure_),"%s",s?s:"expert failure");
++}
++bool CpuExpertSession::should_abort(void*p) noexcept{auto*o=static_cast<CpuExpertSession*>(p);return o->stop_.load(std::memory_order_acquire)||(o->turn_abort_&&o->turn_abort_->load());}
++std::shared_ptr<CpuExpertSession> CpuExpertSession::open_if_requested(const CpuExpertOptIn*opt){
++ if(!opt || !opt->enabled)return {}; // ordinary caller factory path remains untouched
++ if(!opt->admitted_source || !opt->admit_budget)throw std::invalid_argument("explicit source and app budget admission required");
++ if(!opt->context.n_ctx || opt->context.offload_kqv || opt->context.op_offload || opt->context.flash_attn_type!=LLAMA_FLASH_ATTN_TYPE_DISABLED || opt->context.n_threads<=0 || opt->context.n_threads_batch<=0)throw std::invalid_argument("explicit CPU/context policy required");
++ auto out=std::shared_ptr<CpuExpertSession>(new CpuExpertSession());
++ try{
++  auto candidate=opt->admitted_source();
++  if(!candidate.file || !candidate.file_anchor || !candidate.admission_anchor || !candidate.validate_binding || !candidate.control || !candidate.make_reader || !candidate.admission.bytes || candidate.admission.sha256.size()!=64 || candidate.admission.identity.empty())throw std::invalid_argument("incomplete Windows admission");
++  out->input_=std::make_shared<ua50::uwp::WindowsInputCandidate>(std::move(candidate));
++  auto input=out->input_;input->validate_binding(input->file);
++  auto plan=ua50::inspect_expert_input(input->file,opt->slots);
++  if(!plan.full_payload || plan.available_file_bytes!=input->admission.bytes || plan.cache_owned_bytes>opt->cache_ceiling || plan.stage_bytes>opt->stage_ceiling)throw std::invalid_argument("expert full payload/component budget refused");
++  opt->admit_budget(plan,opt->context); // mandatory BEFORE model/context allocation
++  ua50::OwnedExpertLoad owned;owned.slots=opt->slots;owned.cache_ceiling=opt->cache_ceiling;owned.stage_ceiling=opt->stage_ceiling;
++  owned.input.file=input->file;owned.input.file_anchor=input->file_anchor;
++  owned.input.contract=ua50::InputContract::windows_held_verified;
++  owned.input.admission_anchor=input->admission_anchor;owned.input.validate_binding=input->validate_binding;
++  owned.input.make_reader=[input](size_t stage)->std::shared_ptr<ua50::Reader>{return input->make_reader(stage);};
++  out->model_.reset(ua50::load_owned_experts(owned,opt->model)); // common factory installs BEFORE load_tensors
++  if(!out->model_)throw std::runtime_error("owned common model load refused");
++  out->context_.reset(llama_init_from_model(out->model_.get(),opt->context));
++  if(!out->context_)throw std::runtime_error("expert context allocation refused");
++  auto sched=out->context_->get_sched();
++  if(ggml_backend_sched_get_n_backends(sched)!=1 || !ggml_backend_is_cpu(ggml_backend_sched_get_backend(sched,0)))throw std::invalid_argument("one CPU backend required");
++  ggml_backend_cpu_set_use_ref(ggml_backend_sched_get_backend(sched,0),true); // nonfused, not all-scalar
++  llama_set_abort_callback(out->context_.get(),&CpuExpertSession::should_abort,out.get());
++  out->state_.store(State::Ready,std::memory_order_release);return out;
++ }catch(...){out->latch_failure("expert opening refused");out->state_.store(State::Invalid);out->close();throw;}
++}
++CpuExpertSession::~CpuExpertSession(){(void)close();}
++void CpuExpertSession::begin_fresh_turn(){
++ auto keep_alive=shared_from_this();State expected=State::Ready;
++ if(!state_.compare_exchange_strong(expected,State::Decoding))throw std::logic_error("invalid expert turn owner");
++ try{
++  if(stop_.load())throw std::runtime_error("expert owner stopped");
++  llama_synchronize(context_.get());llama_memory_clear(llama_get_memory(context_.get()),true);
++  state_.store(State::Ready,std::memory_order_release);
++ }catch(...){latch_failure("fresh turn reset failed");state_.store(State::Invalid);close();throw;}
++}
++int CpuExpertSession::decode(llama_batch batch,std::atomic<bool>* turn_abort){
++ auto keep_alive=shared_from_this(); // last external owner cannot destroy an active decode
++ State expected=State::Ready;
++ if(!state_.compare_exchange_strong(expected,State::Decoding))throw std::logic_error("expert owner not ready; fresh admission required");
++ try{
++  if(stop_.load())throw std::runtime_error("expert owner stopped");
++  turn_abort_=turn_abort;
++  int rc=llama_decode(context_.get(),batch);llama_synchronize(context_.get());
++  const bool cancelled=should_abort(this);turn_abort_=nullptr;
++  auto model=dynamic_cast<llama_model_base*>(model_.get());auto provider=model?model->expert_provider():nullptr;
++  if(!provider || provider->active_leases())throw std::runtime_error("expert graph lease barrier incomplete");
++  if(provider->error()[0]){latch_failure(provider->error());throw std::runtime_error("expert provider terminal failure");}
++  if(rc || cancelled){
++   latch_failure(cancelled?"expert cancellation":"native decode nonzero; no continuation");state_.store(State::Invalid);close();return rc?rc:2;
++  }
++  state_.store(State::Ready,std::memory_order_release);return 0;
++ }catch(...){turn_abort_=nullptr;latch_failure("expert decode exception; no continuation");state_.store(State::Invalid);close();throw;}
++}
++void CpuExpertSession::request_stop() noexcept{
++ stop_.store(true,std::memory_order_release);
++ auto input=std::atomic_load(&input_);if(input&&input->control)input->control->request_stop();
++}
++bool CpuExpertSession::close() noexcept{
++ State s=state_.load();
++ for(;;){if(s==State::Closed)return true;if(s==State::Decoding || s==State::Closing)return false;if(state_.compare_exchange_weak(s,State::Closing))break;}
++ request_stop();
++ if(context_)llama_synchronize(context_.get()); // wait graph workers before their buffers are released
++ auto input=std::atomic_load(&input_);if(input&&input->control)input->control->drain_to_terminal(); // may block forever; never early-free pending I/O
++ context_.reset();model_.reset(); // provider/Reader destroyed before admission/file anchors
++ std::atomic_store(&input_,std::shared_ptr<ua50::uwp::WindowsInputCandidate>{});input.reset();
++ state_.store(State::Closed,std::memory_order_release);return true;
++}
++const llama_model* CpuExpertSession::model_view() const{
++ if(state()!=State::Ready || stop_.load())throw std::logic_error("invalid expert model view");
++ return model_.get();
++}
++uint32_t CpuExpertSession::context_length() const{model_view();return llama_n_ctx(context_.get());}
++uint32_t CpuExpertSession::batch_length() const{model_view();return llama_n_batch(context_.get());}
++std::vector<llama_token> CpuExpertSession::tokenize(const std::string&s) const{
++ const auto*v=llama_model_get_vocab(model_view());
++ if(s.size()>INT32_MAX)throw std::length_error("prompt bytes overflow");
++ int n=llama_tokenize(v,s.data(),static_cast<int32_t>(s.size()),nullptr,0,true,true);
++ if(n==INT32_MIN || n>=0)throw std::runtime_error("empty or invalid tokenization");
++ std::vector<llama_token> out(static_cast<size_t>(-n));
++ int got=llama_tokenize(v,s.data(),static_cast<int32_t>(s.size()),out.data(),-n,true,true);
++ if(got<0 || got>-n)throw std::runtime_error("tokenization changed");
++ out.resize(got);return out;
++}
++std::string CpuExpertSession::piece(llama_token t,bool special) const{
++ const auto*v=llama_model_get_vocab(model_view());char small[256];
++ int n=llama_token_to_piece(v,t,small,sizeof(small),0,special);
++ if(n>=0)return std::string(small,n);
++ if(n==INT32_MIN)throw std::runtime_error("piece overflow");
++ std::string out(static_cast<size_t>(-n),'\0');int got=llama_token_to_piece(v,t,out.data(),-n,0,special);
++ if(got<0 || got>-n)throw std::runtime_error("piece changed");
++ out.resize(got);return out;
++}
++llama_token CpuExpertSession::sample(llama_sampler*s){
++ model_view();if(!s)throw std::invalid_argument("missing sampler");
++ return llama_sampler_sample(s,context_.get(),-1); // raw context stays inside owning controller
++}
++void CpuExpertSession::invalidate(const char*why) noexcept{
++ latch_failure(why);request_stop();State s=state();
++ if(s==State::Ready || s==State::Opening)state_.store(State::Invalid);
++ (void)close();
++}
++}
+--- /dev/null
++++ b/src/bridge/held_file_sha256_win.cpp
+@@ -0,0 +1,66 @@
++#if !defined(_WIN32)
++#error "Windows BCrypt source candidate requires Windows/UWP validation"
++#endif
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#include <windows.h>
++#include <bcrypt.h>
++#include "xllama/cpu_expert_session.h"
++#include <array>
++#include <vector>
++#include <algorithm>
++#include <limits>
++#include <utility>
++#include <stdexcept>
++namespace xllama {
++namespace {
++void checked(NTSTATUS status){if(status<0)throw std::runtime_error("BCrypt SHA256 failed");}
++struct Algorithm{BCRYPT_ALG_HANDLE p=nullptr;~Algorithm(){if(p)BCryptCloseAlgorithmProvider(p,0);}};
++// Hash handle dies before its backing object storage. No whole-file allocation.
++struct Hash{std::vector<unsigned char> object;BCRYPT_HASH_HANDLE p=nullptr;~Hash(){if(p)BCryptDestroyHash(p);}};
++struct Position{FILE*f;fpos_t pos;explicit Position(FILE*v):f(v){if(!f || fgetpos(f,&pos))throw std::runtime_error("held SHA position");}~Position(){fsetpos(f,&pos);}};
++}
++ua50::uwp::ValidateHeldFile make_held_sha256_validator(
++ const ua50::uwp::ExpectedFile& expected,std::function<bool()> stop,ua50::uwp::Clock::time_point deadline){
++ if(!expected.bytes || expected.bytes>uint64_t(INT64_MAX) || expected.sha256.size()!=64 || !stop || deadline<=ua50::uwp::Clock::now() || !std::all_of(expected.sha256.begin(),expected.sha256.end(),[](char c){return(c>='0'&&c<='9')||(c>='a'&&c<='f');}))throw std::invalid_argument("trusted exact bytes/SHA/deadline/stop required");
++ return [expected,stop,deadline](FILE*file,uint64_t admitted_bytes)->ua50::uwp::ValidationResult{
++  if(admitted_bytes!=expected.bytes)throw std::invalid_argument("held SHA expected byte mismatch");
++  auto gate=[&]{if(stop() || ua50::uwp::Clock::now()>=deadline)throw std::runtime_error("held SHA stopped/deadline");};
++  gate();Position saved(file);if(_fseeki64(file,0,SEEK_SET))throw std::runtime_error("held SHA rewind");
++  Algorithm algorithm;checked(BCryptOpenAlgorithmProvider(&algorithm.p,BCRYPT_SHA256_ALGORITHM,nullptr,0));
++  DWORD object_bytes=0,hash_bytes=0,got=0;
++  checked(BCryptGetProperty(algorithm.p,BCRYPT_OBJECT_LENGTH,reinterpret_cast<PUCHAR>(&object_bytes),sizeof(object_bytes),&got,0));
++  if(got!=sizeof(object_bytes) || !object_bytes || object_bytes>65536)throw std::runtime_error("bounded BCrypt object refused");
++  checked(BCryptGetProperty(algorithm.p,BCRYPT_HASH_LENGTH,reinterpret_cast<PUCHAR>(&hash_bytes),sizeof(hash_bytes),&got,0));
++  if(got!=sizeof(hash_bytes) || hash_bytes!=32)throw std::runtime_error("SHA256 length refused");
++  Hash hash;hash.object.resize(object_bytes);checked(BCryptCreateHash(algorithm.p,&hash.p,hash.object.data(),object_bytes,nullptr,0,0));
++  std::array<unsigned char,65536> chunk{};uint64_t count=0;
++  while(count<expected.bytes){
++   gate();const size_t want=size_t(std::min<uint64_t>(chunk.size(),expected.bytes-count));
++   const size_t n=fread(chunk.data(),1,want,file);
++   if(n!=want || ferror(file))throw std::runtime_error("held SHA short/error read");
++   checked(BCryptHashData(hash.p,chunk.data(),ULONG(n),0));count+=n;
++  }
++  gate();unsigned char extra=0;if(fread(&extra,1,1,file)!=0 || ferror(file))throw std::runtime_error("held SHA trailing bytes/error");
++  std::array<unsigned char,32> sum{};checked(BCryptFinishHash(hash.p,sum.data(),ULONG(sum.size()),0));
++  static constexpr char digits[]="0123456789abcdef";std::string hex;hex.reserve(64);
++  for(auto v:sum){hex.push_back(digits[v>>4]);hex.push_back(digits[v&15]);}
++  gate();if(count!=expected.bytes || hex!=expected.sha256)throw std::runtime_error("full held SHA mismatch");
++  if(fsetpos(file,&saved.pos))throw std::runtime_error("held SHA restore");
++  return {count,std::move(hex)};
++ };
++}
++std::function<ua50::uwp::WindowsInputCandidate()> make_windows_expert_source(
++ const std::wstring& path,const ua50::uwp::ExpectedFile& expected,
++ std::shared_ptr<std::atomic<bool>> stop,ua50::uwp::Clock::time_point deadline,size_t stage_ceiling){
++ if(path.empty() || !stop || !stage_ceiling || stage_ceiling>4u*1024u*1024u)throw std::invalid_argument("trusted local source/control/stage required");
++ // This binds the implemented full-held SHA callback, not a caller's receipt claim.
++ auto validate=make_held_sha256_validator(expected,[stop]{return stop->load(std::memory_order_acquire);},deadline);
++ return [path,expected,stop,deadline,stage_ceiling,validate]{
++  if(stop->load(std::memory_order_acquire))throw std::runtime_error("source stopped before open");
++  return ua50::uwp::open_windows_input_candidate(path,expected,validate,deadline,stage_ceiling);
++ };
++}
++
++}
+--- a/src/bridge/session.cpp
++++ b/src/bridge/session.cpp
+@@ -434,6 +434,10 @@
+ #ifdef XLLAMA_USE_LLAMA
+ 
+     #include "llama.h"
++    #ifdef XLLAMA_UWP
++    #include "xllama/cpu_expert_session.h"
++    #include <stdexcept>
++    #endif
+ 
+     #include "decode_loop.h" // shared prefill + generation loops; needs llama.h
+     #include "llama_gpu.h"
+@@ -443,6 +447,10 @@
+     #include <vector>
+ 
+ namespace xllama {
++
++#ifdef XLLAMA_UWP
++#include "cpu_expert_app_session.inc"
++#endif
+ 
+ class LlamaSession final : public Session {
+   public:
+@@ -1338,23 +1346,7 @@
+ // ---------------------------------------------------------------------------
+ namespace xllama {
+ 
+-std::unique_ptr<Session> Session::create(const SessionParams& sp, std::string* err) {
+-#if defined(XLLAMA_USE_ORT) && defined(XLLAMA_USE_LLAMA)
+-    Backend b = sp.backend;
+-    if (b == Backend::Auto) {
+-        // Layout-aware: uses suffix fast-path + resolve + directory scan so that
+-        // bare catalogue names (e.g. "qwen35-0.8b" pointing at a dir with .gguf)
+-        // are classified correctly. Explicit Backend from manifest (MainPage) or
+-        // tests still takes precedence.
+-        b = model_uses_llama_backend(sp.model_path) ? Backend::LlamaCpp : Backend::OrtGenAI;
+-    }
+-    return b == Backend::LlamaCpp ? detail::create_llama(sp, err) : detail::create_ort(sp, err);
+-#elif defined(XLLAMA_USE_ORT)
+-    return detail::create_ort(sp, err);
+-#else // XLLAMA_USE_LLAMA
+-    return detail::create_llama(sp, err);
+-#endif
+-}
++#include "session_factory.inc"
+ 
+ SessionHub& session_hub() {
+     static SessionHub hub;
+--- /dev/null
++++ b/src/bridge/session_factory.inc
+@@ -0,0 +1,49 @@
++bool Session::expert_requested(const SessionParams& sp) noexcept {
++#if defined(XLLAMA_UWP) && defined(XLLAMA_USE_LLAMA)
++    return sp.cpu_experts && sp.cpu_experts->enabled;
++#else
++    (void)sp;
++    return false;
++#endif
++}
++
++std::unique_ptr<Session> Session::create(const SessionParams& sp, std::string* err) {
++    if(sp.cpu_experts) {
++#if defined(XLLAMA_UWP) && defined(XLLAMA_USE_LLAMA)
++        if(sp.cpu_experts->enabled) {
++            try {
++                if(sp.backend!=Backend::LlamaCpp || sp.n_gpu_layers!=0 || !sp.lora_path.empty() || sp.kv_q8 || sp.prompt_lookup || sp.n_ctx<=0 ||
++                   static_cast<uint32_t>(sp.n_ctx)!=sp.cpu_experts->context.n_ctx || sp.n_threads!=sp.cpu_experts->context.n_threads ||
++                   (sp.n_batch>0 && static_cast<uint32_t>(sp.n_batch)!=sp.cpu_experts->context.n_batch) ||
++                   (sp.n_ubatch>0 && static_cast<uint32_t>(sp.n_ubatch)!=sp.cpu_experts->context.n_ubatch))
++                    throw std::invalid_argument("expert Session load policy mismatch");
++                auto owner=CpuExpertSession::open_if_requested(sp.cpu_experts.get());
++                if(!owner)throw std::runtime_error("enabled expert owner absent");
++                return std::make_unique<CpuExpertAppSession>(std::move(owner));
++            }catch(const std::exception& e){if(err)*err=e.what();return nullptr;}
++            catch(...){if(err)*err="unknown expert opening failure";return nullptr;}
++        }
++#else
++        // Non-null opt-in cannot silently select an unsupported backend/build.
++        if(err)*err="CPU expert input is unsupported by this build";
++        return nullptr;
++#endif
++    }
++
++#if defined(XLLAMA_USE_ORT) && defined(XLLAMA_USE_LLAMA)
++    Backend b = sp.backend;
++    if (b == Backend::Auto) {
++        // Layout-aware: uses suffix fast-path + resolve + directory scan so that
++        // bare catalogue names (e.g. "qwen35-0.8b" pointing at a dir with .gguf)
++        // are classified correctly. Explicit Backend from manifest (MainPage) or
++        // tests still takes precedence.
++        b = model_uses_llama_backend(sp.model_path) ? Backend::LlamaCpp : Backend::OrtGenAI;
++    }
++    return b == Backend::LlamaCpp ? detail::create_llama(sp, err) : detail::create_ort(sp, err);
++#elif defined(XLLAMA_USE_ORT)
++    return detail::create_ort(sp, err);
++#else // XLLAMA_USE_LLAMA
++    return detail::create_llama(sp, err);
++#endif
++}
++
+--- /dev/null
++++ b/src/platform/ua50/staged_reader_core.h
+@@ -0,0 +1,108 @@
++#pragma once
++#include <atomic>
++#include <chrono>
++#include <cstddef>
++#include <cstdint>
++#include <cstring>
++#include <mutex>
++#include <stdexcept>
++#include <utility>
++#include <vector>
++
++namespace ua50::uwp {
++using Clock = std::chrono::steady_clock;
++enum class Cause { none, stopped, deadline, io, short_read, identity, protocol };
++// Pending + error means completion is UNKNOWN: cancel and keep polling, never free.
++struct IoResult { bool terminal; size_t bytes; uint32_t error; };
++struct Ledger {
++    uint64_t submissions=0, terminal_operations=0, terminal_bytes=0;
++    uint64_t polls=0, cancellations=0, commits=0;
++    uint32_t first_native_error=0;
++};
++
++// Backend start/poll/cancel/identity must be noexcept. A pending operation must
++// eventually be reported terminal by the backend; there is NO hard drain deadline.
++// This is the algorithm used by the Windows adapter, also exercised with fake I/O.
++template<class Backend> class StagedReaderCore {
++    static size_t checked_stage(size_t bytes) {
++        if(!bytes || bytes>4u*1024u*1024u) throw std::invalid_argument("bounded stage");
++        return bytes;
++    }
++    Backend backend_; // holds file/event longer than stage storage
++    std::vector<unsigned char> stage_;
++    const uint64_t file_bytes_;
++    const Clock::time_point deadline_;
++    std::atomic<bool> stopped_{false};
++    std::mutex read_mutex_;
++    Cause cause_=Cause::none;
++    Ledger ledger_{};
++    void latch(Cause cause) noexcept { if (cause_==Cause::none) cause_=cause; }
++    void check_stop() noexcept {
++        if (stopped_.load(std::memory_order_acquire)) latch(Cause::stopped);
++        if (Clock::now()>=deadline_) latch(Cause::deadline);
++    }
++    [[noreturn]] void fail() const { throw std::runtime_error("UWP staged Reader failed; session invalid"); }
++public:
++    StagedReaderCore(Backend backend, uint64_t file_bytes, size_t stage_bytes,
++                     Clock::time_point deadline)
++        :backend_(std::move(backend)),stage_(checked_stage(stage_bytes)),file_bytes_(file_bytes),deadline_(deadline) {
++        if (!file_bytes || !stage_bytes || stage_bytes>4u*1024u*1024u || deadline<=Clock::now())
++            throw std::invalid_argument("bounded Reader size/deadline");
++    }
++    StagedReaderCore(const StagedReaderCore&)=delete;
++    StagedReaderCore& operator=(const StagedReaderCore&)=delete;
++    void request_stop() noexcept { stopped_.store(true,std::memory_order_release); }
++    void drain_to_terminal() noexcept {
++        request_stop();
++        // A read owns this lock through actual completion and commit/refusal.
++        // May block indefinitely on failed native cancellation. Never release early.
++        std::lock_guard<std::mutex> guard(read_mutex_);
++    }
++    // Caller may inspect only after read has returned / graph workers drained.
++    const Ledger& ledger_after_drain() const noexcept { return ledger_; }
++    Cause cause_after_drain() const noexcept { return cause_; }
++    size_t stage_bytes() const noexcept { return stage_.size(); }
++
++    size_t read(uint64_t offset, unsigned char* destination, size_t bytes) {
++        std::unique_lock<std::mutex> lock(read_mutex_,std::try_to_lock);
++        if (!lock.owns_lock()) throw std::logic_error("Reader coordinator must be serialized");
++        check_stop();
++        if (cause_!=Cause::none) fail();
++        if (!destination || bytes>stage_.size() || offset>file_bytes_ || bytes>file_bytes_-offset)
++            { latch(Cause::protocol); fail(); }
++        if (!backend_.identity()) { latch(Cause::identity); fail(); }
++        if (!bytes) return 0;
++        ++ledger_.submissions;
++        IoResult result=backend_.start(offset,stage_.data(),bytes);
++        bool cancelled=false;
++        while (!result.terminal) {
++            if (result.error) {
++                if(!ledger_.first_native_error) ledger_.first_native_error=result.error;
++                latch(Cause::protocol);
++            }
++            check_stop();
++            if (cause_!=Cause::none && !cancelled) {
++                ++ledger_.cancellations;
++                backend_.cancel(); // request only; return code is NOT completion
++                cancelled=true;
++            }
++            ++ledger_.polls;
++            result=backend_.poll(50); // retain stage/OVERLAPPED/event/file on every timeout
++        }
++        ++ledger_.terminal_operations;
++        ledger_.terminal_bytes+=result.bytes; // logical completed bytes, NOT physical SSD traffic
++        if (result.error) {
++            if(!ledger_.first_native_error) ledger_.first_native_error=result.error;
++            latch(Cause::io);
++        }
++        if (result.bytes!=bytes) latch(Cause::short_read);
++        check_stop();
++        if (!backend_.identity()) latch(Cause::identity);
++        if (cause_!=Cause::none) fail();
++        // No partial, failed, cancelled, expired or identity-changed bytes reach caller.
++        std::memcpy(destination,stage_.data(),bytes);
++        ++ledger_.commits;
++        return bytes;
++    }
++};
++} // namespace ua50::uwp
+--- /dev/null
++++ b/src/platform/ua50/windows_held_reader.cpp
+@@ -0,0 +1,210 @@
++#if !defined(_WIN32)
++#error "Windows implementation requires Windows/UWP SDK; portable tests cover only staged_reader_core.h"
++#endif
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#include <windows.h>
++#include <io.h>
++#include <fcntl.h>
++#include <algorithm>
++#include <iomanip>
++#include <sstream>
++#include <system_error>
++#include "windows_held_reader.h"
++
++namespace ua50::uwp {
++namespace {
++[[noreturn]] void winfail(const char* what) {
++    throw std::system_error(static_cast<int>(GetLastError()),std::system_category(),what);
++}
++struct Handle {
++    HANDLE value=INVALID_HANDLE_VALUE;
++    Handle()=default;
++    explicit Handle(HANDLE h):value(h){}
++    Handle(Handle&& o) noexcept:value(o.release()){}
++    Handle& operator=(Handle&& o) noexcept {
++        if(this!=&o) {
++            if(value!=INVALID_HANDLE_VALUE && value!=nullptr) CloseHandle(value);
++            value=o.release();
++        }
++        return *this;
++    }
++    Handle(const Handle&)=delete;
++    Handle& operator=(const Handle&)=delete;
++    ~Handle(){ if(value!=INVALID_HANDLE_VALUE && value!=nullptr) CloseHandle(value); }
++    HANDLE release() noexcept { auto h=value;value=INVALID_HANDLE_VALUE;return h; }
++};
++struct Identity {
++    FILE_ID_INFO id{};
++    FILE_STANDARD_INFO standard{};
++    FILE_BASIC_INFO basic{};
++};
++bool inspect(HANDLE h,Identity& out) noexcept {
++    FILE_ATTRIBUTE_TAG_INFO tag{};
++    return GetFileType(h)==FILE_TYPE_DISK &&
++        GetFileInformationByHandleEx(h,FileIdInfo,&out.id,sizeof(out.id)) &&
++        GetFileInformationByHandleEx(h,FileStandardInfo,&out.standard,sizeof(out.standard)) &&
++        GetFileInformationByHandleEx(h,FileBasicInfo,&out.basic,sizeof(out.basic)) &&
++        GetFileInformationByHandleEx(h,FileAttributeTagInfo,&tag,sizeof(tag)) &&
++        !(tag.FileAttributes&(FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DIRECTORY)) &&
++        !out.standard.Directory && !out.standard.DeletePending &&
++        out.standard.NumberOfLinks==1 && out.standard.EndOfFile.QuadPart>0;
++}
++bool same(const Identity& a,const Identity& b) noexcept {
++    return a.id.VolumeSerialNumber==b.id.VolumeSerialNumber &&
++        std::memcmp(a.id.FileId.Identifier,b.id.FileId.Identifier,sizeof(a.id.FileId.Identifier))==0 &&
++        a.standard.EndOfFile.QuadPart==b.standard.EndOfFile.QuadPart &&
++        a.basic.CreationTime.QuadPart==b.basic.CreationTime.QuadPart &&
++        a.basic.LastWriteTime.QuadPart==b.basic.LastWriteTime.QuadPart &&
++        a.basic.ChangeTime.QuadPart==b.basic.ChangeTime.QuadPart;
++}
++struct FileOwner final : WindowsInputControl {
++    FILE* file=nullptr;
++    Handle async_file;
++    Identity identity{};
++    std::mutex factory_mutex;
++    bool reader_created=false;
++    std::atomic<bool> stopping{false};
++    std::weak_ptr<WindowsReader> reader;
++    ~FileOwner(){ if(file) std::fclose(file); }
++    bool stable() const noexcept {
++        Identity a{},b{};
++        auto sync=reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(file)));
++        return inspect(sync,a) && inspect(async_file.value,b) &&
++            same(a,identity) && same(b,identity);
++    }
++    void request_stop() noexcept override {
++        stopping.store(true,std::memory_order_release);
++        std::shared_ptr<WindowsReader> live;
++        { std::lock_guard<std::mutex> guard(factory_mutex);live=reader.lock(); }
++        if(live) live->request_stop();
++    }
++    void drain_to_terminal() noexcept override {
++        request_stop();
++        std::shared_ptr<WindowsReader> live;
++        { std::lock_guard<std::mutex> guard(factory_mutex);live=reader.lock(); }
++        if(live) live->drain_to_terminal();
++    }
++};
++class WindowsIo {
++    std::shared_ptr<FileOwner> file_;
++    Handle event_;
++    OVERLAPPED operation_{};
++    bool pending_=false;
++public:
++    explicit WindowsIo(std::shared_ptr<FileOwner> file):file_(std::move(file)),
++        event_(CreateEventExW(nullptr,nullptr,CREATE_EVENT_MANUAL_RESET,EVENT_ALL_ACCESS)) {
++        if(!event_.value) winfail("CreateEventExW");
++    }
++    WindowsIo(WindowsIo&&)=default;
++    WindowsIo(const WindowsIo&)=delete;
++    bool identity() const noexcept { return !pending_ && file_->stable(); }
++    IoResult start(uint64_t offset,unsigned char* stage,size_t bytes) noexcept {
++        if(pending_ || bytes>MAXDWORD) return {true,0,ERROR_INVALID_PARAMETER};
++        if(!ResetEvent(event_.value)) return {true,0,GetLastError()};
++        operation_={};operation_.Offset=static_cast<DWORD>(offset);
++        operation_.OffsetHigh=static_cast<DWORD>(offset>>32);operation_.hEvent=event_.value;
++        // For asynchronous handles, ReadFile's byte-count pointer is NULL.
++        // Even immediate success is collected through the same completion path.
++        if(ReadFile(file_->async_file.value,stage,static_cast<DWORD>(bytes),nullptr,&operation_)) {
++            pending_=true;return {false,0,0};
++        }
++        const DWORD error=GetLastError();
++        if(error!=ERROR_IO_PENDING) return {true,0,error};
++        pending_=true;return {false,0,0};
++    }
++    void cancel() noexcept {
++        // ERROR_NOT_FOUND can race completion; neither it nor success is a drain proof.
++        if(pending_) (void)CancelIoEx(file_->async_file.value,&operation_);
++    }
++    IoResult poll(uint32_t milliseconds) noexcept {
++        DWORD done=0;
++        if(GetOverlappedResultEx(file_->async_file.value,&operation_,&done,milliseconds,FALSE)) {
++            pending_=false;return {true,done,0};
++        }
++        const DWORD error=GetLastError();
++        if(error==WAIT_TIMEOUT || error==ERROR_IO_INCOMPLETE || error==WAIT_IO_COMPLETION)
++            return {false,0,0};
++        // Only the kernel-signalled, private manual-reset event permits error
++        // completion. Unexpected API/wait failure with no signal stays UNKNOWN.
++        if(WaitForSingleObjectEx(event_.value,0,FALSE)==WAIT_OBJECT_0) {
++            pending_=false;return {true,done,error};
++        }
++        return {false,0,error?error:ERROR_INVALID_DATA};
++    }
++};
++class PlatformReader final : public WindowsReader {
++    StagedReaderCore<WindowsIo> core_;
++public:
++    PlatformReader(std::shared_ptr<FileOwner> file,size_t stage,Clock::time_point deadline)
++        :core_(WindowsIo(file),static_cast<uint64_t>(file->identity.standard.EndOfFile.QuadPart),stage,deadline){}
++    size_t read(uint64_t offset,unsigned char* destination,size_t bytes) override {
++        auto keep_alive=shared_from_this();
++        return core_.read(offset,destination,bytes);
++    }
++    void request_stop() noexcept override { core_.request_stop(); }
++    void drain_to_terminal() noexcept override { core_.drain_to_terminal(); }
++    Ledger ledger_after_drain() const override { return core_.ledger_after_drain(); }
++    Cause cause_after_drain() const override { return core_.cause_after_drain(); }
++};
++Handle open_file(const std::wstring& path,bool overlapped) {
++    CREATEFILE2_EXTENDED_PARAMETERS p{};p.dwSize=sizeof(p);
++    p.dwFileAttributes=FILE_ATTRIBUTE_NORMAL;
++    p.dwFileFlags=FILE_FLAG_OPEN_REPARSE_POINT|(overlapped?FILE_FLAG_OVERLAPPED:0);
++    Handle result(CreateFile2(path.c_str(),GENERIC_READ,FILE_SHARE_READ,OPEN_EXISTING,&p));
++    if(result.value==INVALID_HANDLE_VALUE) winfail("CreateFile2 read/share-read");
++    return result;
++}
++} // namespace
++WindowsInputCandidate open_windows_input_candidate(
++    const std::wstring& path,const ExpectedFile& expected,const ValidateHeldFile& validate,
++    Clock::time_point deadline,size_t stage_ceiling) {
++    if(path.empty() || !expected.bytes || expected.sha256.size()!=64 || !validate ||
++       !stage_ceiling || stage_ceiling>4u*1024u*1024u || deadline<=Clock::now() ||
++       !std::all_of(expected.sha256.begin(),expected.sha256.end(),[](char c){return
++           (c>='0'&&c<='9')||(c>='a'&&c<='f');}))
++        throw std::invalid_argument("explicit Windows held-source admission required");
++    auto owner=std::make_shared<FileOwner>();
++    auto sync=open_file(path,false);
++    owner->async_file=open_file(path,true);
++    Identity second{};
++    if(!inspect(sync.value,owner->identity) || !inspect(owner->async_file.value,second) ||
++       !same(owner->identity,second) ||
++       static_cast<uint64_t>(owner->identity.standard.EndOfFile.QuadPart)!=expected.bytes)
++        throw std::runtime_error("held loader/Reader files do not match expected identity/size");
++    const int fd=_open_osfhandle(reinterpret_cast<intptr_t>(sync.value),_O_RDONLY|_O_BINARY);
++    if(fd==-1) throw std::runtime_error("_open_osfhandle");
++    sync.release(); // descriptor now owns original synchronous HANDLE
++    owner->file=_fdopen(fd,"rb");
++    if(!owner->file) { _close(fd);throw std::runtime_error("_fdopen"); }
++    // Hashing is supplied by the trusted admission caller, never pathname re-open.
++    const auto actual=validate(owner->file,expected.bytes);
++    if(actual.bytes_checked!=expected.bytes || actual.sha256!=expected.sha256 ||
++       !owner->stable() || _fseeki64(owner->file,0,SEEK_SET)!=0 || Clock::now()>=deadline)
++        throw std::runtime_error("whole held-file validation failed");
++    std::ostringstream id;id<<std::hex<<owner->identity.id.VolumeSerialNumber<<':';
++    for(auto v:owner->identity.id.FileId.Identifier)
++        id<<std::setw(2)<<std::setfill('0')<<static_cast<unsigned>(v);
++    WindowsInputCandidate result;
++    result.file=owner->file;result.file_anchor=owner;
++    result.admission_anchor=owner;result.control=owner;
++    result.admission={expected.bytes,expected.sha256,id.str()};
++    result.validate_binding=[owner,deadline](FILE* file) {
++        if(file!=owner->file || owner->stopping.load(std::memory_order_acquire) ||
++           Clock::now()>=deadline || !owner->stable())
++            throw std::runtime_error("Windows held binding invalid or expired");
++    };
++    result.make_reader=[owner,deadline,stage_ceiling](size_t required)->std::shared_ptr<WindowsReader> {
++        std::lock_guard<std::mutex> guard(owner->factory_mutex);
++        if(owner->reader_created || owner->stopping.load(std::memory_order_acquire) ||
++           !required || required>stage_ceiling || !owner->stable())
++            throw std::runtime_error("single bounded Reader admission");
++        owner->reader_created=true;
++        auto reader=std::make_shared<PlatformReader>(owner,required,deadline);
++        owner->reader=reader;
++        return reader;
++    };
++    return result;
++}
++} // namespace ua50::uwp
+--- /dev/null
++++ b/src/platform/ua50/windows_held_reader.h
+@@ -0,0 +1,50 @@
++#pragma once
++#include "expert_cache.h"
++#include "staged_reader_core.h"
++#include <cstdio>
++#include <functional>
++#include <memory>
++#include <string>
++
++namespace ua50::uwp {
++struct ExpectedFile { uint64_t bytes; std::string sha256; };
++struct ValidationResult { uint64_t bytes_checked; std::string sha256; };
++// Mandatory whole-held-FILE validator supplied by trusted app composition.
++// A callback's claim is not cryptographic implementation/acceptance by this adapter.
++using ValidateHeldFile = std::function<ValidationResult(FILE*,uint64_t)>;
++struct WindowsHeldVerifiedAdmission {
++    uint64_t bytes;
++    std::string sha256;
++    std::string identity; // file ID + volume, not pathname identity
++};
++class WindowsReader : public Reader, public std::enable_shared_from_this<WindowsReader> {
++public:
++    virtual void request_stop() noexcept=0;
++    virtual void drain_to_terminal() noexcept=0;
++    virtual Ledger ledger_after_drain() const=0;
++    virtual Cause cause_after_drain() const=0;
++};
++struct WindowsInputControl {
++    virtual ~WindowsInputControl()=default;
++    virtual void request_stop() noexcept=0;
++    virtual void drain_to_terminal() noexcept=0;
++};
++// Explicit platform result, NOT an OwnedExpertInput with a forged Linux contract.
++struct WindowsInputCandidate {
++    FILE* file=nullptr; // borrowed; anchor owns FILE and both native handles
++    std::shared_ptr<void> file_anchor;
++    std::shared_ptr<void> admission_anchor;
++    std::function<void(FILE*)> validate_binding;
++    std::shared_ptr<WindowsInputControl> control;
++    WindowsHeldVerifiedAdmission admission;
++    std::function<std::shared_ptr<WindowsReader>(size_t required_stage)> make_reader;
++};
++// trusted_local_path must come from authenticated app-owned LocalFolder selection,
++// not a LAN string. CreateFile2 applies the AppContainer namespace boundary.
++// Windows sharing != kernel immutability: pre-existing mappings/host/admin writers
++// remain outside this proof. Caller must additionally exclude its own writers.
++WindowsInputCandidate open_windows_input_candidate(
++    const std::wstring& trusted_local_path, const ExpectedFile& expected,
++    const ValidateHeldFile& validate_held, Clock::time_point absolute_deadline,
++    size_t stage_ceiling=4u*1024u*1024u);
++} // namespace ua50::uwp
+--- a/uwp/MainPage.cpp
++++ b/uwp/MainPage.cpp
+@@ -567,7 +567,9 @@
+         std::lock_guard<std::mutex> lk(m_token_mutex);
+         batch = std::move(m_token_buffer);
+     }
+-    if (!batch.empty())
++    // The LFM template prefills <think>; raw partial reasoning is not an answer.
++    // FinalizeStreamedTurn publishes the postprocessed answer at normal completion.
++    if (!batch.empty() && chat_format().gen_suffix != "<think>")
+         AppendOutput(::xllama::utf8_to_wstring(batch));
+ 
+     // Live tok/s counter. Measured from the FIRST TOKEN, not from turn start:
+@@ -3425,7 +3427,9 @@
+     // KV reuse now works for both backends: ORT-GenAI (persistent generator) and
+     // GGUF/llama.cpp (persistent llama_context in LlamaSession). ep_kv_ok still
+     // excludes the DirectML routing model (continuous decoding unsupported there).
+-    const bool ep_kv_ok = ::xllama::kv_reuse_supported_for_model(routed_model);
++    const bool ep_kv_ok = ::xllama::kv_reuse_supported_for_model(routed_model) &&
++                           ::xllama::chat_format_for(routed_model).gen_suffix != "<think>";
++    // LFM always-thinking history strips reasoning, so do not reuse/restore its raw KV.
+     // #169: on the llama backend a trimmed round no longer forces a full
+     // re-prefill — the session evicts the oldest resident tokens (context
+     // shift) when the delta would overflow n_ctx, keeping long chats in the
+@@ -3668,7 +3672,10 @@
+                                                                           : res.error_msg);
+             }
+ 
+-            std::string output_text = fmt.postprocess_output(res.output_text);
++            std::string generated_text = res.output_text;
++            if (fmt.gen_suffix == "<think>" && generated_text.rfind("<think>", 0) != 0)
++                generated_text = "<think>" + generated_text; // opener was prefilled, not sampled
++            std::string output_text = fmt.postprocess_output(std::move(generated_text));
+             bool was_aborted = self->m_abort.load();
+             // A thinking model that spent its whole budget reasoning leaves
+             // NOTHING after postprocess (strip_thinking_blocks drops an unclosed
+--- a/uwp/xllama.vcxproj
++++ b/uwp/xllama.vcxproj
+@@ -322,7 +322,9 @@
+   <!-- xllama shared bridge -->
+   <ItemGroup>
+     <ClCompile Include="..\src\bridge\inference.cpp" />
+-    <ClCompile Include="..\src\bridge\session.cpp" />
++    <ClCompile Include="..\src\bridge\session.cpp">
++      <AdditionalIncludeDirectories>$(ProjectDir)..\llama.cpp\src;$(ProjectDir)..\llama.cpp\src\ua50;$(ProjectDir)..\llama.cpp\ggml\src;$(ProjectDir)..\src\platform\ua50;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
++    </ClCompile>
+     <ClCompile Include="..\src\bridge\embedding.cpp" />
+     <ClCompile Include="..\src\bridge\kv_store.cpp" />
+     <ClCompile Include="..\src\bridge\bench.cpp" />
+@@ -341,6 +343,15 @@
+     <ClCompile Include="..\src\bridge\path_utils.cpp" />
+     <ClCompile Include="..\src\bridge\utf8_utils.cpp" />
+     <ClCompile Include="..\src\bridge\chat_prompt.cpp" />
++    <ClCompile Include="..\src\bridge\cpu_expert_session.cpp" Condition="'$(XllamaBackend)' == 'llamacpp' or '$(XllamaBackend)' == 'unified'">
++      <AdditionalIncludeDirectories>$(ProjectDir)..\llama.cpp\src;$(ProjectDir)..\llama.cpp\src\ua50;$(ProjectDir)..\llama.cpp\ggml\src;$(ProjectDir)..\src\platform\ua50;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
++    </ClCompile>
++    <ClCompile Include="..\src\bridge\held_file_sha256_win.cpp" Condition="'$(XllamaBackend)' == 'llamacpp' or '$(XllamaBackend)' == 'unified'">
++      <AdditionalIncludeDirectories>$(ProjectDir)..\llama.cpp\src;$(ProjectDir)..\llama.cpp\src\ua50;$(ProjectDir)..\llama.cpp\ggml\src;$(ProjectDir)..\src\platform\ua50;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
++    </ClCompile>
++    <ClCompile Include="..\src\platform\ua50\windows_held_reader.cpp" Condition="'$(XllamaBackend)' == 'llamacpp' or '$(XllamaBackend)' == 'unified'">
++      <AdditionalIncludeDirectories>$(ProjectDir)..\llama.cpp\src;$(ProjectDir)..\llama.cpp\src\ua50;$(ProjectDir)..\llama.cpp\ggml\src;$(ProjectDir)..\src\platform\ua50;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
++    </ClCompile>
+     <ClCompile Include="..\src\bridge\prompt_budget.cpp" />
+     <ClCompile Include="..\src\bridge\http_framing.cpp" />
+     <ClCompile Include="..\src\bridge\sse.cpp" />

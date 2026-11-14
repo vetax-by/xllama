@@ -1,0 +1,15 @@
+{
+  "repository": "vetax-by/xllama",
+  "upstream": "gianlucamazza/xllama",
+  "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
+  "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
+  "patch_lock_sha256": "760ed6df52cffcc92de714fd35e1b796d6697ad82e354159f7de73f92c8d2846",
+  "source_bundle_sha256": "6aa3f9f9cd1525ca652f134bfc277eb3c3fc1c552ee893a7f243a6a0c386f89e",
+  "operator_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
+  "source_reviews": {
+    "composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
+    "operator": "ab5c81a17414121e287bce0bcf39b0fc27be4722d2ed9594ed5110a5cee01f8d"
+  },
+  "qualification": "Source composition/admission reviewed; not a Windows build or Xbox acceptance.",
+  "public_metadata_adjustment": "DEPENDENCIES.json omits runner.observed_lines captured tool-installation-path excerpts. Executable scripts, patch lock, four patches and admitted shipping/compiler inventories are unchanged."
+}

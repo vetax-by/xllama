@@ -1,0 +1,54 @@
+{
+  "xllama": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
+  "llama": "d81235049384534c167caea52b85a694f6103d14",
+  "runner": {
+    "label": "windows-2022",
+    "source": "https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md",
+    "readme_blob_sha": "90bb930ac38b51daba5543d126c5bb34cfd12a97",
+    "rolling_image_not_bit_reproducible": true,
+    "public_summary": "Runner label and source/readme identity retained; captured tool-installation paths omitted from public provenance. Actual hosted runner/dependency availability remains unverified."
+  },
+  "action_pins": {
+    "checkout": "11d5960a326750d5838078e36cf38b85af677262",
+    "upload_artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+  },
+  "vendor_release": {
+    "id": 354666967,
+    "tag": "vendor-dlls-v1",
+    "assets": [
+      {
+        "id": 478934573,
+        "name": "onnxruntime-genai.dll",
+        "bytes": 2640384,
+        "digest": "sha256:ec034349a28e41f6bfdce52731533caf7e590bab4e8dc7002bb48b92481f334d",
+        "url": "https://github.com/gianlucamazza/xllama/releases/download/vendor-dlls-v1/onnxruntime-genai.dll"
+      },
+      {
+        "id": 478302465,
+        "name": "onnxruntime.dll",
+        "bytes": 20606464,
+        "digest": "sha256:f3c2e1cc9a61f67db2dbf45bef626e6e299490548fae5f6f22f89d441e77391e",
+        "url": "https://github.com/gianlucamazza/xllama/releases/download/vendor-dlls-v1/onnxruntime.dll"
+      }
+    ]
+  },
+  "nuget": [
+    [
+      "Microsoft.Windows.CppWinRT",
+      "2.0.240405.15"
+    ],
+    [
+      "Microsoft.AI.DirectML",
+      "1.15.4"
+    ],
+    [
+      "Microsoft.ML.OnnxRuntime.DirectML",
+      "1.24.4"
+    ],
+    [
+      "Microsoft.ML.OnnxRuntimeGenAI.DirectML",
+      "0.14.1"
+    ]
+  ],
+  "nuget_qualification": "Version pinned; nupkg bytes/hashes not locally materialized. Actions restore records observed hashes, not a pre-existing transitive cryptographic lock."
+}

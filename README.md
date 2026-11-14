@@ -1,5 +1,10 @@
 # xllama
 
+> **Experimental UA50 fork:** demand-loaded CPU MoE expert weights for xllama.
+> See [what our patch changes and what has been validated](docs/ua50-ssd-moe.md).
+> The expert mode is disabled by default; this is not an Xbox-validated release.
+> Upstream project documentation follows below.
+
 **xllama — local LLM inference on an Xbox Series S in Developer Mode**
 
 Run a language model on your own Xbox Series S, with chat, an API on your local network, image generation and experimental on-device fine-tuning.

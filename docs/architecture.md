@@ -7,6 +7,14 @@ snapshot), the perf SSOT [benchmarks.md](benchmarks.md), and the AppContainer
 constraints SSOT [uwp-constraints.md](uwp-constraints.md) — those own the numbers
 and the sandbox limits; this file owns the structure.
 
+## Experimental UA50 extension in this fork
+
+An internal, default-disabled CPU expert session can install an owned expert
+provider before ordinary tensor loading. The file reader, session lifetime and
+failure contracts, supported subset and validation limits are maintained in
+[Demand-loaded MoE experts](ua50-ssd-moe.md). The ordinary resident session path
+remains the default. This source integration is not a deployed Xbox feature.
+
 ## Two pillars, two targets, one core
 
 xllama has two **platform pillars** that share C++ contracts but do not share

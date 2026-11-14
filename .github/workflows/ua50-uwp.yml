@@ -1,0 +1,62 @@
+name: ua50-pinned-uwp-compile
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        type: choice
+        options: [baseline, patch]
+        default: baseline
+        required: true
+      patch_lock_sha256:
+        description: Reviewed PATCH-LOCK.json SHA256; empty for baseline
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: ua50-uwp-compile
+  cancel-in-progress: false
+jobs:
+  compile:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout reviewed operator repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          path: operator
+      - name: Checkout exact shipping source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: gianlucamazza/xllama
+          ref: 4db51522c850e62d0bb24234dfeb48e55f4017d7
+          persist-credentials: false
+          submodules: false
+          path: product
+      - name: Exact submodule and reviewed patch
+        timeout-minutes: 5
+        env:
+          UA50_TRACK: ${{ inputs.track }}
+          UA50_PATCH_LOCK: ${{ inputs.patch_lock_sha256 }}
+        run: |
+          python operator/ua50/prepare_sources.py product operator/ua50 $env:UA50_TRACK $env:UA50_PATCH_LOCK
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Restore exact dependencies and compile unsigned package
+        timeout-minutes: 36
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UA50_TRACK: ${{ inputs.track }}
+        run: |
+          & operator/ua50/build_unsigned.ps1 -Source product -Output result -Track $env:UA50_TRACK
+      - name: Upload explicit unsigned outputs only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ua50-uwp-${{ inputs.track }}-${{ github.run_id }}
+          path: result/
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: false

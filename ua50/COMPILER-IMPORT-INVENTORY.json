@@ -1,0 +1,802 @@
+{
+  "status": "DECLARATIONS_ONLY_NOT_WINDOWS_IMPORT_OR_BUILD_PROOF",
+  "projects": {
+    "uwp/ggml-uwp.vcxproj": {
+      "imports": [
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.Default.props"
+        },
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.props"
+        },
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.targets"
+        }
+      ],
+      "project_references": [],
+      "compile_units": [
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml.c",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml.cpp",
+          "condition": null,
+          "metadata": {
+            "ObjectFileName": "$(IntDir)%(RelativeDir)ggml_cxx.obj"
+          }
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-alloc.c",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-backend.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-backend-dl.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-backend-meta.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-backend-reg.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-opt.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-quants.c",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-threading.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\gguf.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\binary-ops.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\ggml-cpu.c",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\ggml-cpu.cpp",
+          "condition": null,
+          "metadata": {
+            "ObjectFileName": "$(IntDir)%(RelativeDir)ggml-cpu_cxx.obj"
+          }
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\hbm.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\ops.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\quants.c",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\repack.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\traits.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\unary-ops.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\vec.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\tiled\\tiled.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\tiled\\tiled-kernel.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\arch\\x86\\cpu-feats.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\arch\\x86\\quants.c",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\ggml\\src\\ggml-cpu\\arch\\x86\\repack.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-adapter.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-arch.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-batch.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-chat.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-context.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-cparams.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-grammar.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-graph.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-hparams.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-impl.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-io.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-kv-cache.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-kv-cache-dsa.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-kv-cache-dsa-iswa.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-kv-cache-dsv4.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-kv-cache-iswa.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-kv-cache-msa.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-memory.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-memory-hybrid.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-memory-hybrid-iswa.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-memory-hybrid-idx.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-memory-recurrent.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-mmap.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\ua50\\native_provider.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-model.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-model-loader.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-model-saver.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-quant.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-sampler.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\llama-vocab.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\unicode.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\unicode-data.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\src\\models\\*.cpp",
+          "condition": null,
+          "metadata": {}
+        }
+      ],
+      "include_directories": [
+        "\n        $(GgmlVersionDir);\n        $(ProjectDir)..\\llama.cpp\\include;\n        $(ProjectDir)..\\llama.cpp\\src;\n        $(ProjectDir)..\\llama.cpp\\src\\ua50;\n        $(ProjectDir)..\\llama.cpp\\ggml\\include;\n        $(ProjectDir)..\\llama.cpp\\ggml\\src;\n        $(ProjectDir)..\\llama.cpp\\ggml\\src\\ggml-cpu;\n        %(AdditionalIncludeDirectories)\n      "
+      ],
+      "libraries": [],
+      "language_standards": [
+        "stdcpp17"
+      ],
+      "exceptions": [
+        "Sync"
+      ]
+    },
+    "uwp/llama-common-uwp.vcxproj": {
+      "imports": [
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.Default.props"
+        },
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.props"
+        },
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.targets"
+        }
+      ],
+      "project_references": [],
+      "compile_units": [
+        {
+          "path": "..\\llama.cpp\\common\\chat.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\chat-auto-parser-generator.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\chat-auto-parser-helpers.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\chat-diff-analyzer.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\chat-peg-parser.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\common.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\fit.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\json.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\json-schema.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\json-schema-to-grammar.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\log.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\ngram-cache.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\ngram-map.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\ngram-mod.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\peg-parser.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\reasoning-budget.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\sampling.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\speculative.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\trie.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\unicode.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\jinja\\caps.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\jinja\\lexer.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\jinja\\parser.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\jinja\\runtime.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\jinja\\string.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\jinja\\value.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\llama.cpp\\common\\parsers\\*.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "$(LlamaBuildInfoDir)\\build-info.cpp",
+          "condition": null,
+          "metadata": {
+            "ObjectFileName": "$(IntDir)build-info.obj"
+          }
+        }
+      ],
+      "include_directories": [
+        "\n        $(LlamaBuildInfoDir);\n        $(ProjectDir)..\\llama.cpp\\common;\n        $(ProjectDir)..\\llama.cpp\\include;\n        $(ProjectDir)..\\llama.cpp\\ggml\\include;\n        $(ProjectDir)..\\llama.cpp\\vendor;\n        %(AdditionalIncludeDirectories)\n      "
+      ],
+      "libraries": [],
+      "language_standards": [
+        "stdcpp17"
+      ],
+      "exceptions": [
+        "Sync"
+      ]
+    },
+    "uwp/xllama.vcxproj": {
+      "imports": [
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.Default.props"
+        },
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.props"
+        },
+        {
+          "Project": "packages\\Microsoft.Windows.CppWinRT.2.0.240405.15\\build\\native\\Microsoft.Windows.CppWinRT.props",
+          "Condition": "Exists('packages\\Microsoft.Windows.CppWinRT.2.0.240405.15\\build\\native\\Microsoft.Windows.CppWinRT.props')"
+        },
+        {
+          "Project": "packages\\Microsoft.AI.DirectML.1.15.4\\build\\native\\Microsoft.AI.DirectML.props",
+          "Condition": "Exists('packages\\Microsoft.AI.DirectML.1.15.4\\build\\native\\Microsoft.AI.DirectML.props')"
+        },
+        {
+          "Project": "packages\\Microsoft.ML.OnnxRuntime.DirectML.1.24.4\\build\\native\\Microsoft.ML.OnnxRuntime.DirectML.props",
+          "Condition": "Exists('packages\\Microsoft.ML.OnnxRuntime.DirectML.1.24.4\\build\\native\\Microsoft.ML.OnnxRuntime.DirectML.props')"
+        },
+        {
+          "Project": "packages\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.0.14.1\\build\\native\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.props",
+          "Condition": "Exists('packages\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.0.14.1\\build\\native\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.props')"
+        },
+        {
+          "Project": "$(VCTargetsPath)\\Microsoft.Cpp.targets"
+        },
+        {
+          "Project": "packages\\Microsoft.Windows.CppWinRT.2.0.240405.15\\build\\native\\Microsoft.Windows.CppWinRT.targets",
+          "Condition": "Exists('packages\\Microsoft.Windows.CppWinRT.2.0.240405.15\\build\\native\\Microsoft.Windows.CppWinRT.targets')"
+        },
+        {
+          "Project": "packages\\Microsoft.AI.DirectML.1.15.4\\build\\native\\Microsoft.AI.DirectML.targets",
+          "Condition": "Exists('packages\\Microsoft.AI.DirectML.1.15.4\\build\\native\\Microsoft.AI.DirectML.targets')"
+        },
+        {
+          "Project": "packages\\Microsoft.ML.OnnxRuntime.DirectML.1.24.4\\build\\native\\Microsoft.ML.OnnxRuntime.DirectML.targets",
+          "Condition": "Exists('packages\\Microsoft.ML.OnnxRuntime.DirectML.1.24.4\\build\\native\\Microsoft.ML.OnnxRuntime.DirectML.targets')"
+        },
+        {
+          "Project": "packages\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.0.14.1\\build\\native\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.targets",
+          "Condition": "Exists('packages\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.0.14.1\\build\\native\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.targets')"
+        }
+      ],
+      "project_references": [
+        {
+          "Include": "ggml-uwp.vcxproj"
+        },
+        {
+          "Include": "llama-common-uwp.vcxproj"
+        }
+      ],
+      "compile_units": [
+        {
+          "path": "..\\src\\bridge\\inference.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\session.cpp",
+          "condition": null,
+          "metadata": {
+            "AdditionalIncludeDirectories": "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)"
+          }
+        },
+        {
+          "path": "..\\src\\bridge\\embedding.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\kv_store.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\bench.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\diskbw.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\membw.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\gpubw.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\gpugemv.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\gpustep.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\d3d12_compute.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\ggml_d3d12.cpp",
+          "condition": null,
+          "metadata": {
+            "AdditionalIncludeDirectories": "$(ProjectDir)..\\llama.cpp\\ggml\\src;%(AdditionalIncludeDirectories)"
+          }
+        },
+        {
+          "path": "..\\src\\bridge\\ramceil.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\platform.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\path_utils.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\utf8_utils.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\chat_prompt.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\cpu_expert_session.cpp",
+          "condition": "'$(XllamaBackend)' == 'llamacpp' or '$(XllamaBackend)' == 'unified'",
+          "metadata": {
+            "AdditionalIncludeDirectories": "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)"
+          }
+        },
+        {
+          "path": "..\\src\\bridge\\held_file_sha256_win.cpp",
+          "condition": "'$(XllamaBackend)' == 'llamacpp' or '$(XllamaBackend)' == 'unified'",
+          "metadata": {
+            "AdditionalIncludeDirectories": "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)"
+          }
+        },
+        {
+          "path": "..\\src\\platform\\ua50\\windows_held_reader.cpp",
+          "condition": "'$(XllamaBackend)' == 'llamacpp' or '$(XllamaBackend)' == 'unified'",
+          "metadata": {
+            "AdditionalIncludeDirectories": "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)"
+          }
+        },
+        {
+          "path": "..\\src\\bridge\\prompt_budget.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\http_framing.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\sse.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\stop_sequence_filter.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\tool_request.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\tool_template.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\tool_transcript.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\training.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\device_train.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\preference_capture.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\capture_probe.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\personalize.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "..\\src\\bridge\\autopilot.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "inference-bridge.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "native_capture.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "diffuse.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "op-repro.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "App.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "api-server.cpp",
+          "condition": "'$(XllamaStoreSku)' != 'true'",
+          "metadata": {}
+        },
+        {
+          "path": "chat-history.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "MainPage.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "model-downloader.cpp",
+          "condition": null,
+          "metadata": {}
+        },
+        {
+          "path": "module.cpp",
+          "condition": null,
+          "metadata": {}
+        }
+      ],
+      "include_directories": [
+        "\n        $(ProjectDir);\n        $(ProjectDir)Generated Files;\n        $(IntDir)Generated Files;\n        $(ProjectDir)..\\include;\n        $(ProjectDir)..\\shaders\\generated;\n        $(ProjectDir)..\\llama.cpp\\include;\n        $(ProjectDir)..\\llama.cpp\\common;\n        $(ProjectDir)..\\llama.cpp\\ggml\\include;\n        $(ProjectDir)..\\llama.cpp\\vendor;\n        $(ProjectDir)packages\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.0.14.1\\build\\native\\include;\n        $(ProjectDir)packages\\Microsoft.ML.OnnxRuntime.DirectML.1.24.4\\build\\native\\include;\n        %(AdditionalIncludeDirectories)\n      ",
+        "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)",
+        "$(ProjectDir)..\\llama.cpp\\ggml\\src;%(AdditionalIncludeDirectories)",
+        "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)",
+        "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)",
+        "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)"
+      ],
+      "libraries": [
+        "WindowsApp.lib;Bcrypt.lib;onnxruntime.lib;onnxruntime-genai.lib;dxgi.lib;d3d11.lib;%(AdditionalDependencies)"
+      ],
+      "language_standards": [
+        "stdcpp17"
+      ],
+      "exceptions": [
+        "Async"
+      ]
+    }
+  },
+  "app_CMake": "root CMake Linux-only, app Windows units intentionally not registered; native ggml provider registered once",
+  "stock_operator_dependencies": "DEPENDENCIES.json inherited bytes, not current restored SDK/NuGet/CRT inventory"
+}
