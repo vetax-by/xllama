@@ -33,3 +33,11 @@ arguments or key identities. The child-process CIM query requests a 15-second
 operation timeout; this is not a proven wall-clock deadline. Unknown process or
 cleanup state still prevents export. Phase markers diagnose the current attempt;
 they do not establish the cause of an earlier timeout.
+
+The selected hosted-runner path temporarily adds only the public certificate to
+LocalMachine/Root, which affects all users of that disposable runner. Its private
+key remains nonexportable in CurrentUser/My. The script refuses before creating
+a key unless the runner is already elevated and the machine public-trust scope
+is explicitly selected. Exact owned removal and absence in both trust views are
+required before export. This is not a trust change on the target console, and
+source inspection does not establish that a provider cannot block.

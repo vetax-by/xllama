@@ -6,7 +6,8 @@ param(
     [Parameter(Mandatory)][string]$ArtifactRoot,
     [Parameter(Mandatory)][string]$PrivateRoot,
     [Parameter(Mandatory)][string]$Output,
-    [Parameter(Mandatory)][string]$SdkBin
+    [Parameter(Mandatory)][string]$SdkBin,
+    [ValidateSet('LocalMachine')][string]$PublicTrustScope
 )
 $ErrorActionPreference = 'Stop'
 # Diagnostics are best-effort: no validation/host/stack exception escapes into cleanup.
@@ -30,6 +31,15 @@ function Write-SigningFailure {
 try {
 Write-SigningPhase BEGIN 'PAIR_PREFLIGHT'
 if ($env:OS -ne 'Windows_NT') { throw 'selected disposable Windows lane required' }
+Write-SigningPhase BEGIN 'HOSTED_ADMIN_SCOPE'
+if ($PublicTrustScope -cne 'LocalMachine') { throw 'explicit LocalMachine PUBLIC-only test trust selection required' }
+if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:RUNNER_OS -cne 'Windows') { throw 'selected disposable hosted Windows runner required; no local machine mutation' }
+$windowsIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+try {
+    $principal = [Security.Principal.WindowsPrincipal]::new($windowsIdentity)
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'already-elevated runner required; no UAC/elevation/retry' }
+} finally { $windowsIdentity.Dispose() }
+Write-SigningPhase END 'HOSTED_ADMIN_SCOPE'
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 function Public-Hash($Cert) {
     $h = [Security.Cryptography.SHA256]::Create()
@@ -93,19 +103,45 @@ Write-SigningPhase BEGIN 'KEY_BINDING'
 Write-SigningPhase END 'KEY_BINDING'
     # Export PUBLIC DER only, stripping any private-key association before trust add.
 Write-SigningPhase BEGIN 'PUBLIC_TRUST_ADD'
-    $public = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-        $owned.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+Write-SigningPhase BEGIN 'PUBLIC_DER_EXPORT'
+    $publicDer = $owned.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+Write-SigningPhase END 'PUBLIC_DER_EXPORT'
+Write-SigningPhase BEGIN 'PUBLIC_CERT_CONSTRUCT'
+    $public = [Security.Cryptography.X509Certificates.X509Certificate2]::new($publicDer)
+Write-SigningPhase END 'PUBLIC_CERT_CONSTRUCT'
     try {
-        if ($public.HasPrivateKey) { throw 'public trust object unexpectedly contains private key' }
-        $store = [Security.Cryptography.X509Certificates.X509Store]::new('Root','CurrentUser')
+Write-SigningPhase BEGIN 'PUBLIC_CERT_BINDING'
+        if ($public.HasPrivateKey -or (Public-Hash $public) -ne $publicHash) { throw 'public trust object binding failed' }
+Write-SigningPhase END 'PUBLIC_CERT_BINDING'
+Write-SigningPhase BEGIN 'MACHINE_ROOT_CONSTRUCT'
+        $store = [Security.Cryptography.X509Certificates.X509Store]::new('Root','LocalMachine')
+Write-SigningPhase END 'MACHINE_ROOT_CONSTRUCT'
         try {
-            $store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-            if (@($store.Certificates.Find('FindByThumbprint',$thumb,$false)).Count -ne 0) { throw 'trust entry pre-existed; refuse ownership' }
-            # Mark owned ADD ATTEMPT after absence proof, allowing exact partial-add cleanup.
+Write-SigningPhase BEGIN 'MACHINE_ROOT_OPEN'
+            $store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite -bor [Security.Cryptography.X509Certificates.OpenFlags]::OpenExistingOnly)
+Write-SigningPhase END 'MACHINE_ROOT_OPEN'
+Write-SigningPhase BEGIN 'MACHINE_ROOT_ABSENCE'
+            if (@($store.Certificates.Find('FindByThumbprint',$thumb,$false)).Count -ne 0) { throw 'machine trust entry pre-existed; refuse ownership' }
+Write-SigningPhase END 'MACHINE_ROOT_ABSENCE'
+            # Mark only this exact PUBLIC certificate add attempt after absence proof.
             $trustAttempted = $true
+Write-SigningPhase BEGIN 'MACHINE_ROOT_ADD'
             $store.Add($public)
-        } finally { $store.Close() }
-    } finally { $public.Dispose() }
+Write-SigningPhase END 'MACHINE_ROOT_ADD'
+Write-SigningPhase BEGIN 'MACHINE_ROOT_READBACK'
+            $added = @($store.Certificates.Find('FindByThumbprint',$thumb,$false))
+            if ($added.Count -ne 1 -or $added[0].HasPrivateKey -or (Public-Hash $added[0]) -ne $publicHash) { throw 'exact PUBLIC machine trust readback failed' }
+Write-SigningPhase END 'MACHINE_ROOT_READBACK'
+        } finally {
+Write-SigningPhase BEGIN 'MACHINE_ROOT_CLOSE'
+            $store.Close()
+Write-SigningPhase END 'MACHINE_ROOT_CLOSE'
+        }
+    } finally {
+Write-SigningPhase BEGIN 'PUBLIC_CERT_DISPOSE'
+        $public.Dispose()
+Write-SigningPhase END 'PUBLIC_CERT_DISPOSE'
+    }
 Write-SigningPhase END 'PUBLIC_TRUST_ADD'
     foreach ($arm in @('Patched','Stock')) {
         $entry = $plan.$arm
@@ -136,16 +172,50 @@ Write-SigningPhase BEGIN 'CLEANUP'
         if ($trustAttempted) {
             try {
 Write-SigningPhase BEGIN 'OWNED_TRUST_REMOVE'
-                $store = [Security.Cryptography.X509Certificates.X509Store]::new('Root','CurrentUser')
+Write-SigningPhase BEGIN 'CLEAN_MACHINE_ROOT_CONSTRUCT'
+                $store = [Security.Cryptography.X509Certificates.X509Store]::new('Root','LocalMachine')
+Write-SigningPhase END 'CLEAN_MACHINE_ROOT_CONSTRUCT'
                 try {
-                    $store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+Write-SigningPhase BEGIN 'CLEAN_MACHINE_ROOT_OPEN'
+                    $store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite -bor [Security.Cryptography.X509Certificates.OpenFlags]::OpenExistingOnly)
+Write-SigningPhase END 'CLEAN_MACHINE_ROOT_OPEN'
+Write-SigningPhase BEGIN 'CLEAN_MACHINE_ROOT_FIND'
                     $matches = @($store.Certificates.Find('FindByThumbprint',$thumb,$false))
+Write-SigningPhase END 'CLEAN_MACHINE_ROOT_FIND'
                     foreach ($item in $matches) {
-                        if ((Public-Hash $item) -ne $publicHash -or $item.HasPrivateKey) { throw 'foreign trust entry; refuse removal' }
+Write-SigningPhase BEGIN 'CLEAN_MACHINE_ROOT_BINDING'
+                        if ((Public-Hash $item) -ne $publicHash -or $item.HasPrivateKey) { throw 'foreign machine trust entry; refuse removal' }
+Write-SigningPhase END 'CLEAN_MACHINE_ROOT_BINDING'
+Write-SigningPhase BEGIN 'CLEAN_MACHINE_ROOT_REMOVE'
                         $store.Remove($item)
+Write-SigningPhase END 'CLEAN_MACHINE_ROOT_REMOVE'
                     }
-                    if (@($store.Certificates.Find('FindByThumbprint',$thumb,$false)).Count -ne 0) { throw 'owned trust removal unproven' }
-                } finally { $store.Close() }
+Write-SigningPhase BEGIN 'CLEAN_MACHINE_ROOT_ABSENCE'
+                    if (@($store.Certificates.Find('FindByThumbprint',$thumb,$false)).Count -ne 0) { throw 'owned machine trust removal unproven' }
+Write-SigningPhase END 'CLEAN_MACHINE_ROOT_ABSENCE'
+                } finally {
+Write-SigningPhase BEGIN 'CLEAN_MACHINE_ROOT_CLOSE'
+                    $store.Close()
+Write-SigningPhase END 'CLEAN_MACHINE_ROOT_CLOSE'
+                }
+                # Reopen both views READ ONLY after removal. Never delete CurrentUser roots.
+                foreach ($view in @('LocalMachine','CurrentUser')) {
+Write-SigningPhase BEGIN ('CLEAN_ROOT_VERIFY_CONSTRUCT_' + $view)
+                    $verifyStore = [Security.Cryptography.X509Certificates.X509Store]::new('Root',$view)
+Write-SigningPhase END ('CLEAN_ROOT_VERIFY_CONSTRUCT_' + $view)
+                    try {
+Write-SigningPhase BEGIN ('CLEAN_ROOT_VERIFY_OPEN_' + $view)
+                        $verifyStore.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly -bor [Security.Cryptography.X509Certificates.OpenFlags]::OpenExistingOnly)
+Write-SigningPhase END ('CLEAN_ROOT_VERIFY_OPEN_' + $view)
+Write-SigningPhase BEGIN ('CLEAN_ROOT_VERIFY_ABSENCE_' + $view)
+                        if (@($verifyStore.Certificates.Find('FindByThumbprint',$thumb,$false)).Count -ne 0) { throw 'owned public test trust still visible; no export' }
+Write-SigningPhase END ('CLEAN_ROOT_VERIFY_ABSENCE_' + $view)
+                    } finally {
+Write-SigningPhase BEGIN ('CLEAN_ROOT_VERIFY_CLOSE_' + $view)
+                        $verifyStore.Close()
+Write-SigningPhase END ('CLEAN_ROOT_VERIFY_CLOSE_' + $view)
+                    }
+                }
 Write-SigningPhase END 'OWNED_TRUST_REMOVE'
             } catch { $cleanupErrors += 'OWNED_PUBLIC_TRUST_CLEANUP_UNPROVEN'; Write-SigningFailure }
         }
@@ -165,6 +235,7 @@ Write-SigningPhase END 'OWNED_KEY_REMOVE'
     if ($owned) { $owned.Dispose() }
     $cleanupProved = $terminal -and $thumb -and $cleanupErrors.Count -eq 0
     [ordered]@{ schema='ua50-owned-signing-cleanup-v1'; signer_thumbprint=$thumb;
+        public_trust_scope='LocalMachine/Root'; private_key_scope='CurrentUser/My';
         calls_returned=$callsReturned; terminal_children_absent=$terminal; cleanup_proved=$cleanupProved;
         errors=$cleanupErrors; private_key_exported=$false; device_mutations=0
     } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $PrivateRoot 'OWNED-CLEANUP.json') -Encoding utf8
@@ -184,6 +255,7 @@ Copy-Item -LiteralPath (Join-Path $patched 'xllama-update.msix') -Destination (J
 Copy-Item -LiteralPath (Join-Path $stock 'xllama-update.msix') -Destination (Join-Path $Output 'xllama-stock-forward-recovery.msix')
 Copy-Item -LiteralPath (Join-Path $patched 'xllama-test.cer') -Destination (Join-Path $Output 'xllama-test.cer')
 [ordered]@{ schema='ua50-signed-forward-recovery-pair-v1'; input_plan_sha256=$InputPlanSha256;
+    public_trust_scope='LocalMachine/Root'; private_key_scope='CurrentUser/My';
     patched=(Get-Content -LiteralPath (Join-Path $patched 'SIGNED-COPY-RECEIPT.json') -Raw | ConvertFrom-Json);
     recovery=(Get-Content -LiteralPath (Join-Path $stock 'SIGNED-COPY-RECEIPT.json') -Raw | ConvertFrom-Json);
     cleanup_proved=$cleanupProved; recovery_payload='accepted STOCK baseline, NOT old1495';
