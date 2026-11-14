@@ -5,6 +5,8 @@ from xml.dom import minidom
 LIMIT=400*1024*1024
 GENERATED={'AppxBlockMap.xml','[Content_Types].xml','AppxSignature.p7x'}
 DENY={'.gguf','.safetensors','.pfx','.p12','.pem','.key'}
+CODE_INTEGRITY='AppxMetadata/CodeIntegrity.cat'
+NEW_CODE_INTEGRITY_LIMIT=64*1024
 def sha(data):return hashlib.sha256(data).hexdigest()
 def bounded_package_sha(path):
  # Reject oversized input BEFORE open/read/hash/allocation; enforce again while reading.
@@ -107,11 +109,20 @@ def verify(package,plan_path):
  plan=json.loads(plan_path.read_text());payload=read_package(package,True);doc,node=identity(payload['AppxManifest.xml'])
  if node.getAttribute('Version')!=plan['new_version']:raise ValueError('signed manifest version mismatch')
  actual={name:{'bytes':len(data),'sha256':sha(data)} for name,data in payload.items() if name not in GENERATED}
- if actual!=plan['payload']:
-  report=payload_mismatch_report(plan['payload'],actual)
+ # Adopt ONLY the exact new SDK CI footprint when absent from accepted input plan.
+ # Existing planned CI remains in strict comparison, including its exact bytes/hash.
+ compared=actual.copy();adopted={}
+ if CODE_INTEGRITY not in plan['payload'] and CODE_INTEGRITY in actual:
+  ci=actual[CODE_INTEGRITY]
+  if 0<ci['bytes']<=NEW_CODE_INTEGRITY_LIMIT:
+   adopted[CODE_INTEGRITY]=ci;del compared[CODE_INTEGRITY]
+ if compared!=plan['payload']:
+  report=payload_mismatch_report(plan['payload'],compared)
   print(json.dumps(report,ensure_ascii=True,separators=(',',':')),file=sys.stderr,flush=True)
   raise ValueError('signed-copy payload changed outside planned manifest-only version edit')
- return {'signed_package_sha256':bounded_package_sha(package),'payload_files_verified':len(actual),'new_version':plan['new_version'],'crypto_signature_status':'REQUIRES_WINDOWS_SIGTOOL_AND_AUTHENTICODE'}
+ ci_mode='preexisting_exact' if CODE_INTEGRITY in plan['payload'] else 'generated_new' if adopted else 'absent'
+ ci_record={'member':CODE_INTEGRITY,'mode':ci_mode,'actual':actual.get(CODE_INTEGRITY),'new_footprint_max_bytes':NEW_CODE_INTEGRITY_LIMIT}
+ return {'signed_package_sha256':bounded_package_sha(package),'payload_files_verified':len(compared),'new_version':plan['new_version'],'crypto_signature_status':'REQUIRES_WINDOWS_SIGTOOL_AND_AUTHENTICODE','footprint_policy':'exact-new-codeintegrity-absent-plan-v1','adopted_footprints':adopted,'code_integrity_footprint':ci_record}
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('operation',choices=('prepare','verify'));p.add_argument('--package',type=Path,required=True);p.add_argument('--sha256');p.add_argument('--installed');p.add_argument('--new');p.add_argument('--work',type=Path);p.add_argument('--plan',type=Path);a=p.parse_args()
  if a.operation=='prepare':

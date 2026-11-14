@@ -94,7 +94,8 @@ $signature = Get-AuthenticodeSignature -LiteralPath $copy
 if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $cert.Thumbprint) { throw 'signature verification/signer mismatch' }
 Write-SigningPhase END 'AUTHENTICODE_VERIFY'
 Write-SigningPhase BEGIN 'COPY_PYTHON_VERIFY'
-Run-Native 'python' @($helper,'verify','--package',$copy,'--plan',(Join-Path $PrivateWork 'COPY-PLAN.json'))
+$verificationRaw = Run-Native 'python' @($helper,'verify','--package',$copy,'--plan',(Join-Path $PrivateWork 'COPY-PLAN.json'))
+$payloadVerification = $verificationRaw | ConvertFrom-Json
 Write-SigningPhase END 'COPY_PYTHON_VERIFY'
 Write-SigningPhase BEGIN 'COPY_EXPORT'
 if ((Hash $inputPath) -ne $ExpectedUnsignedSha256.ToLowerInvariant()) { throw 'original unsigned changed; refuse publication' }
@@ -107,7 +108,8 @@ $record = [ordered]@{
     unsigned_sha256=$ExpectedUnsignedSha256.ToLowerInvariant(); signed_sha256=(Hash (Join-Path $Output 'xllama-update.msix'));
     public_certificate_sha256=$publicHash; signer_thumbprint=$cert.Thumbprint; publisher=$cert.Subject;
     installed_version_input=$InstalledVersion; new_version=$NewVersion; private_key_exported=$false;
-    windows_signature_verified=$true; console_trust='UNKNOWN'; install_performed=$false
+    windows_signature_verified=$true; console_trust='UNKNOWN'; install_performed=$false;
+    payload_verification=$payloadVerification
 }
 $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Output 'SIGNED-COPY-RECEIPT.json') -Encoding utf8
 # Existing certificate belongs to its provisioning owner: do NOT delete it here.

@@ -41,3 +41,9 @@ a key unless the runner is already elevated and the machine public-trust scope
 is explicitly selected. Exact owned removal and absence in both trust views are
 required before export. This is not a trust change on the target console, and
 source inspection does not establish that a provider cannot block.
+
+Payload verification permits only a new SDK-generated AppxMetadata/CodeIntegrity.cat
+when the accepted input has none, with a nonempty 64 KiB maximum and recorded
+length and SHA-256. Any pre-existing catalog must remain byte-exact. All other
+application payload bytes, including the version-edited manifest, remain exact.
+This limited packaging rule does not replace Windows signature verification.
