@@ -167,10 +167,11 @@ output byte caps still refuse overflow rather than clipping output.
 A terminated final text, a length-capped text after thinking and open reasoning
 without a final section are classified separately while retaining the original
 record. Neither literal closing-tag presence nor normal teardown asserts semantic
-answer quality. The new profile has narrow portable fake-boundary functional
-and source/shipping evidence; its own Windows build, signed preserving update
-and console generation remain pending. It does not implement a larger expert
-cache, GPU execution or automatic continuation beyond the sample cap.
+answer quality. The new profile has narrow portable fake-boundary functional,
+source/shipping and inspected Windows compile/link/package evidence. Its signed
+preserving update and console generation remain pending. It does not implement
+a larger expert cache, GPU execution or automatic continuation beyond the sample
+cap.
 
 ## Evidence and limits
 
@@ -195,6 +196,14 @@ reasoning after a signed preserving update, as qualified above. The separate
 384-sample successor still requires its own build, update and output acceptance.
 Build warnings are retained; this is not a warning-free build or proof of runtime
 correctness.
+
+The distinct [eight-patch finished-answer build](https://github.com/vetax-by/xllama/actions/runs/43645815389)
+compiled, linked and produced an inspected unsigned x64 package, with all 47
+selected source files verified under the current patch lock. The package is
+21,075,228 bytes, SHA-256
+`3bfc3b28cd4006c8913329f27a6fd598611e7761da7bbf87269da6e50ad8b615`,
+version `1.7.0.0`. Its signed preserving update and actual new-profile console
+output remain separate acceptance stages.
 
 | Area                          | What has been checked                                                                                                                         | What it does not establish                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |

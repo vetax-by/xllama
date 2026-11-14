@@ -42,10 +42,10 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The existing signing workflow remains bound to the earlier seven-patch
-first-answer artifact. It must not be used to attest this eight-patch successor.
-A new signing attempt needs the actual inspected unsigned artifact, current
-source-receipt validators and an exact artifact-bound signing recipe. Manual
+The signing recipe pins this eight-patch unsigned artifact and the reusable
+stock baseline, together with the current source-receipt validators. It verifies
+the source lock independently in both the Python preflight and PowerShell copy
+helper. A signing attempt needs its own exact artifact/version-bound selection. Manual
 signing also requires a fresh installed version and an explicitly selected higher
 patched version plus a still higher stock forward-recovery version. Signing does
 not install or launch the application, and a recovery package alone does not
@@ -98,9 +98,11 @@ patches and 45 selected source files verified. The separate
 also produced an inspected unsigned x64 package with all seven patches and 47
 selected source files verified. That earlier profile subsequently produced a
 bounded console generation and normal teardown; its sample cap ended inside
-thinking, so it did not provide a completed final answer. This eight-patch
-384-sample successor still requires its own Windows artifact, signed preserving
-update and actual console-result acceptance. No private response or telemetry is
+thinking, so it did not provide a completed final answer. The distinct
+[eight-patch finished-answer Windows build](https://github.com/vetax-by/xllama/actions/runs/43645815389)
+has now compiled, linked and produced an inspected unsigned package with all
+47 selected source files verified. Its signed preserving update and actual
+console-result acceptance remain pending. No private response or telemetry is
 included here.
 
 ## Bounded first-answer developer mode

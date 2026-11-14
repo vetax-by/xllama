@@ -15,7 +15,7 @@
     "first_answer_operator_binding": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
     "finished_answer_source_shipping": "575e528a3dfe05358cc33e6f3dbc4dc6f277a9c4b17bfc837cb7742a4355d5fe"
   },
-  "qualification": "The earlier first-answer profile compiled on Windows and produced bounded console reasoning with normal teardown, ending at its sample cap before a final answer. The eight-patch384-sample successor has source/shipping and portable fake-boundary evidence only; its Windows artifact, signed preserving update and actual output acceptance remain pending. No private response or console telemetry is included.",
+  "qualification": "The earlier first-answer profile produced bounded console reasoning with normal teardown, ending at its sample cap before a final answer. The eight-patch384-sample successor has source/shipping, portable fake-boundary and inspected unsigned Windows compile/link/package evidence; its signed preserving update and actual output acceptance remain pending. No private response or console telemetry is included.",
   "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Seven accepted patches retain their bytes; one eighth root patch adds a separate bounded finished-answer profile. Runtime and operator inputs remain exact reviewed source bytes.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
@@ -81,6 +81,19 @@
       "installed": false,
       "model_execution": false,
       "artifact_review_sha256": "f215e5d010744b56578030008bcacf2e0b676a9ec7cfead5f1517ae77651867f"
+    },
+    "finished_answer": {
+      "run_id": 43645815389,
+      "operator_commit": "6ea334f3818fe2058a2355703c57c1e223b0f416",
+      "track": "patch",
+      "selected_shipping_files_verified": 47,
+      "package_bytes": 21075228,
+      "package_sha256": "3bfc3b28cd4006c8913329f27a6fd598611e7761da7bbf87269da6e50ad8b615",
+      "package_version": "1.7.0.0",
+      "signed": false,
+      "installed": false,
+      "model_execution": false,
+      "artifact_review_sha256": "9df33e34962f69681c41d0a6311f8609927c9cd9c77f5c4867c5d5f8328c8ac9"
     }
   },
   "first_answer_source": {
@@ -107,8 +120,9 @@
     "operator_review": "de555cb0fc005b34ce950704479923b55026ed84ae0bdf1faa79f23d0f7bf99f",
     "max_new_samples": 384,
     "max_context": 512,
-    "actual_Windows_build": false,
+    "actual_Windows_build": true,
     "actual_console_text_output": false,
-    "cache_optimization_implemented": false
+    "cache_optimization_implemented": false,
+    "actual_Windows_artifact_review": "9df33e34962f69681c41d0a6311f8609927c9cd9c77f5c4867c5d5f8328c8ac9"
   }
 }
