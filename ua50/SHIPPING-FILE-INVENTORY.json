@@ -14,8 +14,8 @@
       "file": "postimage/include/xllama/cpu_expert_session.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_expert_session.h",
-      "bytes": 3842,
-      "sha256": "656a319270fc14324b3125cc00c4c3b27505600e6eae262870b5f42313355b17",
+      "bytes": 4176,
+      "sha256": "2c4807cf68e7f411234a2593a5585657a5149efafaa8d1fe3592c2036447d6bc",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -44,8 +44,8 @@
       "file": "postimage/include/xllama/session.h",
       "target": "xllama",
       "target_path": "include/xllama/session.h",
-      "bytes": 10464,
-      "sha256": "56743d876b6d93e369106315fef0831249e76612e42b6b1700a679f3643f6c99",
+      "bytes": 10627,
+      "sha256": "3937c8d7c157e961b6fbcb09ca439d65b3b8c52ce6160dbdc00a74ea4cef147c",
       "stock_preimage_sha256": "707b27e7ef3808efb33f3ac7fb660673ebe3954eb9cabf389b08d617f6b25821",
       "stock_git_blob": "22b9d149467fa9d827277d8fa08b9dfc6c3fb989",
       "changed_or_added": true
@@ -284,8 +284,8 @@
       "file": "postimage/src/bridge/cpu_expert_app_session.inc",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_app_session.inc",
-      "bytes": 6520,
-      "sha256": "ca0f4cb1cd0d281ba7e8a9e41148002984e22459f6b2682155101866ba65f11c",
+      "bytes": 7642,
+      "sha256": "a8b8975edc6c934de219af8d2cde04bb57fd9049712ecd957d654b3bbdc2c9a6",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -294,8 +294,8 @@
       "file": "postimage/src/bridge/cpu_expert_session.cpp",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_session.cpp",
-      "bytes": 12789,
-      "sha256": "66ef8476438eaeaab17ae715ed03cb08df1eb81a0e019b930ab81ddf83f0f982",
+      "bytes": 13024,
+      "sha256": "41f2928f7d3df55f4613d290af45d15bc05b5ac1a2465e8bf84f5469b3f29bff",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -366,8 +366,8 @@
       "target_path": "uwp/App.cpp",
       "stock_preimage_sha256": "0ad5044e9e072fe9501bad3ef0d29c384e6b25c47012e5dd1b48c23cfde0b94c",
       "stock_git_blob": "ce40fbce37965da85548382f5dc3c8cb2b159c51",
-      "bytes": 27866,
-      "sha256": "0fe10c46bcbfa8755c602858ce34a4d27ccadfb50830d47ae848660231c4bebf",
+      "bytes": 28478,
+      "sha256": "a25cb44cc6a9913e098e4983a2b24b4511edbe4ce9ba592f3d28144d591dedeb",
       "changed_or_added": true
     },
     {
@@ -386,8 +386,8 @@
       "target_path": "uwp/cpu-expert-pilot.cpp",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
-      "bytes": 14019,
-      "sha256": "4e9cc3f3d1bbdb0b6a5883190343ff338896fb8513e3ebca6e4400c12433c76f",
+      "bytes": 18881,
+      "sha256": "b97baa1efc36d399bb5a14e8934eeab9df008badcad68dc91040ea4bcc33c6de",
       "changed_or_added": true
     },
     {
@@ -406,8 +406,8 @@
       "target_path": "uwp/inference-bridge.h",
       "stock_preimage_sha256": "3aaf59fad43d544ba451ff3a201a2f76b5ff9da4275cd7075ec9b0bc5e88c621",
       "stock_git_blob": "66e05db464c95116ca6829a34d42d9ed17d7411d",
-      "bytes": 5610,
-      "sha256": "6c22fb1da95de7388185c3c475501588802f0114ca855f59777e3b50008efab8",
+      "bytes": 5646,
+      "sha256": "c6137cb91b6f8dd726b99161b137ca9a81722fc415f529090cc7b2a8d9169e6c",
       "changed_or_added": true
     },
     {
@@ -449,6 +449,26 @@
       "stock_preimage_sha256": "636bc39c51709c702c5a2f989aa305320f90a7f2b8808b31116fe9a7bc8dd30e",
       "stock_git_blob": "739e867e4175b9f2a7b404a9a9859ff4c9ad56b7",
       "changed_or_added": true
+    },
+    {
+      "file": "postimage/include/xllama/first_answer_record.h",
+      "target": "xllama",
+      "target_path": "include/xllama/first_answer_record.h",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true,
+      "bytes": 8033,
+      "sha256": "20b7a413b6bb693a4cb293f7b2de6f259b6d94dde59ed9448891b102e9d1e440"
+    },
+    {
+      "file": "postimage/include/xllama/first_answer_template.h",
+      "target": "xllama",
+      "target_path": "include/xllama/first_answer_template.h",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true,
+      "bytes": 6348,
+      "sha256": "6c6ea6a1eecab29a83ed604a9bdfac2a234dc5bfecf55ca0b7434aa58cdb3bde"
     }
   ],
   "scope": "selected exact source postimages, not full SDK/import closure"

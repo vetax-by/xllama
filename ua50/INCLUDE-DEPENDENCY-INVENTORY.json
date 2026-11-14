@@ -1,6 +1,6 @@
 {
   "scope": "direct declarations only, not SDK/transitive resolution",
-  "count": 455,
+  "count": 468,
   "includes": [
     {
       "from": "include/xllama/cpu_expert_session.h",
@@ -57,6 +57,12 @@
       "include": "string"
     },
     {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 11,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
       "from": "include/xllama/cpu_pilot_binding.h",
       "line": 2,
       "style": "\"",
@@ -108,53 +114,59 @@
       "from": "include/xllama/session.h",
       "line": 8,
       "style": "\"",
-      "include": "xllama/embedding.h"
+      "include": "xllama/first_answer_record.h"
     },
     {
       "from": "include/xllama/session.h",
       "line": 9,
       "style": "\"",
-      "include": "xllama/grammar_spec.h"
+      "include": "xllama/embedding.h"
     },
     {
       "from": "include/xllama/session.h",
       "line": 10,
       "style": "\"",
-      "include": "xllama/inference_params.h"
+      "include": "xllama/grammar_spec.h"
     },
     {
       "from": "include/xllama/session.h",
-      "line": 12,
-      "style": "<",
-      "include": "atomic"
+      "line": 11,
+      "style": "\"",
+      "include": "xllama/inference_params.h"
     },
     {
       "from": "include/xllama/session.h",
       "line": 13,
       "style": "<",
-      "include": "functional"
+      "include": "atomic"
     },
     {
       "from": "include/xllama/session.h",
       "line": 14,
       "style": "<",
-      "include": "memory"
+      "include": "functional"
     },
     {
       "from": "include/xllama/session.h",
       "line": 15,
       "style": "<",
-      "include": "string"
+      "include": "memory"
     },
     {
       "from": "include/xllama/session.h",
       "line": 16,
       "style": "<",
-      "include": "string_view"
+      "include": "string"
     },
     {
       "from": "include/xllama/session.h",
       "line": 17,
+      "style": "<",
+      "include": "string_view"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 18,
       "style": "<",
       "include": "vector"
     },
@@ -2709,6 +2721,12 @@
       "include": "cstdio"
     },
     {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 19,
+      "style": "\"",
+      "include": "xllama/first_answer_record.h"
+    },
+    {
       "from": "uwp/inference-bridge.h",
       "line": 6,
       "style": "\"",
@@ -2731,6 +2749,66 @@
       "line": 9,
       "style": "\"",
       "include": "xllama/training_params.h"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 2,
+      "style": "\"",
+      "include": "first_answer_template.h"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 3,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 4,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 6,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 7,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 8,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 9,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/first_answer_template.h",
+      "line": 2,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/first_answer_template.h",
+      "line": 3,
+      "style": "<",
+      "include": "string"
     }
   ]
 }

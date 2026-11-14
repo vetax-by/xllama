@@ -3,17 +3,19 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "b803a1e0b7b69a053e0bc7bbe4d6f84e6c52e9935006a823411463b0a048abf9",
-  "source_bundle_sha256": "ef6266c78627035a3c7e4372347839f9522b60421770dd9cd149dd48a9521235",
+  "patch_lock_sha256": "5dab2dab1aca23e6d914bd5304ee957f3dc741f57d19457c6ef3b3af3ecf562d",
+  "source_bundle_sha256": "22580ed3cefb58535b95a83f8843feac5ab64225e036d8ff77b413bfc0e0111c",
   "source_reviews": {
-    "composition": "b2228ff47fb5094a9b66ffd621eda6d7aaceff54bd576b3909cb91c549381ddd",
+    "composition": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
     "cpu_pilot": "efe7dbb8a350c1ca99c07386b207570580d7d13457f2ad247518da9d380f66dd",
-    "operator_admission": "ecf0ffaf00503ba9401066684e0d37457b8a9849acc80daefbcc9a8b55fc1c11",
+    "operator_admission": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
     "base_composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
-    "current_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
+    "current_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb",
+    "first_answer_source_shipping": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
+    "first_answer_operator_binding": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3"
   },
-  "qualification": "Current locked CPU pilot compiled and linked on Windows and produced an inspected unsigned x64 package; native buffer planning, quota, signed recoverable installation and console execution remain unverified.",
-  "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Four base runtime/application patches retain their bytes; two reviewed CPU-pilot patches extend the locked route. Operator corrections are recorded separately.",
+  "qualification": "The earlier six-patch CPU smoke path built on Windows and completed a bounded console prompt/step. The seven-patch first-answer successor requires its own Windows build, signed preserving update and real output acceptance. No private console telemetry or model response is included.",
+  "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Six reviewed runtime/application/CPU patches retain their bytes; one reviewed root patch adds the bounded first-answer mode. Operator and signing bindings remain separate.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
     {
@@ -37,9 +39,9 @@
       "review_sha256": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
     }
   ],
-  "operator_admission_manifest_sha256": "5a02dbd8dc9e79e535bb7117a9f20428c8f340bca1f8000b2279a3606d49cd2d",
-  "operator_composition_manifest_sha256": "8fd1fa5cfe19fbb59e84c91fb890a2932230b7d11665798138a44684113000d0",
-  "operator_sha256": "582f39ff1634ab008f3ba762313a45a2809752f188a4ed7ef53bfd6b1782ebe0",
+  "operator_admission_manifest_sha256": "aa2a45b858cad85f8e3642f37f0b6e152256d8f58c682967b8904058354ec70c",
+  "operator_composition_manifest_sha256": "aa2a45b858cad85f8e3642f37f0b6e152256d8f58c682967b8904058354ec70c",
+  "operator_sha256": "bb0e41ab086a9b93498dff97b98a602ad64a8f74b1f224745d63311e05c3036e",
   "build_receipt_hygiene": {
     "source_manifest_sha256": "d3fbfbba1ba02743601c0d77fc41400f9894756a19f8473894b177809420c3e8",
     "review_sha256": "a398cc06c8a5117ebd2010f47c41f544d470319b8f63251df2cc275281b815da",
@@ -66,5 +68,17 @@
       "model_execution": false,
       "artifact_review_sha256": "de2d4e490743166578329e33fcd01563dccd3fd0fa818b61b1f60e95c224a87d"
     }
+  },
+  "first_answer_source": {
+    "patch_lock_sha256": "5dab2dab1aca23e6d914bd5304ee957f3dc741f57d19457c6ef3b3af3ecf562d",
+    "source_bundle_sha256": "22580ed3cefb58535b95a83f8843feac5ab64225e036d8ff77b413bfc0e0111c",
+    "source_sha256": "bd7b063682220658c4bfc8bfd3c3c3bfc5b556feff5a7f71f256ea682b2d2ce5",
+    "patches": 7,
+    "selected_shipping_inputs": 47,
+    "source_review": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
+    "operator_review": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
+    "actual_Windows_build": false,
+    "actual_console_text_output": false,
+    "correction_sha256": "650ed6335925a7a574c8d11f6945db94e4b4689cac41dd8662ed85a2a2361f82"
   }
 }

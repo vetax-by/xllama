@@ -37,6 +37,12 @@
       "target": "llama",
       "bytes": 4003,
       "sha256": "4a7c6d25664d5988805a1542738b49a0995e2c459f9fde7413e83af34925608e"
+    },
+    {
+      "file": "patch/first-answer-root.patch",
+      "target": "xllama",
+      "bytes": 38377,
+      "sha256": "b38dfa1b21dc881b7a4285d7c7e0d13aaf999267d46a7f59d286f90aed3c660b"
     }
   ]
 }

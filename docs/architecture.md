@@ -831,6 +831,12 @@ flags are supported:
 | `api.flag`             | `run_server`             | LAN API server (persistence via `LocalState\api.flag`)              |
 | `debug-dashboard.flag` | MainPage (persistence)   | Optional debug dashboard panel; default off; does not replace chat  |
 
+The separately prepared experimental MoE source also has opt-in CPU smoke and
+first-answer headless modes. Their activation, ownership and private output
+contract are described in [Demand-loaded MoE experts](ua50-ssd-moe.md#bounded-first-visible-answer).
+These additions are carried by the locked preparation patches; they do not
+activate a general catalogue model or change ordinary UI/LAN behavior.
+
 ## UWP front-end summary
 
 `MainPageController` (`uwp/MainPage.cpp`) owns the chat UI surface. Key flows:

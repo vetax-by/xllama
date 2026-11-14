@@ -8,12 +8,13 @@ The patch rationale, implementation and evidence limits have one home:
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
 - Patch lock SHA-256:
-  `b803a1e0b7b69a053e0bc7bbe4d6f84e6c52e9935006a823411463b0a048abf9`.
+  `5dab2dab1aca23e6d914bd5304ee957f3dc741f57d19457c6ef3b3af3ecf562d`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
 The first four patches retain the accepted application/runtime bytes. Two
-additional patches carry the explicit console CPU pilot; the current lock and
-source/import inventories bind all six. The unsigned build and package-guard commands are unchanged; its public receipt
+additional patches carry the explicit console CPU smoke pilot. A seventh root
+patch adds a separate bounded first-answer mode; the current lock and
+source/import inventories bind all seven. The unsigned build and package-guard commands are unchanged; its public receipt
 omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -34,10 +35,15 @@ upstream tree as the product. This separation is important: the application
 sources visible on this fork branch already include our root changes and must
 not receive those patches again.
 
-When Windows execution is separately selected, run the baseline track first.
-Only after its successful build and inspection should the patched track run
-with the exact patch-lock SHA above. Do not automatically retry, retarget a
-missing SDK, sign a package or install it on a console.
+A successful, inspected pinned baseline must precede a patched build. The
+unchanged accepted baseline artifact can be reused; the new patched source
+requires its own build and inspection with the exact lock above. Do not
+automatically retry, retarget a missing SDK, sign or install a package.
+
+The existing signing workflow retains the earlier accepted unsigned-artifact
+inputs. It must not be reused for this first-answer successor. Its exact
+artifact and validator bindings require a separate reviewed update after the
+new unsigned artifact has been accepted.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -48,16 +54,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch b803a1e0b7b69a053e0bc7bbe4d6f84e6c52e9935006a823411463b0a048abf9
+python operator/ua50/prepare_sources.py product operator/ua50 patch 5dab2dab1aca23e6d914bd5304ee957f3dc741f57d19457c6ef3b3af3ecf562d
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, six ordered patch files and source/import inventories. Old
+exact lock, seven ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 45 selected shipping postimages,
+the pinned route once and checks all 47 selected shipping postimages,
 including both `.inc` dependencies and the gated Windows CPU-pilot unit, before writing its source receipt.
 
 The helper rejects weight and private-key-like files in the product tree,
@@ -78,7 +84,28 @@ assistant quality. An unsigned package is not an installed or trusted package.
 No model weights, test signing keys, local telemetry or device secrets are
 needed in this repository.
 
-The current [CPU-pilot Windows build](https://github.com/vetax-by/xllama/actions/runs/43594526711)
+The earlier six-patch [CPU-pilot Windows build](https://github.com/vetax-by/xllama/actions/runs/43594526711)
 compiled, linked and produced an inspected unsigned x64 package with all six
 patches and 45 selected source files verified. This is package-build evidence;
-signing, a higher update version and actual console execution remain pending.
+the new seven-patch first-answer source still needs its own inspected Windows
+build, signed preserving update and console acceptance.
+
+## Bounded first-answer developer mode
+
+The additional first-answer patch keeps the earlier smoke path and default UI/LAN
+behavior. A separate explicit local flag selects one fixed short Russian greeting,
+source-faithful LFM24 chat rendering and greedy generation with a maximum of 128
+samples in a context of at most 512 tokens. The whole prompt must fit without
+trimming. This is a developer check, not a catalogue or general assistant release.
+
+Private bounded output retains sampled IDs and raw token-piece bytes separately
+from the seeded assistant prefix, UTF-8 validity, stop reason and monotonic timing.
+EOS/EOT and length limits are distinct; a cap inside thinking is not a completed
+final answer. Successful output additionally requires held-file integrity,
+normal owner/file teardown, exact output commit and observed process termination.
+Hash/open/load timing is separate from the short native generation trace.
+
+New native claim/output files are exclusive; earlier smoke claims and results
+remain untouched. Installation must preserve application state and model files.
+No private console logs, generated responses, device credentials or signing keys
+are publication inputs. See the main patch document for evidence boundaries.

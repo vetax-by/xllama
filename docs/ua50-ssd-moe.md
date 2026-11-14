@@ -107,31 +107,65 @@ resource release. Ordinary UI/LAN behavior remains unchanged. The pilot does
 not establish an interactive assistant, tool support, 4K–8K context or a speed
 target; those require later tests.
 
-The current pilot has compiled and linked on Windows and produced an inspected
-unsigned x64 package. Actual quota/buffer planning, signed recoverable
-installation, real I/O and console execution are still pending. The flag is not
-an instruction to bypass those checks.
+The earlier smoke path has compiled and linked on Windows and completed a
+bounded CPU prompt/next-token step on a developer console, including its
+held-file integrity gates and normal teardown. This is separate from the new
+first-answer mode below. It does not establish an interactive assistant,
+sustained performance, long-context quality or cancellation behavior.
+
+### Bounded first visible answer
+
+A separate opt-in developer mode renders one fixed short Russian greeting using
+the checkpoint's verified single-user/no-system chat-template subset. The
+model supplies its own generated text: the seeded assistant thinking opener is
+recorded separately and is never counted as generated output. The tokenizer
+owns BOS, the whole prompt must fit without trimming, and the mode uses a
+bounded context and at most 128 greedy samples.
+
+In the prepared product tree, the dedicated LocalFolder leaf prefix is
+`ua50-cpu-lfm24-first-answer-v1`: `.flag` selects activation, `.claim` is the
+persistent exclusive one-shot marker, `.stop` requests cooperative stop and
+`.output.json` is the bounded private result. Old smoke claims are retained;
+the mode never deletes a claim to arrange an automatic retry. Creating a flag
+is a developer operation requiring the reviewed package, admitted model and
+actual quota checks, not a general inference API.
+
+A private bounded record retains sampled token IDs, reversible piece bytes,
+UTF-8 validity, true EOS/EOT or length stop reason and monotonic prefill/sample/
+decode timing. A length cap inside an open thinking section is labeled as such;
+no final answer or closing tag is invented. Generation timing includes expert
+read waits and separates hashing, file opening and model loading.
+
+A complete result requires successful pre/post held-file integrity checks,
+normal owner/file/writer teardown, exact output write/flush/close, new log
+markers and observed termination of the bound process. Partial diagnostics and
+an output file by themselves do not prove normal completion. Old smoke claims
+remain intact; this mode has its own exclusive activation and result namespace.
+
+This first-answer successor has portable functional evidence using explicit fake
+native/platform boundaries. Its actual Windows build and console text-generation
+acceptance remain pending; the earlier short smoke test does not validate it.
 
 ## Evidence and limits
 
 The [original pinned Windows baseline build](https://github.com/vetax-by/xllama/actions/runs/43592901046)
 has completed successfully and produced an inspected unsigned x64 package. That
 baseline includes the stock AppContainer guard and **none of our six patches**.
-The [current CPU-pilot build](https://github.com/vetax-by/xllama/actions/runs/43594526711)
+The [earlier six-patch CPU-pilot build](https://github.com/vetax-by/xllama/actions/runs/43594526711)
 also completed successfully, applying all six locked patches and verifying all
 45 selected source files. Its unsigned x64 package is 21,051,447 bytes, SHA-256
 `35d0ad3b12ae203e37cfaa69577ba8cd34709d3626b4efc41e755260f08854ae`.
 The actual executable imports the required BCrypt and overlapped-file APIs.
 Successful compilation and linking do not prove that those APIs, native memory
 planning or model decoding work on the console. Both packages are version
-`1.7.0.0`; signing and an explicitly higher update version remain required
-before installation.
+`1.7.0.0` as unsigned build artifacts. The seven-patch first-answer successor
+requires a distinct inspected build and signed higher-version preserving update.
 
 | Area                          | What has been checked                                                                                                                         | What it does not establish                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Native CPU integration        | Actual LFM2MoE factory/context/decode on generated GGUF fixtures, resident/cache logits, routes, mixed-quant slice ledgers and fault handling | Real checkpoint parity, useful assistant quality or Xbox performance                                                 |
 | Real 8B checkpoint            | One successful native prompt and next-token step using streamed experts                                                                       | Two-session reproducibility, resident-reference parity, sustained speed or context quality                           |
-| Real 24B checkpoint           | Complete acquisition and held-file integrity checks                                                                                           | Native decode: no 24B model process successfully started; the latest attempt was refused by its entry pressure guard |
+| Real 24B checkpoint           | One bounded CPU console prompt/next-token smoke path with source-qualified held-file integrity and normal teardown                              | Exported answer text, real resident-reference parity, sustained speed, long context or assistant quality              |
 | Portable reader core          | Nine fake-backend test groups                                                                                                                 | Windows API behavior or real device cancellation                                                                     |
 | Session hub and adapter/owner | Actual hub tests and five functional adapter/owner groups with ASan/UBSan; named native/platform boundaries are fakes                         | Native math, production Windows I/O or BCrypt execution                                                              |
 | Shipping preparation          | Exact patch order, selected postimages, registration and source-admission checks                                                              | Actual installation or runtime behavior on the console                                                               |
@@ -140,20 +174,21 @@ Windows build evidence includes SDK/dependency resolution, MSBuild compilation,
 linking and unsigned packaging for both tracks. It is separate from the earlier
 Linux checkpoint tests and their refused attempts.
 
-The 24B refusal snapshot at the exact pressure-trigger instant was not retained.
+An earlier Linux 24B attempt was refused before native launch. Its snapshot at
+the exact pressure-trigger instant was not retained.
 Later resource data cannot identify its precise ancestor/value, attribute it to
 the model, or establish OOM or model fit. The refused attempt is not relabeled
 as a model correctness failure.
 
-No modified MoE build has been installed or measured on Xbox. Dense-model
+The bounded console smoke milestone is not a performance benchmark. Dense-model
 D3D12 results do not prove routed expert support: external `MUL_MAT_ID` GPU
 execution is not implemented by this patch. Logical reader bytes are not
 physical SSD traffic; process RSS is not the full memory cost of OS page cache,
 KV, activations, UI and backend buffers.
 
 The bounded developer pilot supplies built-in checkpoint/path binding, writer
-ownership, quota/planning and watchdog/status callbacks in source. Their actual
-Windows behavior still requires validation. General catalogue activation and a
+ownership, quota/planning and watchdog/status callbacks. The successful short
+console path does not cover every fault, cancellation or allocation case. General catalogue activation and a
 usable UI/LAN assistant remain separate work; missing admission callbacks refuse
 the internal opt-in.
 
@@ -169,14 +204,16 @@ gitlink remains upstream-pinned; its modifications are carried as checked
 patches, not committed inside the submodule. Use the preparation recipe below
 instead of treating the raw fork checkout as an already prepared build tree.
 
-[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for six
+[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for seven
 ordered patches. The route on a separate clean base tree is: stock AppContainer
 guard once, runtime root patch, runtime llama patch, application root patch,
-application llama patch, CPU pilot root patch and CPU pilot llama patch. Do not additionally apply
+application llama patch, CPU pilot root patch, CPU pilot llama patch and finally
+one first-answer root patch. Do not additionally apply
 intermediate development patches or apply a cumulative patch twice.
 
 The two new `.inc` files are shipping include dependencies of `session.cpp`,
-not additional translation units. Test doubles, local fixtures, Linux-only
+not additional translation units. The first-answer record/template add two
+shipping headers without adding a translation unit. Test doubles, local fixtures, Linux-only
 reader adapters and reference overlays are excluded from the shipping set.
 
 See [`ua50/README.md`](../ua50/README.md) for the reviewed unsigned preparation
