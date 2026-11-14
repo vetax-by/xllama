@@ -1,5 +1,5 @@
 """Future private signing-lane package-only helper. No crypto/key/device operations."""
-import argparse, hashlib, json, os, re, stat, zipfile
+import argparse, hashlib, json, os, re, stat, sys, zipfile
 from pathlib import Path, PurePosixPath
 from xml.dom import minidom
 LIMIT=400*1024*1024
@@ -80,11 +80,37 @@ def prepare(package,expected_sha,installed,new,work):
  record={'schema':'ua50-signed-copy-source-plan-v1','unsigned_sha256':expected_sha,'installed_version_input':installed,'original_package_version':original_version,'new_version':new,'payload':hashes}
  (work/'COPY-PLAN.json').write_text(json.dumps(record,indent=2)+'\n')
  return record
+def payload_mismatch_report(expected,actual):
+ # Only bounded archive-relative member identifiers + lengths/digests; never bytes/paths.
+ def metadata(value):
+  if not isinstance(value,dict):return {'metadata':'INVALID'}
+  n=value.get('bytes');digest=value.get('sha256')
+  if type(n) is not int or not 0<=n<=1024*1024*1024 or not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{64}',digest):return {'metadata':'INVALID'}
+  return {'bytes':n,'sha256':digest}
+ def member_label(name):
+  canonical=isinstance(name,str) and name and not any(c in name for c in ('\\',':')) and not name.startswith('/') and all(p not in ('','.','..') for p in name.split('/')) and str(PurePosixPath(name))==name
+  if not canonical:return {'member':'INVALID_RELATIVE_MEMBER'}
+  label={'member':name[:256]}
+  if len(name)>256:label.update(member_truncated=True,full_member_name_sha256=sha(name.encode('utf-8')))
+  return label
+ keys=sorted(set(expected)|set(actual))
+ differences=[(name,'added' if name not in expected else 'missing' if name not in actual else 'changed') for name in keys if expected.get(name)!=actual.get(name)]
+ report={'schema':'ua50-signed-payload-difference-v1','difference_count':len(differences),'added_count':sum(k=='added' for _,k in differences),'missing_count':sum(k=='missing' for _,k in differences),'changed_count':sum(k=='changed' for _,k in differences),'entries':[],'truncated':False}
+ for name,kind in differences:
+  if len(report['entries'])>=20:report['truncated']=True;break
+  entry=member_label(name)|{'kind':kind,'expected':metadata(expected[name]) if name in expected else None,'actual':metadata(actual[name]) if name in actual else None}
+  report['entries'].append(entry)
+  if len(json.dumps(report,ensure_ascii=True,separators=(',',':')).encode('ascii'))>16384:
+   report['entries'].pop();report['truncated']=True;break
+ return report
 def verify(package,plan_path):
  plan=json.loads(plan_path.read_text());payload=read_package(package,True);doc,node=identity(payload['AppxManifest.xml'])
  if node.getAttribute('Version')!=plan['new_version']:raise ValueError('signed manifest version mismatch')
  actual={name:{'bytes':len(data),'sha256':sha(data)} for name,data in payload.items() if name not in GENERATED}
- if actual!=plan['payload']:raise ValueError('signed-copy payload changed outside planned manifest-only version edit')
+ if actual!=plan['payload']:
+  report=payload_mismatch_report(plan['payload'],actual)
+  print(json.dumps(report,ensure_ascii=True,separators=(',',':')),file=sys.stderr,flush=True)
+  raise ValueError('signed-copy payload changed outside planned manifest-only version edit')
  return {'signed_package_sha256':bounded_package_sha(package),'payload_files_verified':len(actual),'new_version':plan['new_version'],'crypto_signature_status':'REQUIRES_WINDOWS_SIGTOOL_AND_AUTHENTICODE'}
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('operation',choices=('prepare','verify'));p.add_argument('--package',type=Path,required=True);p.add_argument('--sha256');p.add_argument('--installed');p.add_argument('--new');p.add_argument('--work',type=Path);p.add_argument('--plan',type=Path);a=p.parse_args()
