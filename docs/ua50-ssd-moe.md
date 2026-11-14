@@ -143,8 +143,9 @@ an output file by themselves do not prove normal completion. Old smoke claims
 remain intact; this mode has its own exclusive activation and result namespace.
 
 This first-answer successor has portable functional evidence using explicit fake
-native/platform boundaries. Its actual Windows build and console text-generation
-acceptance remain pending; the earlier short smoke test does not validate it.
+native/platform boundaries and an independently inspected Windows build. Actual
+console text-generation acceptance remains pending; the earlier short smoke test
+does not validate this new mode.
 
 ## Evidence and limits
 
@@ -158,8 +159,15 @@ also completed successfully, applying all six locked patches and verifying all
 The actual executable imports the required BCrypt and overlapped-file APIs.
 Successful compilation and linking do not prove that those APIs, native memory
 planning or model decoding work on the console. Both packages are version
-`1.7.0.0` as unsigned build artifacts. The seven-patch first-answer successor
-requires a distinct inspected build and signed higher-version preserving update.
+`1.7.0.0` as unsigned build artifacts.
+
+The distinct [seven-patch first-answer build](https://github.com/vetax-by/xllama/actions/runs/43627054490)
+has also completed compilation, linking and package inspection, with all 47
+selected source files verified. Its unsigned package is 21,072,488 bytes,
+SHA-256 `808e50ba90d42b09c745eeb67221719afa4e50e80a04817ceb3724d7fe6be89f`,
+also version `1.7.0.0`. A signed higher-version preserving update and actual
+console output acceptance remain required. Build warnings are retained; this is
+not a warning-free build or proof of runtime correctness.
 
 | Area                          | What has been checked                                                                                                                         | What it does not establish                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |

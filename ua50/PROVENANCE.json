@@ -14,7 +14,7 @@
     "first_answer_source_shipping": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
     "first_answer_operator_binding": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3"
   },
-  "qualification": "The earlier six-patch CPU smoke path built on Windows and completed a bounded console prompt/step. The seven-patch first-answer successor requires its own Windows build, signed preserving update and real output acceptance. No private console telemetry or model response is included.",
+  "qualification": "The earlier six-patch CPU smoke path built on Windows and completed a bounded console prompt/step. The seven-patch first-answer successor has now compiled, linked and produced an independently inspected unsigned Windows package; signed preserving update and real output acceptance remain pending. No private console telemetry or model response is included.",
   "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Six reviewed runtime/application/CPU patches retain their bytes; one reviewed root patch adds the bounded first-answer mode. Operator and signing bindings remain separate.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
@@ -67,6 +67,19 @@
       "installed": false,
       "model_execution": false,
       "artifact_review_sha256": "de2d4e490743166578329e33fcd01563dccd3fd0fa818b61b1f60e95c224a87d"
+    },
+    "first_answer": {
+      "run_id": 43627054490,
+      "operator_commit": "607b9dc7450cce4c4d43329edd8654426f74b125",
+      "track": "patch",
+      "selected_shipping_files_verified": 47,
+      "package_bytes": 21072488,
+      "package_sha256": "808e50ba90d42b09c745eeb67221719afa4e50e80a04817ceb3724d7fe6be89f",
+      "package_version": "1.7.0.0",
+      "signed": false,
+      "installed": false,
+      "model_execution": false,
+      "artifact_review_sha256": "f215e5d010744b56578030008bcacf2e0b676a9ec7cfead5f1517ae77651867f"
     }
   },
   "first_answer_source": {
@@ -77,8 +90,9 @@
     "selected_shipping_inputs": 47,
     "source_review": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
     "operator_review": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
-    "actual_Windows_build": false,
+    "actual_Windows_build": true,
     "actual_console_text_output": false,
-    "correction_sha256": "650ed6335925a7a574c8d11f6945db94e4b4689cac41dd8662ed85a2a2361f82"
+    "correction_sha256": "650ed6335925a7a574c8d11f6945db94e4b4689cac41dd8662ed85a2a2361f82",
+    "actual_Windows_artifact_review": "f215e5d010744b56578030008bcacf2e0b676a9ec7cfead5f1517ae77651867f"
   }
 }

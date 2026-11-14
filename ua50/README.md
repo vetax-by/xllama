@@ -40,10 +40,12 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The existing signing workflow retains the earlier accepted unsigned-artifact
-inputs. It must not be reused for this first-answer successor. Its exact
-artifact and validator bindings require a separate reviewed update after the
-new unsigned artifact has been accepted.
+The separate signing workflow binds the first-answer unsigned artifact and the
+unchanged accepted baseline. Its validator requires the current seven-patch,
+47-file source receipt. Manual signing requires a fresh installed version and
+an explicitly selected higher patched version plus a still higher stock
+forward-recovery version. Signing does not install or launch the application,
+and a recovery package alone does not prove recovery compatibility.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -86,9 +88,11 @@ needed in this repository.
 
 The earlier six-patch [CPU-pilot Windows build](https://github.com/vetax-by/xllama/actions/runs/43594526711)
 compiled, linked and produced an inspected unsigned x64 package with all six
-patches and 45 selected source files verified. This is package-build evidence;
-the new seven-patch first-answer source still needs its own inspected Windows
-build, signed preserving update and console acceptance.
+patches and 45 selected source files verified. The separate
+[first-answer Windows build](https://github.com/vetax-by/xllama/actions/runs/43627054490)
+also produced an inspected unsigned x64 package with all seven patches and 47
+selected source files verified. Its signed preserving update and actual console
+text output remain separate acceptance steps.
 
 ## Bounded first-answer developer mode
 
