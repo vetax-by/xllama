@@ -83,6 +83,34 @@ The current expert adapter supports full plain-text turns. Tool decoding, KV
 continuation, LoRA, GPU offload and prompt lookup are explicitly refused on
 this path. Existing ordinary xllama routes are separate.
 
+### Explicit console CPU pilot
+
+A developer-only headless pilot now supplies the previously missing admission
+callbacks for one compile-pinned LFM2.5-24B-A2B Q4 checkpoint. It uses a fixed
+application-owned model path and exact file size/SHA-256, not a mutable catalogue
+entry or a caller-provided checksum. The existing application writer gate stays
+held until the reader, control and backing file have actually closed.
+
+The pilot reads the real in-process UWP MemoryManager quota, usage and limit
+changes. A metadata-only native plan estimates non-routed model buffers,
+KV/recurrent state, graph/CPU workspace, output, cache and staging requirements
+before weight allocation. A 512 MiB reserve and 256 MiB planning allowance are
+conservative policies, not measured maxima, hard allocation caps or protection
+against every allocation spike. Missing or insufficient admission refuses the
+load without a resident fallback.
+
+Only an explicit local developer flag selects this path; a persistent claim
+prevents automatic repeat attempts. It requests one CPU backend, a short raw
+prompt, two samples and one next-token decode step. Memory/status monitoring,
+a watchdog and stop forwarding remain active, with terminal I/O drain before
+resource release. Ordinary UI/LAN behavior remains unchanged. The pilot does
+not establish an interactive assistant, tool support, 4K–8K context or a speed
+target; those require later tests.
+
+These are reviewed source changes. Actual Windows compilation, quota/buffer
+planning, signed recoverable installation, real I/O and console execution are
+still pending. The flag is not an instruction to bypass those checks.
+
 ## Evidence and limits
 
 | Area                          | What has been checked                                                                                                                         | What it does not establish                                                                                           |
@@ -105,10 +133,11 @@ execution is not implemented by this patch. Logical reader bytes are not
 physical SSD traffic; process RSS is not the full memory cost of OS page cache,
 KV, activations, UI and backend buffers.
 
-Trusted catalogue/model-path binding, application writer policy, actual joint
-memory/quota admission and watchdog/status/progress integration remain required
-before usable application activation. Missing admission callbacks refuse the
-internal opt-in. There is no new public UI/LAN toggle enabling this mode.
+The bounded developer pilot supplies built-in checkpoint/path binding, writer
+ownership, quota/planning and watchdog/status callbacks in source. Their actual
+Windows behavior still requires validation. General catalogue activation and a
+usable UI/LAN assistant remain separate work; missing admission callbacks refuse
+the internal opt-in.
 
 ## Source layout and reproducible preparation
 
@@ -116,15 +145,16 @@ The reviewed base is xllama commit
 `4db51522c850e62d0bb24234dfeb48e55f4017d7` and llama.cpp commit
 `d81235049384534c167caea52b85a694f6103d14`.
 
-The application changes are visible in this branch. The llama.cpp submodule
+The application foundation is visible in this branch; the additional CPU pilot
+changes are carried in the locked preparation patches. The llama.cpp submodule
 gitlink remains upstream-pinned; its modifications are carried as checked
 patches, not committed inside the submodule. Use the preparation recipe below
 instead of treating the raw fork checkout as an already prepared build tree.
 
-[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for the four
-ordered runtime/application patches. The route on a separate clean base tree
-is: stock AppContainer guard once, runtime root patch, runtime llama patch,
-application root patch, application llama patch. Do not additionally apply
+[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for six
+ordered patches. The route on a separate clean base tree is: stock AppContainer
+guard once, runtime root patch, runtime llama patch, application root patch,
+application llama patch, CPU pilot root patch and CPU pilot llama patch. Do not additionally apply
 intermediate development patches or apply a cumulative patch twice.
 
 The two new `.inc` files are shipping include dependencies of `session.cpp`,
@@ -134,8 +164,9 @@ reader adapters and reference overlays are excluded from the shipping set.
 See [`ua50/README.md`](../ua50/README.md) for the reviewed unsigned preparation
 recipe, selected source inventories and the manual-only Windows workflow.
 Baseline and patched builds use separate clean copies of the pinned upstream
-source. The workflow has no push/pull-request trigger. At initial publication,
-Actions is disabled for this fork and no build has been dispatched.
+source. The workflow has no push/pull-request trigger. Actions is normally disabled for this fork and temporarily enabled only for a
+separately selected manual attempt. Preparation failures are not successful
+compiles; current source review does not attest a Windows package.
 
 ## License and relationship to upstream
 

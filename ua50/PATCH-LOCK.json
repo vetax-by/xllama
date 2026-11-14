@@ -25,6 +25,18 @@
       "target": "llama",
       "bytes": 4364,
       "sha256": "95aba02ccf3126737fcb603ad66a595320827ca49a54ba893ff631aeaeb91e1d"
+    },
+    {
+      "file": "patch/cpu-pilot-root.patch",
+      "target": "xllama",
+      "bytes": 35835,
+      "sha256": "d3b6bacac4655c62250c5d9fe0b6cee7b2873a8e3c055a3388851ca52aed6d07"
+    },
+    {
+      "file": "patch/cpu-pilot-llama.patch",
+      "target": "llama",
+      "bytes": 4003,
+      "sha256": "4a7c6d25664d5988805a1542738b49a0995e2c459f9fde7413e83af34925608e"
     }
   ]
 }

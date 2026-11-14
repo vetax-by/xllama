@@ -3,14 +3,17 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "760ed6df52cffcc92de714fd35e1b796d6697ad82e354159f7de73f92c8d2846",
-  "source_bundle_sha256": "6aa3f9f9cd1525ca652f134bfc277eb3c3fc1c552ee893a7f243a6a0c386f89e",
+  "patch_lock_sha256": "b803a1e0b7b69a053e0bc7bbe4d6f84e6c52e9935006a823411463b0a048abf9",
+  "source_bundle_sha256": "ef6266c78627035a3c7e4372347839f9522b60421770dd9cd149dd48a9521235",
   "source_reviews": {
-    "composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
-    "operator": "ab5c81a17414121e287bce0bcf39b0fc27be4722d2ed9594ed5110a5cee01f8d"
+    "composition": "b2228ff47fb5094a9b66ffd621eda6d7aaceff54bd576b3909cb91c549381ddd",
+    "cpu_pilot": "efe7dbb8a350c1ca99c07386b207570580d7d13457f2ad247518da9d380f66dd",
+    "operator_admission": "ecf0ffaf00503ba9401066684e0d37457b8a9849acc80daefbcc9a8b55fc1c11",
+    "base_composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
+    "current_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
   },
-  "qualification": "Source composition/admission reviewed; not a Windows build or Xbox acceptance.",
-  "public_metadata_adjustment": "DEPENDENCIES.json omits captured tool-installation-path excerpts. Operator-only Windows checkout/Bash/source-fixture admission corrections are recorded separately; runtime patch lock, four patches and admitted shipping/compiler inventories are unchanged.",
+  "qualification": "Reviewed source composition and bounded CPU pilot candidate; Windows compile, native buffer planning, quota, installation and console execution remain unverified.",
+  "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Four base runtime/application patches retain their bytes; two reviewed CPU-pilot patches extend the locked route. Operator corrections are recorded separately.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
     {
@@ -27,6 +30,14 @@
       "scope": "Exact pinned upstream source-only fixture admission",
       "source_manifest_sha256": "bf5dd113ae772c272764558c93027c7902f5e4eec5423a20910f2e7077db192b",
       "review_sha256": "515cc137498d4aceb6dbf9d9d55c151e2e4c312aef235899f1c5349e3e1722df"
+    },
+    {
+      "scope": "Consistent handle metadata for source-only fixture admission",
+      "source_manifest_sha256": "23edd762a425fea0e2d69e4a55b557377ad386a985a9664ed3c03aa5af6ef2e8",
+      "review_sha256": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
     }
-  ]
+  ],
+  "operator_admission_manifest_sha256": "5a02dbd8dc9e79e535bb7117a9f20428c8f340bca1f8000b2279a3606d49cd2d",
+  "operator_composition_manifest_sha256": "8fd1fa5cfe19fbb59e84c91fb890a2932230b7d11665798138a44684113000d0",
+  "operator_sha256": "582f39ff1634ab008f3ba762313a45a2809752f188a4ed7ef53bfd6b1782ebe0"
 }

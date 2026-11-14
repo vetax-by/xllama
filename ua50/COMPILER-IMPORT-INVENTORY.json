@@ -1,5 +1,5 @@
 {
-  "status": "DECLARATIONS_ONLY_NOT_WINDOWS_IMPORT_OR_BUILD_PROOF",
+  "status": "DECLARATIONS_ONLY_NOT_WINDOWS_TRANSITIVE_IMPORT_LINK_PROOF",
   "projects": {
     "uwp/ggml-uwp.vcxproj": {
       "imports": [
@@ -320,15 +320,9 @@
           "metadata": {}
         }
       ],
-      "include_directories": [
-        "\n        $(GgmlVersionDir);\n        $(ProjectDir)..\\llama.cpp\\include;\n        $(ProjectDir)..\\llama.cpp\\src;\n        $(ProjectDir)..\\llama.cpp\\src\\ua50;\n        $(ProjectDir)..\\llama.cpp\\ggml\\include;\n        $(ProjectDir)..\\llama.cpp\\ggml\\src;\n        $(ProjectDir)..\\llama.cpp\\ggml\\src\\ggml-cpu;\n        %(AdditionalIncludeDirectories)\n      "
-      ],
-      "libraries": [],
-      "language_standards": [
+      "dependencies": [],
+      "language": [
         "stdcpp17"
-      ],
-      "exceptions": [
-        "Sync"
       ]
     },
     "uwp/llama-common-uwp.vcxproj": {
@@ -488,15 +482,9 @@
           }
         }
       ],
-      "include_directories": [
-        "\n        $(LlamaBuildInfoDir);\n        $(ProjectDir)..\\llama.cpp\\common;\n        $(ProjectDir)..\\llama.cpp\\include;\n        $(ProjectDir)..\\llama.cpp\\ggml\\include;\n        $(ProjectDir)..\\llama.cpp\\vendor;\n        %(AdditionalIncludeDirectories)\n      "
-      ],
-      "libraries": [],
-      "language_standards": [
+      "dependencies": [],
+      "language": [
         "stdcpp17"
-      ],
-      "exceptions": [
-        "Sync"
       ]
     },
     "uwp/xllama.vcxproj": {
@@ -733,6 +721,13 @@
           "metadata": {}
         },
         {
+          "path": "cpu-expert-pilot.cpp",
+          "condition": "'$(XllamaBackend)' == 'llamacpp' or '$(XllamaBackend)' == 'unified'",
+          "metadata": {
+            "AdditionalIncludeDirectories": "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)"
+          }
+        },
+        {
           "path": "native_capture.cpp",
           "condition": null,
           "metadata": {}
@@ -778,25 +773,19 @@
           "metadata": {}
         }
       ],
-      "include_directories": [
-        "\n        $(ProjectDir);\n        $(ProjectDir)Generated Files;\n        $(IntDir)Generated Files;\n        $(ProjectDir)..\\include;\n        $(ProjectDir)..\\shaders\\generated;\n        $(ProjectDir)..\\llama.cpp\\include;\n        $(ProjectDir)..\\llama.cpp\\common;\n        $(ProjectDir)..\\llama.cpp\\ggml\\include;\n        $(ProjectDir)..\\llama.cpp\\vendor;\n        $(ProjectDir)packages\\Microsoft.ML.OnnxRuntimeGenAI.DirectML.0.14.1\\build\\native\\include;\n        $(ProjectDir)packages\\Microsoft.ML.OnnxRuntime.DirectML.1.24.4\\build\\native\\include;\n        %(AdditionalIncludeDirectories)\n      ",
-        "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)",
-        "$(ProjectDir)..\\llama.cpp\\ggml\\src;%(AdditionalIncludeDirectories)",
-        "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)",
-        "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)",
-        "$(ProjectDir)..\\llama.cpp\\src;$(ProjectDir)..\\llama.cpp\\src\\ua50;$(ProjectDir)..\\llama.cpp\\ggml\\src;$(ProjectDir)..\\src\\platform\\ua50;%(AdditionalIncludeDirectories)"
-      ],
-      "libraries": [
+      "dependencies": [
         "WindowsApp.lib;Bcrypt.lib;onnxruntime.lib;onnxruntime-genai.lib;dxgi.lib;d3d11.lib;%(AdditionalDependencies)"
       ],
-      "language_standards": [
+      "language": [
         "stdcpp17"
-      ],
-      "exceptions": [
-        "Async"
       ]
     }
   },
-  "app_CMake": "root CMake Linux-only, app Windows units intentionally not registered; native ggml provider registered once",
-  "stock_operator_dependencies": "DEPENDENCIES.json inherited bytes, not current restored SDK/NuGet/CRT inventory"
+  "native_CMake_new_TUs": 0,
+  "app_CMake_new_TUs": 0,
+  "UWP_MSBuild_new_TUs": 1,
+  "existing_imports_retained": [
+    "WindowsApp.lib",
+    "Bcrypt.lib"
+  ]
 }

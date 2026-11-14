@@ -1,0 +1,568 @@
+--- a/include/xllama/cpu_expert_session.h
++++ b/include/xllama/cpu_expert_session.h
+@@ -1,5 +1,6 @@
+ #pragma once
+ #include "llama.h"
++#include "cpu_pilot_policy.h"
+ #include "ua50/owned_expert_load.h"
+ #include "windows_held_reader.h"
+ #include <atomic>
+@@ -17,6 +18,9 @@
+  std::function<ua50::uwp::WindowsInputCandidate()> admitted_source;
+  // Mandatory app quota/context/compute admission, not guessed from file size.
+  std::function<void(const ua50::ExpertLoadPlan&,const llama_context_params&)> admit_budget;
++ // Optional for other internal clients; the explicit pilot supplies a mandatory real quota guard.
++ std::function<void(const char*)> phase_check;
++ std::function<void(uint32_t,uint64_t,uint64_t,uint64_t)> route_trace;
+ };
+ class CpuExpertSession final:public std::enable_shared_from_this<CpuExpertSession> {
+ public:
+@@ -34,6 +38,7 @@
+  uint32_t context_length() const;
+  uint32_t batch_length() const;
+  void invalidate(const char*) noexcept;
++ void log_drained_counters() const;
+  State state() const noexcept{return state_.load(std::memory_order_acquire);}
+  const char* first_failure_after_drain() const noexcept{return first_failure_;}
+  CpuExpertSession(const CpuExpertSession&)=delete;
+@@ -47,10 +52,13 @@
+  std::unique_ptr<llama_context,ContextDelete> context_;
+  std::atomic<State> state_{State::Opening};std::atomic<bool> stop_{false};
+  std::atomic<bool>* turn_abort_=nullptr; // serialized decode scope; callback only while llama_decode runs
++ std::function<void(const char*)> phase_check_;
+  char first_failure_[256]{};
+  static bool should_abort(void*) noexcept;
+  void latch_failure(const char*) noexcept;
+ };
++// Metadata/no-payload native plan; caller must hold the admitted FILE and exclude writers.
++cpu_pilot::MemoryPlan plan_cpu_expert_memory(FILE*,const CpuExpertOptIn&,const ua50::ExpertLoadPlan&);
+ // Mandatory full-held-file SHA callback implementation, Windows BCrypt system API.
+ // Expected bytes/SHA must come from trusted app catalogue, not a LAN supplied claim.
+ std::function<ua50::uwp::WindowsInputCandidate()> make_windows_expert_source(
+--- /dev/null
++++ b/include/xllama/cpu_pilot_binding.h
+@@ -0,0 +1,49 @@
++#pragma once
++#include "xllama/model_write.h"
++#include "windows_held_reader.h"
++
++namespace xllama::cpu_pilot {
++struct Binding {
++    // Reverse destruction: FILE/Reader closures die before the writer permit.
++    ModelWriteGate::Permit writer;
++    ua50::uwp::WindowsInputCandidate original;
++    explicit Binding(ModelWriteGate::Permit p):writer(std::move(p)){}
++};
++struct BoundControl final:ua50::uwp::WindowsInputControl {
++    std::shared_ptr<Binding> binding;
++    explicit BoundControl(std::shared_ptr<Binding> p):binding(std::move(p)){}
++    void request_stop() noexcept override {binding->original.control->request_stop();}
++    void drain_to_terminal() noexcept override {binding->original.control->drain_to_terminal();}
++};
++struct BoundReader final:ua50::uwp::WindowsReader {
++    std::shared_ptr<Binding> binding;
++    std::shared_ptr<ua50::uwp::WindowsReader> inner;
++    BoundReader(std::shared_ptr<Binding> b,std::shared_ptr<ua50::uwp::WindowsReader> r)
++        :binding(std::move(b)),inner(std::move(r)) {
++        if(!inner)throw std::runtime_error("pilot Reader factory returned null");
++    }
++    size_t read(uint64_t offset,unsigned char* p,size_t n) override{return inner->read(offset,p,n);}
++    void request_stop() noexcept override{inner->request_stop();}
++    void drain_to_terminal() noexcept override{inner->drain_to_terminal();}
++    ua50::uwp::Ledger ledger_after_drain() const override{return inner->ledger_after_drain();}
++    ua50::uwp::Cause cause_after_drain() const override{return inner->cause_after_drain();}
++};
++template<class Source> ua50::uwp::WindowsInputCandidate bind_writer(ModelWriteGate::Permit permit,Source&& source) {
++    if(!permit.owns_lock())throw std::invalid_argument("pilot writer unavailable");
++    // Establish ordered ownership BEFORE invoking the source/hash factory, including unwind.
++    auto b=std::make_shared<Binding>(std::move(permit));
++    b->original=source();
++    const auto& input=b->original;
++    if(!input.file || !input.file_anchor || !input.admission_anchor ||
++       !input.control || !input.validate_binding || !input.make_reader)
++        throw std::invalid_argument("pilot writer/input binding incomplete");
++    auto c=b->original;
++    c.file_anchor=b;c.admission_anchor=b;
++    c.validate_binding=[b](FILE* f){b->original.validate_binding(f);};
++    c.make_reader=[b](size_t n)->std::shared_ptr<ua50::uwp::WindowsReader>{
++        return std::make_shared<BoundReader>(b,b->original.make_reader(n));
++    };
++    c.control=std::make_shared<BoundControl>(b);
++    return c;
++}
++} // namespace xllama::cpu_pilot
+--- /dev/null
++++ b/include/xllama/cpu_pilot_policy.h
+@@ -0,0 +1,41 @@
++#pragma once
++#include <cstdint>
++#include <cstddef>
++#include <initializer_list>
++#include <limits>
++#include <stdexcept>
++#include <string>
++
++namespace xllama::cpu_pilot {
++// Built-in developer pilot pin. This is not a signed/updateable catalogue.
++inline constexpr char id[] = "lfm25-24b-a2b-q4-k-m";
++inline constexpr wchar_t file[] = L"LFM2.5-24B-A2B-Q4_K_M.gguf";
++inline constexpr uint64_t bytes = 14526258464ull;
++inline constexpr char sha[] = "d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d";
++inline constexpr uint64_t reserve = 512ull*1024*1024;
++inline constexpr uint64_t probe_allowance = 256ull*1024*1024;
++inline uint64_t add(uint64_t a,uint64_t b) {
++    if(b>std::numeric_limits<uint64_t>::max()-a)throw std::overflow_error("pilot memory sum");
++    return a+b;
++}
++struct Quota { uint64_t limit=0,usage=0; bool pressure=false; };
++// Every read is an in-process MemoryManager snapshot, never Portal WS/host RAM.
++inline void check(const Quota& q,uint64_t initial_limit,uint64_t pending=0) {
++    if(!initial_limit || q.limit!=initial_limit || q.pressure || q.usage>q.limit)
++        throw std::runtime_error("pilot quota unknown/changed/pressure");
++    if(add(pending,reserve)>q.limit-q.usage)
++        throw std::runtime_error("pilot joint memory headroom refused");
++}
++struct MemoryPlan {
++    uint64_t resident=0,kv_recurrent=0,compute=0,cpu_workspace=0,output=0,cache=0,stage=0;
++    uint64_t total() const {
++        uint64_t n=0;
++        for(auto x:{resident,kv_recurrent,compute,cpu_workspace,output,cache,stage})n=add(n,x);
++        return n;
++    }
++};
++inline void exact_profile(uint64_t size,uint32_t layers,uint32_t experts,size_t roles,size_t matrix) {
++    if(size!=bytes || layers!=40 || experts!=64 || roles!=114 || matrix!=2580480)
++        throw std::invalid_argument("pilot exact LFM24 metadata mismatch");
++}
++} // namespace xllama::cpu_pilot
+--- a/src/bridge/cpu_expert_app_session.inc
++++ b/src/bridge/cpu_expert_app_session.inc
+@@ -20,6 +20,11 @@
+             if(gp.reuse_kv || gp.reset_kv || !gp.grammar.empty() || !gp.preserved_tokens.empty() || gp.n_predict<=0)
+                 throw std::invalid_argument("expert Session requires full plain prompt; KV/tools unsupported");
+             if(gp.abort_flag && gp.abort_flag->load())throw std::runtime_error("turn cancelled");
++            std::atomic<bool> local_abort{false};
++            auto* active_abort=gp.abort_flag?gp.abort_flag:&local_abort;
++            auto progress=gp.progress();
++            if(progress.stall_timeout_s<=0 || progress.stall_timeout_s>180)throw std::invalid_argument("expert watchdog must remain bounded <=180s");
++            InferenceWatchdog watchdog(progress,active_abort);
+             owner_->begin_fresh_turn();
+             auto tokens=owner_->tokenize(gp.prompt); // ordinary Session flags: add_special=true, parse_special=true
+             const size_t capacity=owner_->context_length();
+@@ -37,24 +42,28 @@
+                 ~Batch(){llama_batch_free(value);}
+             } batch(static_cast<int>(std::min<size_t>(tokens.size(),owner_->batch_length())));
+             auto decode=[&](const llama_token* ids,size_t n,size_t position){
+-                if(gp.abort_flag && gp.abort_flag->load())throw std::runtime_error("turn cancelled");
++                if(active_abort->load())throw std::runtime_error("turn cancelled");
+                 batch.value.n_tokens=static_cast<int32_t>(n);
+                 for(size_t i=0;i<n;++i){
+                     batch.value.token[i]=ids[i];batch.value.pos[i]=static_cast<llama_pos>(position+i);
+                     batch.value.n_seq_id[i]=1;batch.value.seq_id[i][0]=0;batch.value.logits[i]=(i+1==n);
+                 }
+-                if(owner_->decode(batch.value,gp.abort_flag)!=0)throw std::runtime_error("terminal expert decode failure");
++                if(owner_->decode(batch.value,active_abort)!=0)throw std::runtime_error("terminal expert decode failure");
+             };
+             const auto start=std::chrono::steady_clock::now();
+-            for(size_t p=0;p<tokens.size();){size_t n=std::min<size_t>(owner_->batch_length(),tokens.size()-p);decode(tokens.data()+p,n,p);p+=n;}
++            if(gp.on_status)gp.on_status("cpu-expert prefill");
++            watchdog.enter_prefill(static_cast<int>(tokens.size()));
++            for(size_t p=0;p<tokens.size();){size_t n=std::min<size_t>(owner_->batch_length(),tokens.size()-p);decode(tokens.data()+p,n,p);p+=n;watchdog.note_prefill_chunk(static_cast<int>(p));}
+             const auto prefilled=std::chrono::steady_clock::now();
+             result.n_prompt=result.n_p_eval=static_cast<int>(tokens.size());
+             result.t_p_eval_ms=std::chrono::duration<double,std::milli>(prefilled-start).count();
++            watchdog.prefill_done(result.n_prompt,result.t_p_eval_ms);watchdog.enter_decode(gp.n_predict);
++            if(gp.on_status)gp.on_status("cpu-expert decode");
+             for(int i=0;i<gp.n_predict;++i){
+-                if(gp.abort_flag && gp.abort_flag->load())throw std::runtime_error("turn cancelled");
++                if(active_abort->load())throw std::runtime_error("turn cancelled");
+                 const llama_token token=owner_->sample(sampler.get());
+                 if(llama_vocab_is_eog(vocab,token))break;
+-                std::string piece=owner_->piece(token);result.output_text+=piece;++result.n_eval;
++                std::string piece=owner_->piece(token);result.output_text+=piece;++result.n_eval;watchdog.on_decode_token(result.n_eval);
+                 if(result.n_eval==1)result.t_first_token_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+                 bool stopped=false;
+                 for(const auto& stop:gp.stop_sequences){
+@@ -68,6 +77,7 @@
+                 if(i+1<gp.n_predict)decode(&token,1,tokens.size()+static_cast<size_t>(i));
+             }
+             result.t_eval_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-prefilled).count();
++            if(active_abort->load())throw std::runtime_error("turn cancelled before publication");
+             if(gp.on_token && !result.output_text.empty())gp.on_token(result.output_text);
+             result.success=true;
+         }catch(const std::exception& e){
+--- a/src/bridge/cpu_expert_session.cpp
++++ b/src/bridge/cpu_expert_session.cpp
+@@ -2,6 +2,9 @@
+ #include "llama-context.h"
+ #include "llama-model.h"
+ #include "ggml-cpu.h"
++#include "llama-ext.h"
++#include "llama-memory.h"
++#include "xllama/platform.h"
+ #include <stdexcept>
+ #include <cstdio>
+ #include <climits>
+@@ -16,6 +19,8 @@
+  if(!opt->context.n_ctx || opt->context.offload_kqv || opt->context.op_offload || opt->context.flash_attn_type!=LLAMA_FLASH_ATTN_TYPE_DISABLED || opt->context.n_threads<=0 || opt->context.n_threads_batch<=0)throw std::invalid_argument("explicit CPU/context policy required");
+  auto out=std::shared_ptr<CpuExpertSession>(new CpuExpertSession());
+  try{
++  out->phase_check_=opt->phase_check;
++  if(out->phase_check_)out->phase_check_("before-source");
+   auto candidate=opt->admitted_source();
+   if(!candidate.file || !candidate.file_anchor || !candidate.admission_anchor || !candidate.validate_binding || !candidate.control || !candidate.make_reader || !candidate.admission.bytes || candidate.admission.sha256.size()!=64 || candidate.admission.identity.empty())throw std::invalid_argument("incomplete Windows admission");
+   out->input_=std::make_shared<ua50::uwp::WindowsInputCandidate>(std::move(candidate));
+@@ -30,12 +35,17 @@
+   owned.input.make_reader=[input](size_t stage)->std::shared_ptr<ua50::Reader>{return input->make_reader(stage);};
+   out->model_.reset(ua50::load_owned_experts(owned,opt->model)); // common factory installs BEFORE load_tensors
+   if(!out->model_)throw std::runtime_error("owned common model load refused");
++  if(out->phase_check_)out->phase_check_("after-weights-before-context");
++  if(opt->route_trace){auto* m=dynamic_cast<llama_model_base*>(out->model_.get());
++   if(!m || !m->expert_provider())throw std::runtime_error("trace provider missing");
++   m->expert_provider()->set_trace(opt->route_trace);}
+   out->context_.reset(llama_init_from_model(out->model_.get(),opt->context));
+   if(!out->context_)throw std::runtime_error("expert context allocation refused");
+   auto sched=out->context_->get_sched();
+   if(ggml_backend_sched_get_n_backends(sched)!=1 || !ggml_backend_is_cpu(ggml_backend_sched_get_backend(sched,0)))throw std::invalid_argument("one CPU backend required");
+   ggml_backend_cpu_set_use_ref(ggml_backend_sched_get_backend(sched,0),true); // nonfused, not all-scalar
+   llama_set_abort_callback(out->context_.get(),&CpuExpertSession::should_abort,out.get());
++  if(out->phase_check_)out->phase_check_("context-ready");
+   out->state_.store(State::Ready,std::memory_order_release);return out;
+  }catch(...){out->latch_failure("expert opening refused");out->state_.store(State::Invalid);out->close();throw;}
+ }
+@@ -45,6 +55,7 @@
+  if(!state_.compare_exchange_strong(expected,State::Decoding))throw std::logic_error("invalid expert turn owner");
+  try{
+   if(stop_.load())throw std::runtime_error("expert owner stopped");
++  if(phase_check_)phase_check_("before-turn");
+   llama_synchronize(context_.get());llama_memory_clear(llama_get_memory(context_.get()),true);
+   state_.store(State::Ready,std::memory_order_release);
+  }catch(...){latch_failure("fresh turn reset failed");state_.store(State::Invalid);close();throw;}
+@@ -55,6 +66,7 @@
+  if(!state_.compare_exchange_strong(expected,State::Decoding))throw std::logic_error("expert owner not ready; fresh admission required");
+  try{
+   if(stop_.load())throw std::runtime_error("expert owner stopped");
++  if(phase_check_)phase_check_("before-decode");
+   turn_abort_=turn_abort;
+   int rc=llama_decode(context_.get(),batch);llama_synchronize(context_.get());
+   const bool cancelled=should_abort(this);turn_abort_=nullptr;
+@@ -64,6 +76,8 @@
+   if(rc || cancelled){
+    latch_failure(cancelled?"expert cancellation":"native decode nonzero; no continuation");state_.store(State::Invalid);close();return rc?rc:2;
+   }
++  log_drained_counters();
++  if(phase_check_)phase_check_("after-decode");
+   state_.store(State::Ready,std::memory_order_release);return 0;
+  }catch(...){turn_abort_=nullptr;latch_failure("expert decode exception; no continuation");state_.store(State::Invalid);close();throw;}
+ }
+@@ -107,6 +121,7 @@
+  out.resize(got);return out;
+ }
+ llama_token CpuExpertSession::sample(llama_sampler*s){
++ if(phase_check_)phase_check_("before-sample");
+  model_view();if(!s)throw std::invalid_argument("missing sampler");
+  return llama_sampler_sample(s,context_.get(),-1); // raw context stays inside owning controller
+ }
+@@ -115,4 +130,48 @@
+  if(s==State::Ready || s==State::Opening)state_.store(State::Invalid);
+  (void)close();
+ }
++void CpuExpertSession::log_drained_counters() const {
++ auto *m=dynamic_cast<llama_model_base*>(model_.get());auto provider=m?m->expert_provider():nullptr;
++ if(!provider || provider->active_leases())throw std::runtime_error("pilot telemetry before drain");
++ const auto& c=provider->counters();char line[512];
++ std::snprintf(line,sizeof(line),"[cpu-pilot] cache hits=%llu misses=%llu evictions=%llu logical_reads=%llu logical_bytes=%llu failures=%llu arena=%zu metadata=%zu leases=0\n",
++  static_cast<unsigned long long>(c.hits),static_cast<unsigned long long>(c.misses),static_cast<unsigned long long>(c.evictions),static_cast<unsigned long long>(c.read_calls),static_cast<unsigned long long>(c.read_bytes),static_cast<unsigned long long>(c.failures),c.arena_bytes,c.metadata_bytes);
++ log_output(line);
+ }
++cpu_pilot::MemoryPlan plan_cpu_expert_memory(FILE* file,const CpuExpertOptIn& opt,const ua50::ExpertLoadPlan& input) {
++ cpu_pilot::exact_profile(input.available_file_bytes,input.layers,input.experts,input.records,input.max_matrix);
++ if(!file || !input.full_payload || !input.routed_tensor_bytes || opt.context.n_ctx!=64 || opt.context.n_batch!=1 || opt.context.n_ubatch!=1 || opt.context.n_threads!=1 || opt.context.n_threads_batch!=1 || opt.context.n_seq_max!=1 || opt.context.n_outputs_max!=1 || opt.context.n_samplers || opt.context.embeddings)
++  throw std::invalid_argument("pilot sizing only covers exact one-token CPU profile");
++ struct Position { FILE*f;fpos_t pos;explicit Position(FILE*p):f(p){if(fgetpos(f,&pos))throw std::runtime_error("sizing FILE position");}~Position(){fsetpos(f,&pos);} } restore(file);
++ if(fseek(file,0,SEEK_SET))throw std::runtime_error("sizing FILE rewind");
++ auto mp=opt.model;mp.no_alloc=true;
++ std::unique_ptr<llama_model,decltype(&llama_model_free)> model(llama_model_load_from_file_ptr(file,mp),&llama_model_free);
++ if(!model || !model->hparams.no_alloc)throw std::runtime_error("native no_alloc sizing refused");
++ std::unique_ptr<llama_context,decltype(&llama_free)> ctx(llama_init_from_model(model.get(),opt.context),&llama_free);
++ if(!ctx)throw std::runtime_error("native context sizing refused");
++ auto sched=ctx->get_sched();
++ if(ggml_backend_sched_get_n_backends(sched)!=1 || !ggml_backend_is_cpu(ggml_backend_sched_get_backend(sched,0)))throw std::runtime_error("sizing requires one CPU");
++ ggml_backend_cpu_set_use_ref(ggml_backend_sched_get_backend(sched,0),true);
++ auto memory=ctx->get_memory();auto mctx=memory?memory->init_full():llama_memory_context_ptr{};
++ size_t reference_compute=0;
++ auto *graph=ctx->graph_reserve(1,1,1,mctx.get(),true,&reference_compute);
++ if(!graph)throw std::runtime_error("nonfused graph sizing refused");
++ auto work=ggml_graph_plan(graph,1,nullptr);
++ cpu_pilot::MemoryPlan result;
++ for(const auto& pair:llama_get_memory_breakdown(ctx.get())) {
++  result.resident=cpu_pilot::add(result.resident,pair.second.model);
++  result.kv_recurrent=cpu_pilot::add(result.kv_recurrent,pair.second.context);
++  result.compute=cpu_pilot::add(result.compute,pair.second.compute);
++ }
++ if(result.resident<input.routed_tensor_bytes)throw std::runtime_error("sizing routed subtraction underflow");
++ // Subtract packed routed bytes only: any backend padding remains a conservative charge.
++ result.resident-=input.routed_tensor_bytes;
++ result.compute=std::max<uint64_t>(result.compute,reference_compute);
++ result.cpu_workspace=work.work_size;
++ result.output=cpu_pilot::add(0,uint64_t(llama_vocab_n_tokens(llama_model_get_vocab(model.get())))*sizeof(float));
++ result.cache=input.cache_owned_bytes;result.stage=input.stage_bytes;
++ if(fsetpos(file,&restore.pos))throw std::runtime_error("sizing FILE restore");
++ (void)result.total();return result;
++}
++
++}
+--- a/uwp/App.cpp
++++ b/uwp/App.cpp
+@@ -416,6 +416,15 @@
+         // SKU — retail builds always take the interactive XAML path.
+         // Consume the flag BEFORE the run:
+         // a later start without the flag goes back to interactive.
++#if defined(XLLAMA_USE_LLAMA)
++        std::wstring cpu_pilot_flag = flag_path_if_present(L"ua50-cpu-lfm24-pilot.flag");
++        if(!cpu_pilot_flag.empty()) {
++            if(_wremove(cpu_pilot_flag.c_str())!=0)return 1; // consume before any admission
++            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
++                winrt::make<HeadlessView>(&::xllama::bridge::run_cpu_expert_pilot,"cpu-lfm24-pilot"));
++            return 0;
++        }
++#endif
+         std::wstring diffuse_flag = flag_path_if_present(L"diffuse.flag");
+         if (!diffuse_flag.empty()) {
+             _wremove(diffuse_flag.c_str());
+--- /dev/null
++++ b/uwp/cpu-expert-pilot.cpp
+@@ -0,0 +1,207 @@
++// Developer-only, explicit CPU pilot. No GUI/LAN setting or automatic selection.
++#include "pch.h"
++#include "inference-bridge.h"
++#include "model-downloader.h"
++#include "xllama/compute_admission.h"
++#include "xllama/cpu_expert_session.h"
++#include "xllama/cpu_pilot_binding.h"
++#include "xllama/session_hub.h"
++#include "xllama/platform.h"
++#include <winrt/Windows.System.h>
++#include <winrt/Windows.Storage.h>
++#include <windows.h>
++#include <chrono>
++#include <condition_variable>
++#include <filesystem>
++#include <mutex>
++#include <thread>
++#include <cstdio>
++
++namespace xllama::bridge {
++namespace {
++using namespace cpu_pilot;
++struct Pilot {
++    uint64_t initial_limit=0;
++    std::shared_ptr<std::atomic<bool>> abort=std::make_shared<std::atomic<bool>>(false);
++    std::mutex mutex;
++    std::condition_variable wake;
++    bool done=false;
++    std::thread monitor;
++    winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging_revoker limit_changed;
++    std::weak_ptr<ua50::uwp::WindowsInputControl> control;
++    FILE* held=nullptr; // borrowed only on the serialized owning hub thread
++    std::wstring stop_path;
++    ua50::uwp::Clock::time_point deadline;
++    Quota snapshot(const char* phase) {
++        using M=winrt::Windows::System::MemoryManager;
++        const auto level=M::AppMemoryUsageLevel();
++        Quota q{M::AppMemoryUsageLimit(),M::AppMemoryUsage(),
++            level==winrt::Windows::System::AppMemoryUsageLevel::High || level==winrt::Windows::System::AppMemoryUsageLevel::OverLimit};
++        // Bracket both reads: a changing quota is a refusal, not an invented stable sample.
++        const auto final_limit=M::AppMemoryUsageLimit();
++        FILETIME ft{};GetSystemTimeAsFileTime(&ft);ULARGE_INTEGER utc{};utc.LowPart=ft.dwLowDateTime;utc.HighPart=ft.dwHighDateTime;
++        char line[384];std::snprintf(line,sizeof(line),"[cpu-pilot] quota phase=%s pid=%lu utc100ns=%llu limit=%llu usage=%llu level=%d pressure=%d\n",
++            phase,GetCurrentProcessId(),static_cast<unsigned long long>(utc.QuadPart),static_cast<unsigned long long>(q.limit),static_cast<unsigned long long>(q.usage),static_cast<int>(level),q.pressure?1:0);
++        log_output(line);
++        if(final_limit!=q.limit) {log_output("[cpu-pilot] quota changed during bracketed sample\n");throw std::runtime_error("quota changed during sample");}
++        if(level!=winrt::Windows::System::AppMemoryUsageLevel::Low && level!=winrt::Windows::System::AppMemoryUsageLevel::Medium && !q.pressure)
++            throw std::runtime_error("unknown MemoryManager level");
++        return q;
++    }
++    void phase(const char* name,uint64_t pending=0) {
++        if(abort->load() || ua50::uwp::Clock::now()>=deadline)throw std::runtime_error("pilot stop/deadline");
++        check(snapshot(name),initial_limit,pending);
++    }
++    void request_stop() noexcept {
++        abort->store(true);
++        std::shared_ptr<ua50::uwp::WindowsInputControl> c;
++        {std::lock_guard<std::mutex> lock(mutex);c=control.lock();}
++        if(c)c->request_stop(); // stop request is NOT proof of terminal I/O
++    }
++    void start_monitor() {
++        monitor=std::thread([this]{
++            try {winrt::init_apartment();}catch(...) {request_stop();return;}
++            std::unique_lock<std::mutex> lock(mutex);
++            while(!done) {
++                if(wake.wait_for(lock,std::chrono::milliseconds(250),[this]{return done;}))break;
++                lock.unlock();
++                try {
++                    HANDLE stop_file=CreateFile2(stop_path.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ,OPEN_EXISTING,nullptr);
++                    if(stop_file!=INVALID_HANDLE_VALUE){CloseHandle(stop_file);throw std::runtime_error("pilot stop flag");}
++                    if(GetLastError()!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("pilot stop-path query failure");
++                    phase("runtime");
++                }catch(const std::exception& e) {if(!abort->load())log_output(std::string("[cpu-pilot] monitor stop: ")+e.what()+"\n");request_stop();}
++                 catch(...) {if(!abort->load())log_output("[cpu-pilot] monitor stop: unknown telemetry failure\n");request_stop();}
++                lock.lock();
++            }
++            lock.unlock();winrt::uninit_apartment();
++        });
++    }
++    void finish_monitor() noexcept {
++        {std::lock_guard<std::mutex> lock(mutex);done=true;}wake.notify_all();
++        if(monitor.joinable())monitor.join();
++    }
++    ~Pilot(){finish_monitor();limit_changed.revoke();}
++};
++void require_matching_catalogue() {
++    // An absent entry uses the built-in pin. An existing entry must agree exactly;
++    // neither mutable overrides nor an unsigned manifest can replace this trust root.
++    const auto entries=LoadModelManifest();
++    const auto* entry=FindManifestEntry(entries,L"lfm25-24b-a2b-q4-k-m");
++    if(!entry)return;
++    if(entry->kind!=L"gguf" || entry->files.size()!=1 || entry->files[0].filename!=file ||
++       entry->files[0].approx_bytes!=bytes || entry->files[0].sha256!=std::wstring(sha,sha+64) ||
++       entry->gpu_layers!=0 || !entry->lora.empty())
++        throw std::runtime_error("existing catalogue entry differs from built-in pilot pin");
++}
++} // namespace
++
++void run_cpu_expert_pilot() {
++    auto compute=try_acquire_compute_job();
++    if(!compute){log_output("[cpu-pilot] NOT_ADMITTED compute busy\n");return;}
++    auto& hub=session_hub();std::unique_lock<std::mutex> hub_lock(hub.mtx,std::try_to_lock);
++    if(!hub_lock || hub.session || hub.failed_expert_load) {
++        log_output("[cpu-pilot] NOT_ADMITTED existing hub owner\n");return;
++    }
++    auto state=std::make_shared<Pilot>();
++    bool success=false;
++    try {
++        const std::wstring root=winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str();
++        const auto base=std::filesystem::path(root);
++        const auto path=base/L"models"/L"lfm25-24b-a2b-q4-k-m"/file;
++        ULARGE_INTEGER free_caller{},total{},free_total{};
++        if(!GetDiskFreeSpaceExW(base.c_str(),&free_caller,&total,&free_total))throw std::runtime_error("pilot LocalFolder disk space unknown");
++        char disk[256];std::snprintf(disk,sizeof(disk),"[cpu-pilot] LocalFolder caller_free=%llu total=%llu total_free=%llu\n",static_cast<unsigned long long>(free_caller.QuadPart),static_cast<unsigned long long>(total.QuadPart),static_cast<unsigned long long>(free_total.QuadPart));log_output(disk);
++        if(free_caller.QuadPart<64ull*1024*1024)throw std::runtime_error("pilot telemetry disk reserve refused");
++        state->stop_path=(base/L"ua50-cpu-lfm24-pilot.stop").wstring();
++        state->deadline=ua50::uwp::Clock::now()+std::chrono::minutes(20);
++        // Persistent O_EXCL equivalent: restarting the app/flag cannot silently retry.
++        HANDLE claim=CreateFile2((base/L"ua50-cpu-lfm24-pilot.claim").c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr);
++        if(claim==INVALID_HANDLE_VALUE)throw std::runtime_error("pilot claim exists/unavailable");
++        CloseHandle(claim);
++        require_matching_catalogue();
++        auto q=state->snapshot("entry");state->initial_limit=q.limit;check(q,q.limit,probe_allowance);
++        std::weak_ptr<Pilot> weak_state=state;
++        state->limit_changed=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,
++            [weak_state](const auto&,const winrt::Windows::System::AppMemoryUsageLimitChangingEventArgs& args) noexcept {
++                if(auto s=weak_state.lock()) {
++                    try {if(args.NewLimit()!=s->initial_limit){log_output("[cpu-pilot] quota limit-changing event -> stop\n");s->request_stop();}}
++                    catch(...) {s->request_stop();}
++                }
++            });
++        state->phase("after-quota-subscription",probe_allowance);
++        state->start_monitor();
++        llama_backend_init();state->phase("backend-initialized",probe_allowance);
++        auto opt=std::make_shared<CpuExpertOptIn>();opt->enabled=true;
++        opt->context.n_ctx=64;opt->context.n_batch=1;opt->context.n_ubatch=1;opt->context.n_seq_max=1;
++        opt->context.n_outputs_max=1;opt->context.n_outputs_max_per_seq=1;
++        opt->context.n_threads=1;opt->context.n_threads_batch=1;
++        opt->context.offload_kqv=false;opt->context.op_offload=false;opt->context.flash_attn_type=LLAMA_FLASH_ATTN_TYPE_DISABLED;
++        opt->context.type_k=GGML_TYPE_F16;opt->context.type_v=GGML_TYPE_F16;
++        opt->model.n_gpu_layers=0;opt->model.main_gpu=-1;opt->model.split_mode=LLAMA_SPLIT_MODE_NONE;
++        opt->model.load_mode=LLAMA_LOAD_MODE_NONE;opt->model.lazy_mode=LLAMA_LAZY_MODE_OFF;
++        opt->model.use_extra_bufts=false;
++        opt->model.progress_callback=[](float,void* user)->bool {return !static_cast<Pilot*>(user)->abort->load();};
++        opt->model.progress_callback_user_data=state.get();
++        ua50::uwp::ExpectedFile expected{bytes,sha};
++        auto source=make_windows_expert_source(path.wstring(),expected,state->abort,state->deadline,opt->stage_ceiling);
++        opt->admitted_source=[state,source,base]() {
++            state->phase("before-held-SHA",probe_allowance);
++            auto writer=ModelDownloader::WriterGate().try_acquire();
++            if(!writer.owns_lock())throw std::runtime_error("model writer busy");
++        for(const auto& folder:{base,base/L"models",base/L"models"/L"lfm25-24b-a2b-q4-k-m"}) {
++            CREATEFILE2_EXTENDED_PARAMETERS open{};open.dwSize=sizeof(open);
++            open.dwFileFlags=FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT;
++            HANDLE dir=CreateFile2(folder.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,OPEN_EXISTING,&open);
++            if(dir==INVALID_HANDLE_VALUE)throw std::runtime_error("pilot model directory unavailable");
++            FILE_ATTRIBUTE_TAG_INFO attrs{};BOOL ok=GetFileInformationByHandleEx(dir,FileAttributeTagInfo,&attrs,sizeof(attrs));CloseHandle(dir);
++            if(!ok || !(attrs.FileAttributes&FILE_ATTRIBUTE_DIRECTORY) || (attrs.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT))
++                throw std::runtime_error("pilot LocalFolder model directory missing/reparse");
++        }
++
++            auto c=bind_writer(std::move(writer),source);
++            {std::lock_guard<std::mutex> lock(state->mutex);state->control=c.control;}
++            state->held=c.file;
++            state->phase("held-SHA-admitted",probe_allowance);
++            return c;
++        };
++        std::weak_ptr<CpuExpertOptIn> weak_opt=opt;
++        opt->admit_budget=[state,weak_opt](const ua50::ExpertLoadPlan& input,const llama_context_params&) {
++            auto o=weak_opt.lock();if(!o)throw std::runtime_error("pilot config expired");
++            state->phase("before-native-sizing",probe_allowance);
++            auto p=plan_cpu_expert_memory(state->held,*o,input);
++            char line[512];std::snprintf(line,sizeof(line),"[cpu-pilot] joint-plan resident=%llu kv_recurrent=%llu scheduler=%llu cpu_workspace=%llu output=%llu cache=%llu stage=%llu extra_reserve=%llu\n",
++                static_cast<unsigned long long>(p.resident),static_cast<unsigned long long>(p.kv_recurrent),static_cast<unsigned long long>(p.compute),static_cast<unsigned long long>(p.cpu_workspace),static_cast<unsigned long long>(p.output),static_cast<unsigned long long>(p.cache),static_cast<unsigned long long>(p.stage),static_cast<unsigned long long>(reserve));
++            log_output(line);state->phase("before-payload-allocation",p.total());
++        };
++        opt->phase_check=[state](const char* phase){state->phase(phase);};
++        opt->route_trace=[count=size_t(0)](uint32_t role,uint64_t expert,uint64_t offset,uint64_t length) mutable {
++            if(++count>4096)throw std::runtime_error("bounded pilot route trace exceeded");
++            char line[256];std::snprintf(line,sizeof(line),"[cpu-pilot] route-request role=%u expert=%llu offset=%llu bytes=%llu\n",role,static_cast<unsigned long long>(expert),static_cast<unsigned long long>(offset),static_cast<unsigned long long>(length));log_output(line);
++        };
++        SessionParams sp;sp.model_path=id;sp.backend=Backend::LlamaCpp;sp.cpu_experts=opt;
++        sp.n_ctx=64;sp.n_batch=1;sp.n_ubatch=1;sp.n_threads=1;
++        std::string error;auto* session=hub.ensure_locked(id,sp,&error);
++        if(!session)throw std::runtime_error("pilot opening refused: "+error);
++        if(session->context_length()>256 || session->count_tokens("Hi")>4)throw std::runtime_error("pilot resolved context/prompt refused");
++        GenerateParams gp;gp.prompt="Hi";gp.n_predict=2;gp.temperature=0;gp.abort_flag=state->abort.get();
++        gp.stall_timeout_s=180;
++        gp.on_status=[](const std::string& s){log_output("[cpu-pilot] status "+s+"\n");};
++        auto result=session->generate(gp);
++        if(!result.success)throw std::runtime_error("pilot generate: "+result.error_msg);
++        if(result.n_eval!=2 || result.n_prompt<=0 || result.n_prompt>4)throw std::runtime_error("pilot ended before bounded two-sample/one-step contract");
++        state->phase("after-prompt-step");
++        // Same held FILE post-check, before owner/WriterGate release; no path reopen.
++        auto post=make_held_sha256_validator(expected,[state]{return state->abort->load();},state->deadline);
++        (void)post(state->held,bytes);
++        state->phase("post-SHA");success=true;
++        log_output("[cpu-pilot] prompt+step complete; not a context/quality/speed acceptance\n");
++    }catch(const std::exception& e){log_output(std::string("[cpu-pilot] STOP: ")+e.what()+"\n");state->request_stop();}
++    catch(...){log_output("[cpu-pilot] STOP unknown failure\n");state->request_stop();}
++    // Monitor never outlives state. Session destruction drains actual native I/O
++    // before file, writer permit and compute admission may be released.
++    state->finish_monitor();
++    hub.reset_locked();state->held=nullptr;state->limit_changed.revoke();
++    log_output(success?"[cpu-pilot] terminal normal owner/file/writer close\n":"[cpu-pilot] terminal stopped; no automatic retry\n");
++}
++} // namespace xllama::bridge
+--- a/uwp/inference-bridge.h
++++ b/uwp/inference-bridge.h
+@@ -17,6 +17,11 @@
+ inline InferenceResult run_inference(const InferenceParams& params) {
+     return xllama::run_inference(params);
+ }
++
++// Explicit developer flag only; ordinary UI/LAN defaults stay disabled.
++#if defined(XLLAMA_USE_LLAMA)
++void run_cpu_expert_pilot();
++#endif
+ 
+ // Called from UWP App on a background thread (bench mode).
+ void main_loop();
+--- a/uwp/xllama.vcxproj
++++ b/uwp/xllama.vcxproj
+@@ -367,6 +367,9 @@
+     <ClCompile Include="..\src\bridge\autopilot.cpp" />
+     <!-- cli.cpp uses POSIX getopt — Linux only, excluded from UWP target -->
+     <ClCompile Include="inference-bridge.cpp" />
++    <ClCompile Include="cpu-expert-pilot.cpp" Condition="'$(XllamaBackend)' == 'llamacpp' or '$(XllamaBackend)' == 'unified'">
++      <AdditionalIncludeDirectories>$(ProjectDir)..\llama.cpp\src;$(ProjectDir)..\llama.cpp\src\ua50;$(ProjectDir)..\llama.cpp\ggml\src;$(ProjectDir)..\src\platform\ua50;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
++    </ClCompile>
+     <ClCompile Include="native_capture.cpp" />
+     <ClCompile Include="diffuse.cpp" />
+     <ClCompile Include="op-repro.cpp" />

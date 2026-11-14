@@ -1,0 +1,2736 @@
+{
+  "scope": "direct declarations only, not SDK/transitive resolution",
+  "count": 455,
+  "includes": [
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 2,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 3,
+      "style": "\"",
+      "include": "cpu_pilot_policy.h"
+    },
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 4,
+      "style": "\"",
+      "include": "ua50/owned_expert_load.h"
+    },
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 5,
+      "style": "\"",
+      "include": "windows_held_reader.h"
+    },
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 6,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 7,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 8,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 9,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/cpu_expert_session.h",
+      "line": 10,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/cpu_pilot_binding.h",
+      "line": 2,
+      "style": "\"",
+      "include": "xllama/model_write.h"
+    },
+    {
+      "from": "include/xllama/cpu_pilot_binding.h",
+      "line": 3,
+      "style": "\"",
+      "include": "windows_held_reader.h"
+    },
+    {
+      "from": "include/xllama/cpu_pilot_policy.h",
+      "line": 2,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/cpu_pilot_policy.h",
+      "line": 3,
+      "style": "<",
+      "include": "cstddef"
+    },
+    {
+      "from": "include/xllama/cpu_pilot_policy.h",
+      "line": 4,
+      "style": "<",
+      "include": "initializer_list"
+    },
+    {
+      "from": "include/xllama/cpu_pilot_policy.h",
+      "line": 5,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "include/xllama/cpu_pilot_policy.h",
+      "line": 6,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/cpu_pilot_policy.h",
+      "line": 7,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 8,
+      "style": "\"",
+      "include": "xllama/embedding.h"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 9,
+      "style": "\"",
+      "include": "xllama/grammar_spec.h"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 10,
+      "style": "\"",
+      "include": "xllama/inference_params.h"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 12,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 13,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 14,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 15,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 16,
+      "style": "<",
+      "include": "string_view"
+    },
+    {
+      "from": "include/xllama/session.h",
+      "line": 17,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/session_hub.h",
+      "line": 30,
+      "style": "\"",
+      "include": "xllama/session.h"
+    },
+    {
+      "from": "include/xllama/session_hub.h",
+      "line": 31,
+      "style": "\"",
+      "include": "xllama/session_spec.h"
+    },
+    {
+      "from": "include/xllama/session_hub.h",
+      "line": 33,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "include/xllama/session_hub.h",
+      "line": 34,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/session_hub.h",
+      "line": 35,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "include/xllama/session_hub.h",
+      "line": 36,
+      "style": "<",
+      "include": "mutex"
+    },
+    {
+      "from": "include/xllama/session_hub.h",
+      "line": 37,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/session_spec.h",
+      "line": 10,
+      "style": "\"",
+      "include": "xllama/routing_policy.h"
+    },
+    {
+      "from": "include/xllama/session_spec.h",
+      "line": 11,
+      "style": "\"",
+      "include": "xllama/session.h"
+    },
+    {
+      "from": "include/xllama/session_spec.h",
+      "line": 13,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 2,
+      "style": "\"",
+      "include": "ggml-cpp.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "gguf.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 5,
+      "style": "\"",
+      "include": "build-info.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 6,
+      "style": "\"",
+      "include": "common.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "../src/llama-ext.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 10,
+      "style": "\"",
+      "include": "fit.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 11,
+      "style": "\"",
+      "include": "log.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 12,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 13,
+      "style": "\"",
+      "include": "sampling.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 14,
+      "style": "\"",
+      "include": "speculative.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 15,
+      "style": "\"",
+      "include": "unicode.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 17,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 18,
+      "style": "<",
+      "include": "cinttypes"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 19,
+      "style": "<",
+      "include": "climits"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 20,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 21,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 22,
+      "style": "<",
+      "include": "cstdarg"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 23,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 24,
+      "style": "<",
+      "include": "ctime"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 25,
+      "style": "<",
+      "include": "filesystem"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 26,
+      "style": "<",
+      "include": "fstream"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 27,
+      "style": "<",
+      "include": "iostream"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 28,
+      "style": "<",
+      "include": "iterator"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 29,
+      "style": "<",
+      "include": "regex"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 30,
+      "style": "<",
+      "include": "sstream"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 31,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 32,
+      "style": "<",
+      "include": "thread"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 33,
+      "style": "<",
+      "include": "unordered_set"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 34,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 37,
+      "style": "<",
+      "include": "sys/types.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 38,
+      "style": "<",
+      "include": "sys/sysctl.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 46,
+      "style": "<",
+      "include": "locale"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 47,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 48,
+      "style": "<",
+      "include": "string.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 49,
+      "style": "<",
+      "include": "fcntl.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 50,
+      "style": "<",
+      "include": "io.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 52,
+      "style": "<",
+      "include": "sys/ioctl.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 53,
+      "style": "<",
+      "include": "unistd.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 60,
+      "style": "<",
+      "include": "winapifamily.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 67,
+      "style": "<",
+      "include": "sys/types.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 68,
+      "style": "<",
+      "include": "pwd.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 72,
+      "style": "<",
+      "include": "sys/systemcfg.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 163,
+      "style": "<",
+      "include": "pthread.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 270,
+      "style": "<",
+      "include": "sys/types.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 271,
+      "style": "<",
+      "include": "sys/resource.h"
+    },
+    {
+      "from": "llama.cpp/common/common.cpp",
+      "line": 885,
+      "style": "<",
+      "include": "iostream"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 1,
+      "style": "\"",
+      "include": "ggml-alloc.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 2,
+      "style": "\"",
+      "include": "ggml-backend-impl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 3,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 4,
+      "style": "\"",
+      "include": "ggml-impl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 5,
+      "style": "\"",
+      "include": "ggml-ua50.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 7,
+      "style": "<",
+      "include": "assert.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 8,
+      "style": "<",
+      "include": "limits.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 9,
+      "style": "<",
+      "include": "stdarg.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 10,
+      "style": "<",
+      "include": "stdio.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 11,
+      "style": "<",
+      "include": "stdlib.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-alloc.c",
+      "line": 12,
+      "style": "<",
+      "include": "string.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-backend-dl.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "ggml-backend-dl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 4,
+      "style": "\"",
+      "include": "ggml-backend-impl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 5,
+      "style": "\"",
+      "include": "ggml-ua50.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 6,
+      "style": "\"",
+      "include": "ggml-backend.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 7,
+      "style": "\"",
+      "include": "traits.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 8,
+      "style": "\"",
+      "include": "ggml-cpu-impl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 9,
+      "style": "\"",
+      "include": "ggml-impl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 10,
+      "style": "\"",
+      "include": "quants.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 11,
+      "style": "\"",
+      "include": "ggml-threading.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 12,
+      "style": "\"",
+      "include": "unary-ops.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 13,
+      "style": "\"",
+      "include": "binary-ops.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 14,
+      "style": "\"",
+      "include": "vec.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 15,
+      "style": "\"",
+      "include": "ops.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 16,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 17,
+      "style": "\"",
+      "include": "common.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 18,
+      "style": "\"",
+      "include": "tiled/tiled.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 21,
+      "style": "<",
+      "include": "malloc.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 23,
+      "style": "<",
+      "include": "alloca.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 26,
+      "style": "<",
+      "include": "assert.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 27,
+      "style": "<",
+      "include": "errno.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 28,
+      "style": "<",
+      "include": "time.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 29,
+      "style": "<",
+      "include": "math.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 30,
+      "style": "<",
+      "include": "stdlib.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 31,
+      "style": "<",
+      "include": "string.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 32,
+      "style": "<",
+      "include": "stdint.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 33,
+      "style": "<",
+      "include": "inttypes.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 34,
+      "style": "<",
+      "include": "stdio.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 35,
+      "style": "<",
+      "include": "float.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 36,
+      "style": "<",
+      "include": "limits.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 37,
+      "style": "<",
+      "include": "stdarg.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 38,
+      "style": "<",
+      "include": "signal.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 40,
+      "style": "<",
+      "include": "syscall.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 44,
+      "style": "<",
+      "include": "omp.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 52,
+      "style": "\"",
+      "include": "llamafile/sgemm.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 56,
+      "style": "\"",
+      "include": "spacemit/ime.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 108,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 159,
+      "style": "<",
+      "include": "stdatomic.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 190,
+      "style": "<",
+      "include": "pthread.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 191,
+      "style": "<",
+      "include": "stdatomic.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 192,
+      "style": "<",
+      "include": "sched.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 194,
+      "style": "<",
+      "include": "pthread_np.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 199,
+      "style": "<",
+      "include": "sys/types.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 200,
+      "style": "<",
+      "include": "sys/stat.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 201,
+      "style": "<",
+      "include": "unistd.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 211,
+      "style": "<",
+      "include": "unistd.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 212,
+      "style": "<",
+      "include": "mach/mach.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 213,
+      "style": "<",
+      "include": "TargetConditionals.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 732,
+      "style": "<",
+      "include": "arm_sve.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 742,
+      "style": "<",
+      "include": "riscv_vector.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 2545,
+      "style": "\"",
+      "include": "windows.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 2636,
+      "style": "<",
+      "include": "sys/types.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "line": 2637,
+      "style": "<",
+      "include": "sys/resource.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "ggml-backend.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 2,
+      "style": "\"",
+      "include": "ggml-backend-impl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "ggml-ua50.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 4,
+      "style": "\"",
+      "include": "ggml-cpu.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 5,
+      "style": "\"",
+      "include": "repack.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 6,
+      "style": "\"",
+      "include": "traits.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 7,
+      "style": "\"",
+      "include": "ggml-impl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "amx/amx.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 10,
+      "style": "<",
+      "include": "cctype"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 11,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 12,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 15,
+      "style": "\"",
+      "include": "hbm.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 19,
+      "style": "\"",
+      "include": "kleidiai/kleidiai.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 23,
+      "style": "\"",
+      "include": "spacemit/ime.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 31,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 33,
+      "style": "<",
+      "include": "unistd.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 37,
+      "style": "<",
+      "include": "sys/sysctl.h"
+    },
+    {
+      "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "line": 38,
+      "style": "<",
+      "include": "sys/types.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "llama-mmap.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "llama-impl.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 5,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 7,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 8,
+      "style": "<",
+      "include": "climits"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 9,
+      "style": "<",
+      "include": "cstdlib"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 10,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 11,
+      "style": "<",
+      "include": "cerrno"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 12,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 16,
+      "style": "<",
+      "include": "unistd.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 17,
+      "style": "<",
+      "include": "fcntl.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 18,
+      "style": "<",
+      "include": "sys/stat.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 20,
+      "style": "<",
+      "include": "sys/mman.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 23,
+      "style": "<",
+      "include": "sys/resource.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 33,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 37,
+      "style": "<",
+      "include": "io.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 44,
+      "style": "<",
+      "include": "winapifamily.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-mmap.cpp",
+      "line": 51,
+      "style": "<",
+      "include": "TargetConditionals.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "llama-model-loader.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "ggml-alloc.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 4,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 5,
+      "style": "\"",
+      "include": "gguf.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 6,
+      "style": "\"",
+      "include": "llama-hparams.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 7,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 9,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 10,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 11,
+      "style": "<",
+      "include": "cinttypes"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 12,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 13,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 14,
+      "style": "<",
+      "include": "future"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.cpp",
+      "line": 15,
+      "style": "<",
+      "include": "regex"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 3,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 5,
+      "style": "\"",
+      "include": "llama-impl.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 6,
+      "style": "\"",
+      "include": "llama-arch.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 7,
+      "style": "\"",
+      "include": "llama-hparams.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 8,
+      "style": "\"",
+      "include": "llama-mmap.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 10,
+      "style": "\"",
+      "include": "ggml-cpp.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 11,
+      "style": "\"",
+      "include": "ua50/native_provider.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 13,
+      "style": "<",
+      "include": "cstddef"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 14,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 15,
+      "style": "<",
+      "include": "map"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 16,
+      "style": "<",
+      "include": "set"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 17,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "llama.cpp/src/llama-model-loader.h",
+      "line": 18,
+      "style": "<",
+      "include": "unordered_map"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "llama-model.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "llama-arch.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 4,
+      "style": "\"",
+      "include": "llama-ext.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 5,
+      "style": "\"",
+      "include": "llama-hparams.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 6,
+      "style": "\"",
+      "include": "llama-impl.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 7,
+      "style": "\"",
+      "include": "llama-mmap.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "llama-cparams.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 9,
+      "style": "\"",
+      "include": "llama-model-loader.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 11,
+      "style": "\"",
+      "include": "llama-kv-cache.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 12,
+      "style": "\"",
+      "include": "llama-kv-cache-iswa.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 13,
+      "style": "\"",
+      "include": "llama-kv-cache-dsa.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 14,
+      "style": "\"",
+      "include": "llama-kv-cache-dsa-iswa.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 15,
+      "style": "\"",
+      "include": "llama-kv-cache-msa.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 16,
+      "style": "\"",
+      "include": "llama-kv-cache-dsv4.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 17,
+      "style": "\"",
+      "include": "llama-memory-hybrid.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 18,
+      "style": "\"",
+      "include": "llama-memory-hybrid-iswa.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 19,
+      "style": "\"",
+      "include": "llama-memory-hybrid-idx.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 20,
+      "style": "\"",
+      "include": "llama-memory-recurrent.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 22,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 23,
+      "style": "\"",
+      "include": "models/models.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 25,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 26,
+      "style": "\"",
+      "include": "ggml-cpp.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 28,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 29,
+      "style": "<",
+      "include": "cassert"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 30,
+      "style": "<",
+      "include": "cfloat"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 31,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 32,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 33,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 34,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 35,
+      "style": "<",
+      "include": "map"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 36,
+      "style": "<",
+      "include": "numeric"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 37,
+      "style": "<",
+      "include": "regex"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 38,
+      "style": "<",
+      "include": "sstream"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 39,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 40,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.cpp",
+      "line": 41,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 3,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 4,
+      "style": "\"",
+      "include": "llama-arch.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 5,
+      "style": "\"",
+      "include": "llama-graph.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 6,
+      "style": "\"",
+      "include": "llama-hparams.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 7,
+      "style": "\"",
+      "include": "llama-memory.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 8,
+      "style": "\"",
+      "include": "llama-vocab.h"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 10,
+      "style": "<",
+      "include": "map"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 11,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 12,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 13,
+      "style": "<",
+      "include": "unordered_map"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 14,
+      "style": "<",
+      "include": "unordered_set"
+    },
+    {
+      "from": "llama.cpp/src/llama-model.h",
+      "line": 15,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "llama-impl.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 4,
+      "style": "\"",
+      "include": "llama-version.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 6,
+      "style": "\"",
+      "include": "llama-chat.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 7,
+      "style": "\"",
+      "include": "llama-context.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "llama-mmap.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 9,
+      "style": "\"",
+      "include": "llama-vocab.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 10,
+      "style": "\"",
+      "include": "llama-model-loader.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 11,
+      "style": "\"",
+      "include": "llama-model-saver.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 12,
+      "style": "\"",
+      "include": "llama-model.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 13,
+      "style": "\"",
+      "include": "ua50/owned_expert_load.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 15,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 16,
+      "style": "\"",
+      "include": "ggml-cpp.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 17,
+      "style": "\"",
+      "include": "ggml-backend.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 18,
+      "style": "\"",
+      "include": "gguf.h"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 20,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 21,
+      "style": "<",
+      "include": "cassert"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 22,
+      "style": "<",
+      "include": "cinttypes"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 23,
+      "style": "<",
+      "include": "cstddef"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 24,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 25,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 26,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 27,
+      "style": "<",
+      "include": "ctime"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 28,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "llama.cpp/src/llama.cpp",
+      "line": 29,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 2,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 3,
+      "style": "<",
+      "include": "cstddef"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 4,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 5,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 6,
+      "style": "<",
+      "include": "new"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 7,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 8,
+      "style": "<",
+      "include": "utility"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 12,
+      "style": "\"",
+      "include": "ggml-common.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/ggml-ua50.h",
+      "line": 2,
+      "style": "<",
+      "include": "stdbool.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/ggml-ua50.h",
+      "line": 3,
+      "style": "<",
+      "include": "stdint.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "native_provider.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.cpp",
+      "line": 2,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.cpp",
+      "line": 3,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.cpp",
+      "line": 4,
+      "style": "<",
+      "include": "exception"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.h",
+      "line": 2,
+      "style": "\"",
+      "include": "ggml-ua50.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.h",
+      "line": 3,
+      "style": "\"",
+      "include": "ggml-backend-impl.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.h",
+      "line": 4,
+      "style": "\"",
+      "include": "expert_cache.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.h",
+      "line": 5,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.h",
+      "line": 6,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.h",
+      "line": 7,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "llama.cpp/src/ua50/owned_expert_load.h",
+      "line": 2,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/owned_expert_load.h",
+      "line": 3,
+      "style": "\"",
+      "include": "native_provider.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/owned_expert_load.h",
+      "line": 4,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "llama.cpp/src/ua50/owned_expert_load.h",
+      "line": 5,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "src/bridge/chat_prompt.cpp",
+      "line": 4,
+      "style": "\"",
+      "include": "xllama/chat_prompt.h"
+    },
+    {
+      "from": "src/bridge/chat_prompt.cpp",
+      "line": 6,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "src/bridge/chat_prompt.cpp",
+      "line": 7,
+      "style": "<",
+      "include": "cctype"
+    },
+    {
+      "from": "src/bridge/chat_prompt.cpp",
+      "line": 8,
+      "style": "<",
+      "include": "utility"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "xllama/cpu_expert_session.h"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 2,
+      "style": "\"",
+      "include": "llama-context.h"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "llama-model.h"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 4,
+      "style": "\"",
+      "include": "ggml-cpu.h"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 5,
+      "style": "\"",
+      "include": "llama-ext.h"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 6,
+      "style": "\"",
+      "include": "llama-memory.h"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 7,
+      "style": "\"",
+      "include": "xllama/platform.h"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 8,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 9,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 10,
+      "style": "<",
+      "include": "climits"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 7,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 8,
+      "style": "<",
+      "include": "bcrypt.h"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 9,
+      "style": "\"",
+      "include": "xllama/cpu_expert_session.h"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 10,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 11,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 12,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 13,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 14,
+      "style": "<",
+      "include": "utility"
+    },
+    {
+      "from": "src/bridge/held_file_sha256_win.cpp",
+      "line": 15,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 7,
+      "style": "\"",
+      "include": "xllama/session.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "xllama/chat_prompt.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 9,
+      "style": "\"",
+      "include": "xllama/inference_params.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 10,
+      "style": "\"",
+      "include": "xllama/path_utils.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 11,
+      "style": "\"",
+      "include": "xllama/platform.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 12,
+      "style": "\"",
+      "include": "xllama/routing_policy.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 13,
+      "style": "\"",
+      "include": "xllama/session_hub.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 14,
+      "style": "\"",
+      "include": "xllama/utf8_utils.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 16,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 17,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 18,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 19,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 20,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 21,
+      "style": "<",
+      "include": "filesystem"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 22,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 58,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 59,
+      "style": "<",
+      "include": "eh.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 60,
+      "style": "\"",
+      "include": "ort_genai_c.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 62,
+      "style": "\"",
+      "include": "decode_loop_ort.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 63,
+      "style": "\"",
+      "include": "ort_common.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 64,
+      "style": "\"",
+      "include": "ort_sampling.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 65,
+      "style": "\"",
+      "include": "xllama/ort_raii.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 436,
+      "style": "\"",
+      "include": "llama.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 438,
+      "style": "\"",
+      "include": "xllama/cpu_expert_session.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 439,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 442,
+      "style": "\"",
+      "include": "decode_loop.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 443,
+      "style": "\"",
+      "include": "llama_gpu.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 444,
+      "style": "\"",
+      "include": "sampler_chain.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 445,
+      "style": "\"",
+      "include": "xllama/llama_raii.h"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 447,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 452,
+      "style": "\"",
+      "include": "cpu_expert_app_session.inc"
+    },
+    {
+      "from": "src/bridge/session.cpp",
+      "line": 1349,
+      "style": "\"",
+      "include": "session_factory.inc"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 2,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 3,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 4,
+      "style": "<",
+      "include": "cstddef"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 6,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 7,
+      "style": "<",
+      "include": "mutex"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 8,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 9,
+      "style": "<",
+      "include": "utility"
+    },
+    {
+      "from": "src/platform/ua50/staged_reader_core.h",
+      "line": 10,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.cpp",
+      "line": 7,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.cpp",
+      "line": 8,
+      "style": "<",
+      "include": "io.h"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.cpp",
+      "line": 9,
+      "style": "<",
+      "include": "fcntl.h"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.cpp",
+      "line": 10,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.cpp",
+      "line": 11,
+      "style": "<",
+      "include": "iomanip"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.cpp",
+      "line": 12,
+      "style": "<",
+      "include": "sstream"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.cpp",
+      "line": 13,
+      "style": "<",
+      "include": "system_error"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.cpp",
+      "line": 14,
+      "style": "\"",
+      "include": "windows_held_reader.h"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.h",
+      "line": 2,
+      "style": "\"",
+      "include": "expert_cache.h"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.h",
+      "line": 3,
+      "style": "\"",
+      "include": "staged_reader_core.h"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.h",
+      "line": 4,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.h",
+      "line": 5,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.h",
+      "line": 6,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "src/platform/ua50/windows_held_reader.h",
+      "line": 7,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "pch.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 9,
+      "style": "\"",
+      "include": "App.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 10,
+      "style": "\"",
+      "include": "MainPage.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 11,
+      "style": "\"",
+      "include": "inference-bridge.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 12,
+      "style": "\"",
+      "include": "xllama/compute_admission.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 13,
+      "style": "\"",
+      "include": "xllama/platform.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 14,
+      "style": "\"",
+      "include": "xllama/capture_probe.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 15,
+      "style": "\"",
+      "include": "native_capture.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 16,
+      "style": "<",
+      "include": "roapi.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 18,
+      "style": "\"",
+      "include": "api-server.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 19,
+      "style": "<",
+      "include": "winrt/Windows.Foundation.Metadata.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 23,
+      "style": "<",
+      "include": "thread"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 24,
+      "style": "<",
+      "include": "utility"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 7,
+      "style": "\"",
+      "include": "pch.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "MainPage.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 12,
+      "style": "\"",
+      "include": "api-server.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 14,
+      "style": "\"",
+      "include": "chat-history.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 15,
+      "style": "\"",
+      "include": "inference-bridge.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 16,
+      "style": "\"",
+      "include": "xllama/cancel_policy.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 17,
+      "style": "\"",
+      "include": "xllama/chat_prompt.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 18,
+      "style": "\"",
+      "include": "xllama/compute_admission.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 19,
+      "style": "\"",
+      "include": "xllama/debug_dashboard.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 20,
+      "style": "\"",
+      "include": "xllama/json_utils.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 21,
+      "style": "\"",
+      "include": "xllama/kv_store.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 22,
+      "style": "\"",
+      "include": "xllama/model_file_plan.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 23,
+      "style": "\"",
+      "include": "xllama/model_provision.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 24,
+      "style": "\"",
+      "include": "xllama/path_utils.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 25,
+      "style": "\"",
+      "include": "xllama/personalize.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 26,
+      "style": "\"",
+      "include": "xllama/platform.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 27,
+      "style": "\"",
+      "include": "xllama/preference_capture.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 28,
+      "style": "\"",
+      "include": "xllama/prompt_budget.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 29,
+      "style": "\"",
+      "include": "xllama/routing_policy.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 30,
+      "style": "\"",
+      "include": "xllama/stability_attribution.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 31,
+      "style": "\"",
+      "include": "xllama/training.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 32,
+      "style": "\"",
+      "include": "xllama/utf8_utils.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 34,
+      "style": "<",
+      "include": "winrt/Windows.Data.Json.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 35,
+      "style": "<",
+      "include": "winrt/Windows.Networking.Connectivity.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 36,
+      "style": "<",
+      "include": "winrt/Windows.Networking.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 37,
+      "style": "<",
+      "include": "winrt/Windows.UI.Xaml.Media.Imaging.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 39,
+      "style": "\"",
+      "include": "xllama/api_activity.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 42,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 43,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 44,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 45,
+      "style": "<",
+      "include": "ctime"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 46,
+      "style": "<",
+      "include": "filesystem"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 47,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 48,
+      "style": "<",
+      "include": "mutex"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 49,
+      "style": "<",
+      "include": "optional"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 50,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 51,
+      "style": "<",
+      "include": "thread"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 52,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 2,
+      "style": "\"",
+      "include": "pch.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "inference-bridge.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 4,
+      "style": "\"",
+      "include": "model-downloader.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 5,
+      "style": "\"",
+      "include": "xllama/compute_admission.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 6,
+      "style": "\"",
+      "include": "xllama/cpu_expert_session.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 7,
+      "style": "\"",
+      "include": "xllama/cpu_pilot_binding.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "xllama/session_hub.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 9,
+      "style": "\"",
+      "include": "xllama/platform.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 10,
+      "style": "<",
+      "include": "winrt/Windows.System.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 11,
+      "style": "<",
+      "include": "winrt/Windows.Storage.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 12,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 13,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 14,
+      "style": "<",
+      "include": "condition_variable"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 15,
+      "style": "<",
+      "include": "filesystem"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 16,
+      "style": "<",
+      "include": "mutex"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 17,
+      "style": "<",
+      "include": "thread"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 18,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "uwp/inference-bridge.h",
+      "line": 6,
+      "style": "\"",
+      "include": "xllama/device_train.h"
+    },
+    {
+      "from": "uwp/inference-bridge.h",
+      "line": 7,
+      "style": "\"",
+      "include": "xllama/inference.h"
+    },
+    {
+      "from": "uwp/inference-bridge.h",
+      "line": 8,
+      "style": "\"",
+      "include": "xllama/inference_params.h"
+    },
+    {
+      "from": "uwp/inference-bridge.h",
+      "line": 9,
+      "style": "\"",
+      "include": "xllama/training_params.h"
+    }
+  ]
+}

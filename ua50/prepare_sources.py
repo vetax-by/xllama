@@ -45,11 +45,11 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = '760ed6df52cffcc92de714fd35e1b796d6697ad82e354159f7de73f92c8d2846'
+CURRENT_PATCH_LOCK = 'b803a1e0b7b69a053e0bc7bbe4d6f84e6c52e9935006a823411463b0a048abf9'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current shipping-v5/760e lock admitted; standalone a199/e781 refused')
+        raise ValueError('only current CPU-pilot/b803 lock admitted; prior 760e/a199/e781 refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
@@ -58,16 +58,17 @@ def admitted_runtime_lock(operator, lock_sha):
         raise ValueError('current runtime base mismatch')
     if [(e['file'], e['target']) for e in lock['patches']] != [
             ('patch/runtime-root.patch', 'xllama'), ('patch/runtime-llama.patch', 'llama'),
-            ('patch/app-xllama.patch', 'xllama'), ('patch/app-llama.patch', 'llama')]:
-        raise ValueError('exact runtime-root/runtime-llama/app-xllama/app-llama four-patch order required')
+            ('patch/app-xllama.patch', 'xllama'), ('patch/app-llama.patch', 'llama'),
+            ('patch/cpu-pilot-root.patch', 'xllama'), ('patch/cpu-pilot-llama.patch', 'llama')]:
+        raise ValueError('exact runtime-root/runtime-llama/app-xllama/app-llama/cpu-pilot-root/cpu-pilot-llama six-patch order required')
     for entry in lock['patches']:
         patch = checked_patch(operator, entry)
         if patch.stat().st_size != entry['bytes']:
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = '250e0bd298204856ac644de739ea9f19ffe681a676f62a2d33fa8be5b7f4a368'
-COMPILER_INVENTORY_SHA = 'a0f96caad25c29b45ce42bddf711750264db2ea797a77b196b5e3fde76145954'
+SHIPPING_INVENTORY_SHA = '74289bfee5340f53e3feebec7fc10bc2c7041b79634c660bd8aaf86b55aa0774'
+COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):
     raw = (operator / 'SHIPPING-FILE-INVENTORY.json').read_bytes()
@@ -77,8 +78,8 @@ def admitted_shipping_inventory(operator):
     if hashlib.sha256(imports).hexdigest() != COMPILER_INVENTORY_SHA:
         raise ValueError('compiler/import declarations changed')
     entries = json.loads(raw)['selected_materialized_files']
-    if len(entries) != 40:
-        raise ValueError('exact forty selected shipping files required')
+    if len(entries) != 45:
+        raise ValueError('exact forty-five selected shipping files required')
     seen = set()
     for entry in entries:
         target, path = entry['target'], entry['target_path']
@@ -246,6 +247,71 @@ UPSTREAM_SOURCE_FIXTURES = {'docs/development/llama-star/idea-arch.key': {'bytes
                                       'mode': '100644',
                                       'sha256': 'fedb892b4e1bd3c1f2fcdae356440b14fb458f4264d586e5c987ed93df4e174d'}}
 
+def fixture_handle_metadata(stream):
+    """One handle-based source for BOTH path probes and the retained read handle."""
+    if sys.platform != 'win32':
+        value = os.fstat(stream.fileno())
+        if not stat.S_ISREG(value.st_mode):
+            raise ValueError('regular held fixture required')
+        return {'api': 'os.fstat', 'device': value.st_dev, 'inode': value.st_ino,
+                'bytes': value.st_size, 'mtime_ns': value.st_mtime_ns,
+                'ctime_ns': value.st_ctime_ns}
+    # Do not compare CPython path stat timestamps with descriptor timestamps.
+    # Use the SAME native raw fields for every snapshot, without conversion.
+    import ctypes
+    import msvcrt
+    class Basic(ctypes.Structure):
+        _fields_ = [('creation', ctypes.c_int64), ('access', ctypes.c_int64),
+                    ('write', ctypes.c_int64), ('change', ctypes.c_int64),
+                    ('attributes', ctypes.c_uint32)]
+    class Standard(ctypes.Structure):
+        _fields_ = [('allocation', ctypes.c_int64), ('size', ctypes.c_int64),
+                    ('links', ctypes.c_uint32), ('delete_pending', ctypes.c_ubyte),
+                    ('directory', ctypes.c_ubyte)]
+    class Identity(ctypes.Structure):
+        _fields_ = [('volume', ctypes.c_uint64), ('file_id', ctypes.c_ubyte * 16)]
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    query = kernel.GetFileInformationByHandleEx
+    query.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    query.restype = ctypes.c_int
+    handle = ctypes.c_void_p(msvcrt.get_osfhandle(stream.fileno()))
+    basic, standard, identity = Basic(), Standard(), Identity()
+    for information_class, value in ((0, basic), (1, standard), (18, identity)):
+        if not query(handle, information_class, ctypes.byref(value), ctypes.sizeof(value)):
+            raise ctypes.WinError(ctypes.get_last_error())
+    if basic.attributes & (0x10 | 0x400) or standard.directory or standard.delete_pending:
+        raise ValueError('native fixture directory/reparse/delete-pending refused')
+    return {'api': 'GetFileInformationByHandleEx', 'volume': identity.volume,
+            'file_id': bytes(identity.file_id).hex(), 'bytes': standard.size,
+            'creation_100ns': basic.creation, 'write_100ns': basic.write,
+            'change_100ns': basic.change, 'attributes': basic.attributes,
+            'links': standard.links}
+
+def fixture_path_metadata(path):
+    # lstat is retained ONLY for type/reparse refusal, not timestamp equality.
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
+        raise ValueError('regular non-reparse fixture path required')
+    with path.open('rb') as probe:
+        return fixture_handle_metadata(probe)
+
+def fixture_metadata_equal(relative, phase, snapshots):
+    values = list(snapshots.values())
+    if not values or any(value != values[0] for value in values[1:]):
+        # Preserve ALL exact native values and phase; no rounding or relabeling.
+        raise ValueError(json.dumps({'error': 'fixture metadata mismatch',
+                                    'path': relative, 'phase': phase,
+                                    'snapshots': snapshots}, sort_keys=True))
+
+def record_fixture_metadata(relative, phase, snapshots, query):
+    try:
+        snapshots[phase] = query()
+    except Exception as error:
+        raise ValueError(json.dumps({'error': 'fixture metadata query failed',
+                                    'path': relative, 'phase': phase,
+                                    'snapshots': snapshots, 'exception': type(error).__name__,
+                                    'detail': str(error)}, sort_keys=True)) from error
+
 def admitted_source_fixture(source, path):
     relative = path.relative_to(source).as_posix()
     prefix = 'llama.cpp/'
@@ -267,15 +333,15 @@ def admitted_source_fixture(source, path):
         info = component.lstat()
         if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
             raise ValueError('fixture symlink/reparse path refused')
-    before = path.lstat()
-    if not stat.S_ISREG(before.st_mode) or before.st_size != expected['bytes']:
+    snapshots = {}
+    record_fixture_metadata(relative, 'path_before', snapshots, lambda: fixture_path_metadata(path))
+    if snapshots['path_before']['bytes'] != expected['bytes']:
         raise ValueError('fixture type/size changed')
     sha = hashlib.sha256()
     git_sha = hashlib.sha1(b'blob ' + str(expected['bytes']).encode() + b'\0')
     with path.open('rb') as stream:
-        held = os.fstat(stream.fileno())
-        if (held.st_dev, held.st_ino, held.st_size) != (before.st_dev, before.st_ino, before.st_size):
-            raise ValueError('fixture held file changed')
+        record_fixture_metadata(relative, 'held_before', snapshots, lambda: fixture_handle_metadata(stream))
+        fixture_metadata_equal(relative, 'before_read', snapshots)
         header = stream.read(24)
         if expected['kind'] == 'tensor_free_vocab':
             if len(header) != 24 or header[:4] != b'GGUF' or int.from_bytes(header[4:8], 'little') not in (2, 3) or int.from_bytes(header[8:16], 'little') != 0:
@@ -299,16 +365,16 @@ def admitted_source_fixture(source, path):
                 names = archive.namelist()
                 if len(names) != 57 or not {'Index/Document.iwa', 'Metadata/BuildVersionHistory.plist', 'Metadata/Properties.plist'} <= set(names):
                     raise ValueError('exact upstream presentation structure required')
-        after = os.fstat(stream.fileno())
-    final = path.lstat()
-    signature = lambda s: (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
-    if signature(before) != signature(held) or signature(held) != signature(after) or signature(after) != signature(final):
-        raise ValueError('fixture changed during read')
+        record_fixture_metadata(relative, 'held_after', snapshots, lambda: fixture_handle_metadata(stream))
+        fixture_metadata_equal(relative, 'after_read', snapshots)
+        record_fixture_metadata(relative, 'path_after', snapshots, lambda: fixture_path_metadata(path))
+        fixture_metadata_equal(relative, 'path_after_read', snapshots)
     if count != expected['bytes'] or git_sha.hexdigest() != blob or sha.hexdigest() != expected['sha256']:
         raise ValueError('fixture content identity changed')
     return {'path': relative, 'source_commit': LLAMA, 'git_blob': blob,
             'bytes': count, 'sha256': sha.hexdigest(), 'kind': expected['kind'],
-            'tensor_count': 0 if expected['kind'] == 'tensor_free_vocab' else None}
+            'tensor_count': 0 if expected['kind'] == 'tensor_free_vocab' else None,
+            'metadata_api': snapshots['held_before']['api'], 'metadata_snapshots': snapshots}
 
 def scan_source_payloads(source):
     admitted = []
