@@ -1,0 +1,109 @@
+name: CPU pilot signed update copies
+on:
+  workflow_dispatch:
+    inputs:
+      installed_version:
+        description: Fresh confirmed installed version
+        required: true
+        type: string
+      patched_version:
+        description: Selected higher patched update version
+        required: true
+        type: string
+      recovery_version:
+        description: Selected still higher stock forward-recovery version
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: cpu-pilot-signing
+  cancel-in-progress: false
+jobs:
+  sign-copies:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+      GIT_CONFIG_KEY_1: core.eol
+      GIT_CONFIG_VALUE_1: lf
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Verify LF checkout policy
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $a = git config --get core.autocrlf
+          if ($LASTEXITCODE -ne 0 -or $a.Trim() -ne 'false') { throw 'LF policy required' }
+          $e = git config --get core.eol
+          if ($LASTEXITCODE -ne 0 -or $e.Trim() -ne 'lf') { throw 'LF policy required' }
+      - name: Checkout reviewed signing sources
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          path: operator
+      - name: Verify script bytes and parse PowerShell before any key operation
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pins = @{
+            'package_copy.py' = '26f8feb3116c34a51a72171b39e5138f58b5c95ad819abff639d047215e5f777'
+            'sign_copy.ps1' = 'f5576f9a4646d745e3c360985b0d4d84457251cd8c324a66bb4b6529a847bf1b'
+            'sign_ephemeral_pair.ps1' = '2f84cc3f3cebe1c89770fd4f48f2f4cbc05ed849db9d0a9e2b95d5f3347ca9f3'
+            'validate_pair_inputs.py' = '30d5c13b0914949d76a3039de584dcaec693d7418c9c3e2b1ed2e1a7f907e944'
+            'input-template.json' = '47298d494c1af3b8f86f5d078fe8939c0c2506f10d85e278e81d3a0ac73d00c4'
+          }
+          foreach ($name in $pins.Keys) {
+            $path = Join-Path 'operator/ua50/signing' $name
+            if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pins[$name]) { throw "Source pin mismatch: $name" }
+            if ($name.EndsWith('.ps1')) {
+              $tokens = $null; $errors = $null
+              [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path).Path, [ref]$tokens, [ref]$errors)
+              if ($errors.Count -ne 0) { throw "PowerShell parse refused: $name" }
+            }
+          }
+      - name: Download two exact accepted unsigned artifacts
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair'
+          if (Test-Path -LiteralPath $root) { throw 'Exclusive artifact root required' }
+          New-Item -ItemType Directory -Path $root | Out-Null
+          gh run download 43594526711 --repo vetax-by/xllama --name ua50-uwp-patch-43594526711 --dir (Join-Path $root 'patched')
+          if ($LASTEXITCODE -ne 0) { throw 'Exact patched artifact download failed; no retry' }
+          gh run download 43592901046 --repo vetax-by/xllama --name ua50-uwp-baseline-43592901046 --dir (Join-Path $root 'stock')
+          if ($LASTEXITCODE -ne 0) { throw 'Exact baseline artifact download failed; no retry' }
+      - name: Sign preserving update and stock forward-recovery copies
+        timeout-minutes: 10
+        env:
+          SIGN_INSTALLED: ${{ inputs.installed_version }}
+          SIGN_PATCHED: ${{ inputs.patched_version }}
+          SIGN_RECOVERY: ${{ inputs.recovery_version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $plan = Get-Content -LiteralPath 'operator/ua50/signing/input-template.json' -Raw | ConvertFrom-Json
+          $plan.InstalledVersion = $env:SIGN_INSTALLED
+          $plan.PatchedVersion = $env:SIGN_PATCHED
+          $plan.RecoveryVersion = $env:SIGN_RECOVERY
+          $planPath = Join-Path $env:RUNNER_TEMP 'selected-signing-inputs.json'
+          if (Test-Path -LiteralPath $planPath) { throw 'Exclusive input plan required' }
+          $plan | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $planPath -Encoding utf8NoBOM
+          $planSha = (Get-FileHash -LiteralPath $planPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin/10.0.22621.0/x64'
+          & operator/ua50/signing/sign_ephemeral_pair.ps1 -InputPlan $planPath -InputPlanSha256 $planSha `
+            -ArtifactRoot (Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair') `
+            -PrivateRoot (Join-Path $env:RUNNER_TEMP 'owned-signing-private') `
+            -Output (Join-Path $env:RUNNER_TEMP 'public-signed-pair') -SdkBin $sdk
+      - name: Upload only public signed copies and certificate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cpu-pilot-signed-pair-${{ github.run_id }}
+          path: ${{ runner.temp }}/public-signed-pair/
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: false
