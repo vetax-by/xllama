@@ -12,7 +12,7 @@
     "base_composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
     "current_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
   },
-  "qualification": "Reviewed source composition and bounded CPU pilot candidate; Windows compile, native buffer planning, quota, installation and console execution remain unverified.",
+  "qualification": "Current locked CPU pilot compiled and linked on Windows and produced an inspected unsigned x64 package; native buffer planning, quota, signed recoverable installation and console execution remain unverified.",
   "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Four base runtime/application patches retain their bytes; two reviewed CPU-pilot patches extend the locked route. Operator corrections are recorded separately.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
@@ -45,5 +45,26 @@
     "review_sha256": "a398cc06c8a5117ebd2010f47c41f544d470319b8f63251df2cc275281b815da",
     "script_sha256": "f63c1ed4656f2dc10be7821f51c91d64129f95efae8e5cd85784d0ebe00dab8c",
     "change": "Omit captured absolute tool-installation paths from public receipt; build/discovery/package guards unchanged."
+  },
+  "windows_builds": {
+    "baseline": {
+      "run_id": 43592901046,
+      "operator_commit": "15de86ade5826cb928c26aa7ee0668c83c3ccf9c",
+      "track": "baseline",
+      "selected_shipping_files_verified": 0
+    },
+    "cpu_pilot": {
+      "run_id": 43594526711,
+      "operator_commit": "54414c2eb642f6e526ac7b026eae63b9f9392114",
+      "track": "patch",
+      "selected_shipping_files_verified": 45,
+      "package_bytes": 21051447,
+      "package_sha256": "35d0ad3b12ae203e37cfaa69577ba8cd34709d3626b4efc41e755260f08854ae",
+      "package_version": "1.7.0.0",
+      "signed": false,
+      "installed": false,
+      "model_execution": false,
+      "artifact_review_sha256": "de2d4e490743166578329e33fcd01563dccd3fd0fa818b61b1f60e95c224a87d"
+    }
   }
 }

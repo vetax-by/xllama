@@ -107,25 +107,38 @@ resource release. Ordinary UI/LAN behavior remains unchanged. The pilot does
 not establish an interactive assistant, tool support, 4K–8K context or a speed
 target; those require later tests.
 
-These are reviewed source changes. Actual Windows compilation, quota/buffer
-planning, signed recoverable installation, real I/O and console execution are
-still pending. The flag is not an instruction to bypass those checks.
+The current pilot has compiled and linked on Windows and produced an inspected
+unsigned x64 package. Actual quota/buffer planning, signed recoverable
+installation, real I/O and console execution are still pending. The flag is not
+an instruction to bypass those checks.
 
 ## Evidence and limits
 
 The [original pinned Windows baseline build](https://github.com/vetax-by/xllama/actions/runs/43592901046)
 has completed successfully and produced an inspected unsigned x64 package. That
 baseline includes the stock AppContainer guard and **none of our six patches**.
-It does not establish that the patched CPU pilot compiles or runs on Xbox.
+The [current CPU-pilot build](https://github.com/vetax-by/xllama/actions/runs/43594526711)
+also completed successfully, applying all six locked patches and verifying all
+45 selected source files. Its unsigned x64 package is 21,051,447 bytes, SHA-256
+`35d0ad3b12ae203e37cfaa69577ba8cd34709d3626b4efc41e755260f08854ae`.
+The actual executable imports the required BCrypt and overlapped-file APIs.
+Successful compilation and linking do not prove that those APIs, native memory
+planning or model decoding work on the console. Both packages are version
+`1.7.0.0`; signing and an explicitly higher update version remain required
+before installation.
 
 | Area                          | What has been checked                                                                                                                         | What it does not establish                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Native CPU integration        | Actual LFM2MoE factory/context/decode on generated GGUF fixtures, resident/cache logits, routes, mixed-quant slice ledgers and fault handling | Real checkpoint parity, useful assistant quality or Xbox performance                                                 |
 | Real 8B checkpoint            | One successful native prompt and next-token step using streamed experts                                                                       | Two-session reproducibility, resident-reference parity, sustained speed or context quality                           |
 | Real 24B checkpoint           | Complete acquisition and held-file integrity checks                                                                                           | Native decode: no 24B model process successfully started; the latest attempt was refused by its entry pressure guard |
-| Portable reader core          | Nine fake-backend test groups                                                                                                                 | Windows API/import compatibility or real device cancellation                                                         |
-| Session hub and adapter/owner | Actual hub tests and five functional adapter/owner groups with ASan/UBSan; named native/platform boundaries are fakes                         | Native math, production Windows I/O, BCrypt execution or a complete Windows application build                        |
-| Shipping preparation          | Exact patch order, selected postimages, registration and source-admission checks                                                              | Resolved Windows SDK/dependencies, successful MSBuild/link/package or installation                                   |
+| Portable reader core          | Nine fake-backend test groups                                                                                                                 | Windows API behavior or real device cancellation                                                                     |
+| Session hub and adapter/owner | Actual hub tests and five functional adapter/owner groups with ASan/UBSan; named native/platform boundaries are fakes                         | Native math, production Windows I/O or BCrypt execution                                                              |
+| Shipping preparation          | Exact patch order, selected postimages, registration and source-admission checks                                                              | Actual installation or runtime behavior on the console                                                               |
+
+Windows build evidence includes SDK/dependency resolution, MSBuild compilation,
+linking and unsigned packaging for both tracks. It is separate from the earlier
+Linux checkpoint tests and their refused attempts.
 
 The 24B refusal snapshot at the exact pressure-trigger instant was not retained.
 Later resource data cannot identify its precise ancestor/value, attribute it to
@@ -171,7 +184,8 @@ recipe, selected source inventories and the manual-only Windows workflow.
 Baseline and patched builds use separate clean copies of the pinned upstream
 source. The workflow has no push/pull-request trigger. Actions is normally disabled for this fork and temporarily enabled only for a
 separately selected manual attempt. Preparation failures are not successful
-compiles; current source review does not attest a Windows package.
+compiles. The successful baseline and CPU-pilot package evidence above is tied
+to those exact runs and source revisions.
 
 ## License and relationship to upstream
 

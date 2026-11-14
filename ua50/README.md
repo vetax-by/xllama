@@ -77,3 +77,8 @@ availability, a successful compile/link, installability, Xbox memory fit or
 assistant quality. An unsigned package is not an installed or trusted package.
 No model weights, test signing keys, local telemetry or device secrets are
 needed in this repository.
+
+The current [CPU-pilot Windows build](https://github.com/vetax-by/xllama/actions/runs/43594526711)
+compiled, linked and produced an inspected unsigned x64 package with all six
+patches and 45 selected source files verified. This is package-build evidence;
+signing, a higher update version and actual console execution remain pending.
