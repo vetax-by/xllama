@@ -72,7 +72,7 @@ Copy-Item 'UA50-SOURCE-RECEIPT.json' $out
 $record = [ordered]@{
     schema='ua50-windows-unsigned-v1'; track=$Track; xllama=(git rev-parse HEAD);
     llama=(git -C llama.cpp rev-parse HEAD); sdk='10.0.22621.0'; toolset='v143';
-    runner_image=$env:ImageVersion; msbuild=$msbuild; crt_directory=$crt.FullName;
+    runner_image=$env:ImageVersion;
     build_seconds=$watch.Elapsed.TotalSeconds; signed=$false; deploy=$false; model_runs=0;
     package=@{name=$packages[0].Name;bytes=$packages[0].Length;sha256=(Get-FileHash $packages[0].FullName).Hash.ToLowerInvariant()};
     dependency_files=@(Get-ChildItem uwp/packages -Recurse -File -Filter '*.nupkg' | ForEach-Object {

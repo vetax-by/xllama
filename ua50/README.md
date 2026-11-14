@@ -13,7 +13,8 @@ The patch rationale, implementation and evidence limits have one home:
 
 The first four patches retain the accepted application/runtime bytes. Two
 additional patches carry the explicit console CPU pilot; the current lock and
-source/import inventories bind all six. The unsigned build script is unchanged. The workflow enforces LF
+source/import inventories bind all six. The unsigned build and package-guard commands are unchanged; its public receipt
+omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
 installation before submodule/network operations. These operator-only corrections

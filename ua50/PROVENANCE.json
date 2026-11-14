@@ -39,5 +39,11 @@
   ],
   "operator_admission_manifest_sha256": "5a02dbd8dc9e79e535bb7117a9f20428c8f340bca1f8000b2279a3606d49cd2d",
   "operator_composition_manifest_sha256": "8fd1fa5cfe19fbb59e84c91fb890a2932230b7d11665798138a44684113000d0",
-  "operator_sha256": "582f39ff1634ab008f3ba762313a45a2809752f188a4ed7ef53bfd6b1782ebe0"
+  "operator_sha256": "582f39ff1634ab008f3ba762313a45a2809752f188a4ed7ef53bfd6b1782ebe0",
+  "build_receipt_hygiene": {
+    "source_manifest_sha256": "d3fbfbba1ba02743601c0d77fc41400f9894756a19f8473894b177809420c3e8",
+    "review_sha256": "a398cc06c8a5117ebd2010f47c41f544d470319b8f63251df2cc275281b815da",
+    "script_sha256": "f63c1ed4656f2dc10be7821f51c91d64129f95efae8e5cd85784d0ebe00dab8c",
+    "change": "Omit captured absolute tool-installation paths from public receipt; build/discovery/package guards unchanged."
+  }
 }

@@ -113,6 +113,11 @@ still pending. The flag is not an instruction to bypass those checks.
 
 ## Evidence and limits
 
+The [original pinned Windows baseline build](https://github.com/vetax-by/xllama/actions/runs/43592901046)
+has completed successfully and produced an inspected unsigned x64 package. That
+baseline includes the stock AppContainer guard and **none of our six patches**.
+It does not establish that the patched CPU pilot compiles or runs on Xbox.
+
 | Area                          | What has been checked                                                                                                                         | What it does not establish                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Native CPU integration        | Actual LFM2MoE factory/context/decode on generated GGUF fixtures, resident/cache logits, routes, mixed-quant slice ledgers and fault handling | Real checkpoint parity, useful assistant quality or Xbox performance                                                 |
