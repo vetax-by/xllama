@@ -1,6 +1,8 @@
 """Actions source preparation only. Never invoked locally against a live checkout."""
 import hashlib
 import json
+import os
+import zipfile
 import re
 import stat
 from pathlib import Path, PurePosixPath
@@ -141,6 +143,184 @@ def script_bash():
                       'bash_version': bash_version.splitlines()[0]}))
     return str(bash)
 
+# Exact source-only fixtures tracked at the pinned llama commit.
+# One classified Keynote document is not an arbitrary private-key exemption.
+UPSTREAM_SOURCE_FIXTURES = {'docs/development/llama-star/idea-arch.key': {'bytes': 488591,
+                                               'git_blob': '3e068e7075c2ebb53a270b57c51e9281618d8f29',
+                                               'kind': 'keynote_zip',
+                                               'mode': '100755',
+                                               'sha256': '32dede0548e6501b4b60d89b4afc3445a9a45c5df6fcee0c2bb9fe75592908c9'},
+ 'models/ggml-vocab-aquila.gguf': {'bytes': 4825676,
+                                   'git_blob': '7a9abb122ddd18706100e155535f29120ca7ebc4',
+                                   'kind': 'tensor_free_vocab',
+                                   'mode': '100644',
+                                   'sha256': '7c53c3c516ac67c7ca12977b9690fdea3d2ef13bbaed6378f98191a13ef5ca00'},
+ 'models/ggml-vocab-baichuan.gguf': {'bytes': 1340998,
+                                     'git_blob': '7caaf8239b052b1fc2f2b74441fe377a73758bd1',
+                                     'kind': 'tensor_free_vocab',
+                                     'mode': '100644',
+                                     'sha256': '4f5b955697f3bd3108070b1d5936c7eb9fc542b81c6932e59abddec75bca1963'},
+ 'models/ggml-vocab-bert-bge.gguf': {'bytes': 627549,
+                                     'git_blob': 'b2cbd5df6882d8e581368d494bb86aa449f212a7',
+                                     'kind': 'tensor_free_vocab',
+                                     'mode': '100644',
+                                     'sha256': 'fbcbe22278fb302694d5f4a41bfe48c5f90e8e3554eab1c0435387dff654a854'},
+ 'models/ggml-vocab-command-r.gguf': {'bytes': 10874545,
+                                      'git_blob': 'b553eab330591687351f1bb717eb56a9ee762c2f',
+                                      'kind': 'tensor_free_vocab',
+                                      'mode': '100644',
+                                      'sha256': 'a2f8cfea952ef7c391a6d92a1c309d0bd32e36384d9b9230569a7425732f27d9'},
+ 'models/ggml-vocab-deepseek-coder.gguf': {'bytes': 1156067,
+                                           'git_blob': '6728cd747249ecaef7a2f63f103f68261d713c3d',
+                                           'kind': 'tensor_free_vocab',
+                                           'mode': '100644',
+                                           'sha256': '91cb1379f2e33af1c4866b194622b7a0e12e8f0c9dba7ba2f10d55978730bec1'},
+ 'models/ggml-vocab-deepseek-llm.gguf': {'bytes': 3970167,
+                                         'git_blob': '5d66091c44b6f581b5d38c05f14f29c3e2b75b5d',
+                                         'kind': 'tensor_free_vocab',
+                                         'mode': '100644',
+                                         'sha256': '867f77537b54565f0d81d508c04edc41aa1d4ffc1a92745f225b4c1b02755f76'},
+ 'models/ggml-vocab-falcon.gguf': {'bytes': 2287728,
+                                   'git_blob': '334d50da51ba55657509709aa51b52baeda8093c',
+                                   'kind': 'tensor_free_vocab',
+                                   'mode': '100644',
+                                   'sha256': '9f0bf8b0733680398b72e652e90f260f43782f326e75545fc0e49611a5ba35ad'},
+ 'models/ggml-vocab-gemma-4.gguf': {'bytes': 15776467,
+                                    'git_blob': '03c4954118ecc37b0503b50e0965f087fdb99e6d',
+                                    'kind': 'tensor_free_vocab',
+                                    'mode': '100644',
+                                    'sha256': '58b1ba0b57f3b4d7c468ba4ffd91ad85190346a3d7ad7e71d1cabaae8a14bb65'},
+ 'models/ggml-vocab-gpt-2.gguf': {'bytes': 1766807,
+                                  'git_blob': '5ea85cf52e7de68fed9e4eebe5996ea3a6753994',
+                                  'kind': 'tensor_free_vocab',
+                                  'mode': '100644',
+                                  'sha256': 'cedc56ca6e2e89f63e781696d1fd76b4b1d49e6720dee86463e915f6e90016ac'},
+ 'models/ggml-vocab-gpt-neox.gguf': {'bytes': 1771431,
+                                     'git_blob': 'b9af16845ccb4d4888c15f1293b1f47291928412',
+                                     'kind': 'tensor_free_vocab',
+                                     'mode': '100644',
+                                     'sha256': 'ae593a7f9b8bb174ed4f5019e41530463e4dac7aa06e42dee8aa650d2bdac53d'},
+ 'models/ggml-vocab-llama-bpe.gguf': {'bytes': 7818140,
+                                      'git_blob': 'e51a99118bc43bc2373adf162f081751013b361a',
+                                      'kind': 'tensor_free_vocab',
+                                      'mode': '100644',
+                                      'sha256': '97272e430d53bc7688f52d5e0ad8ea8f163ede9f1bbd1694feaa504797d5d96e'},
+ 'models/ggml-vocab-llama-spm.gguf': {'bytes': 723869,
+                                      'git_blob': '658295a5df7412d786103d2a5332ee6e7de9a5df',
+                                      'kind': 'tensor_free_vocab',
+                                      'mode': '100644',
+                                      'sha256': '16c3724582d59aa8bf84711894e833f916ee46a31d80e21312759c48bf8d0e69'},
+ 'models/ggml-vocab-mpt.gguf': {'bytes': 1771393,
+                                'git_blob': 'f42f56dec929440941fac087eb4a15c262743b3a',
+                                'kind': 'tensor_free_vocab',
+                                'mode': '100644',
+                                'sha256': '59dc382612866d1fc6c11ea531318d327598f3412d9c8f8600607cdf3030898f'},
+ 'models/ggml-vocab-nomic-bert-moe.gguf': {'bytes': 6821877,
+                                           'git_blob': 'b6f4d9441113bf08fd3168744048800cf232c7f9',
+                                           'kind': 'tensor_free_vocab',
+                                           'mode': '100644',
+                                           'sha256': '90a6746926454784a98389ad36a36d89bc9cfc81db9cb0f33c941bcc959fe5f9'},
+ 'models/ggml-vocab-phi-3.gguf': {'bytes': 726019,
+                                  'git_blob': '745be416a798a1e7a2effaa935bc903edaaf303d',
+                                  'kind': 'tensor_free_vocab',
+                                  'mode': '100644',
+                                  'sha256': '967d7190d11c4842eab697079d98d56c2116e10eb617be355a2733bfc132e326'},
+ 'models/ggml-vocab-qwen2.gguf': {'bytes': 5928681,
+                                  'git_blob': '541e475bc94532defa0bb38dfabf6dfaae1fe8ae',
+                                  'kind': 'tensor_free_vocab',
+                                  'mode': '100644',
+                                  'sha256': '44c2f46b715f585c6ab513970e8a006bfa5badd6108560054921cf598d154d8c'},
+ 'models/ggml-vocab-qwen35.gguf': {'bytes': 5928682,
+                                   'git_blob': 'c06d1c17e674f651e9a8265957de2dfed441f208',
+                                   'kind': 'tensor_free_vocab',
+                                   'mode': '100644',
+                                   'sha256': '63ed952ff338996cf0bdf24a7b10015124273f75c6dc9bb427356aa3f67ec62c'},
+ 'models/ggml-vocab-refact.gguf': {'bytes': 1720710,
+                                   'git_blob': '52afcf01aeb7323e0153b2817a1cbfc5a07d787b',
+                                   'kind': 'tensor_free_vocab',
+                                   'mode': '100644',
+                                   'sha256': 'ac3ceda902fed91ccf74312b305d9b86c37e4f8e35fa9cc6ef3ce34fca7d4678'},
+ 'models/ggml-vocab-starcoder.gguf': {'bytes': 1719346,
+                                      'git_blob': '7a7e7742ab1fcf0a65b9ef5d3115ce735ae0de90',
+                                      'kind': 'tensor_free_vocab',
+                                      'mode': '100644',
+                                      'sha256': 'fedb892b4e1bd3c1f2fcdae356440b14fb458f4264d586e5c987ed93df4e174d'}}
+
+def admitted_source_fixture(source, path):
+    relative = path.relative_to(source).as_posix()
+    prefix = 'llama.cpp/'
+    key = relative[len(prefix):] if relative.startswith(prefix) else ''
+    expected = UPSTREAM_SOURCE_FIXTURES.get(key)
+    if expected is None:
+        raise ValueError('unapproved weight/key-like source path: ' + relative)
+    llama = source / 'llama.cpp'
+    # Each admission rebinds HEAD, commit tree AND tracked index, not a mutable name.
+    if git(llama, 'rev-parse', 'HEAD') != LLAMA:
+        raise ValueError('fixture source commit changed')
+    blob = expected['git_blob']
+    if git(llama, 'ls-tree', '-z', LLAMA, '--', key) != expected['mode'] + ' blob ' + blob + '\t' + key + '\0':
+        raise ValueError('fixture pinned tree identity changed')
+    if git(llama, 'ls-files', '--stage', '-z', '--', key) != expected['mode'] + ' ' + blob + ' 0\t' + key + '\0':
+        raise ValueError('fixture tracked index identity changed')
+    for component in (source, *(source.joinpath(*path.relative_to(source).parts[:i])
+                      for i in range(1, len(path.relative_to(source).parts) + 1))):
+        info = component.lstat()
+        if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
+            raise ValueError('fixture symlink/reparse path refused')
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode) or before.st_size != expected['bytes']:
+        raise ValueError('fixture type/size changed')
+    sha = hashlib.sha256()
+    git_sha = hashlib.sha1(b'blob ' + str(expected['bytes']).encode() + b'\0')
+    with path.open('rb') as stream:
+        held = os.fstat(stream.fileno())
+        if (held.st_dev, held.st_ino, held.st_size) != (before.st_dev, before.st_ino, before.st_size):
+            raise ValueError('fixture held file changed')
+        header = stream.read(24)
+        if expected['kind'] == 'tensor_free_vocab':
+            if len(header) != 24 or header[:4] != b'GGUF' or int.from_bytes(header[4:8], 'little') not in (2, 3) or int.from_bytes(header[8:16], 'little') != 0:
+                raise ValueError('upstream vocab must contain zero model tensors')
+        elif expected['kind'] == 'keynote_zip':
+            if not header.startswith(b'PK\x03\x04'):
+                raise ValueError('exact upstream presentation ZIP header required')
+        else:
+            raise ValueError('unknown source fixture classification')
+        sha.update(header); git_sha.update(header)
+        count = len(header)
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk: break
+            count += len(chunk)
+            if count > expected['bytes']: raise ValueError('fixture byte count changed')
+            sha.update(chunk); git_sha.update(chunk)
+        if expected['kind'] == 'keynote_zip':
+            stream.seek(0)
+            with zipfile.ZipFile(stream) as archive:
+                names = archive.namelist()
+                if len(names) != 57 or not {'Index/Document.iwa', 'Metadata/BuildVersionHistory.plist', 'Metadata/Properties.plist'} <= set(names):
+                    raise ValueError('exact upstream presentation structure required')
+        after = os.fstat(stream.fileno())
+    final = path.lstat()
+    signature = lambda s: (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
+    if signature(before) != signature(held) or signature(held) != signature(after) or signature(after) != signature(final):
+        raise ValueError('fixture changed during read')
+    if count != expected['bytes'] or git_sha.hexdigest() != blob or sha.hexdigest() != expected['sha256']:
+        raise ValueError('fixture content identity changed')
+    return {'path': relative, 'source_commit': LLAMA, 'git_blob': blob,
+            'bytes': count, 'sha256': sha.hexdigest(), 'kind': expected['kind'],
+            'tensor_count': 0 if expected['kind'] == 'tensor_free_vocab' else None}
+
+def scan_source_payloads(source):
+    admitted = []
+    for path in source.rglob('*'):
+        suffix = path.suffix.lower()
+        if suffix not in ('.gguf', '.safetensors', '.pfx', '.p12', '.pem', '.key'):
+            continue
+        # Unknown files of EVERY forbidden suffix refuse. Only exact pinned
+        # source objects can pass; final package forbids all these extensions.
+        admitted.append(admitted_source_fixture(source, path))
+    return admitted
+
 def main(source, operator, track, lock_sha=''):
     source, operator = Path(source).resolve(), Path(operator).resolve()
     if track not in ('baseline', 'patch'):
@@ -172,11 +352,10 @@ def main(source, operator, track, lock_sha=''):
     if inventory is not None:
         verify_shipping_postimages(source, inventory)
     subprocess.run([bash, 'scripts/check-uwp-sources.sh'], cwd=source, check=True, timeout=60)
-    # Do not permit the candidate to silently add model weights/signing keys.
-    for path in source.rglob('*'):
-        if path.is_file() and path.suffix.lower() in ('.gguf', '.safetensors', '.pfx', '.p12', '.pem', '.key'):
-            raise ValueError('weights/private-key-like file in build tree: ' + str(path.relative_to(source)))
+    # Admit only exact tracked tensor-free vocab and classified presentation fixtures.
+    source_fixtures = scan_source_payloads(source)
     receipt = {'track': track, 'xllama': XLLAMA, 'llama': LLAMA,
+               'upstream_source_fixtures': source_fixtures,
                'reviewed_patch_lock': lock_sha if track == 'patch' else None,
                'shipping_inventory_sha256': SHIPPING_INVENTORY_SHA if inventory is not None else None,
                'compiler_inventory_sha256': COMPILER_INVENTORY_SHA if inventory is not None else None,

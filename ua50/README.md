@@ -58,7 +58,12 @@ standalone runtime locks are refused. It verifies the stock guard, applies
 the pinned route once and checks all forty selected shipping postimages,
 including both `.inc` dependencies, before writing its source receipt.
 
-The helper also rejects weight and private-key-like files in the product tree.
+The helper rejects weight and private-key-like files in the product tree,
+except for nineteen exact tensor-free tokenizer fixtures and one exact Keynote
+document tracked by the pinned upstream llama.cpp revision. Those source-only
+exceptions require matching HEAD, tree, index, path, file type, size, Git blob
+and full-content hash; modified or additional files are refused. The unsigned
+package guard still forbids all model weights and private-key-like members.
 Dependency versions and vendor DLL hashes are pinned in the recipe. Runner
 images remain rolling, and restored transitive SDK/CRT/package bytes are not a
 pre-existing cryptographic dependency closure.

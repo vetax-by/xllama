@@ -10,7 +10,7 @@
     "operator": "ab5c81a17414121e287bce0bcf39b0fc27be4722d2ed9594ed5110a5cee01f8d"
   },
   "qualification": "Source composition/admission reviewed; not a Windows build or Xbox acceptance.",
-  "public_metadata_adjustment": "DEPENDENCIES.json omits captured tool-installation-path excerpts. Operator-only Windows checkout/Bash corrections are recorded separately; runtime patch lock, four patches and admitted shipping/compiler inventories are unchanged.",
+  "public_metadata_adjustment": "DEPENDENCIES.json omits captured tool-installation-path excerpts. Operator-only Windows checkout/Bash/source-fixture admission corrections are recorded separately; runtime patch lock, four patches and admitted shipping/compiler inventories are unchanged.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
     {
@@ -22,6 +22,11 @@
       "scope": "Explicit Git-for-Windows Bash selection",
       "source_manifest_sha256": "dbab28cf7c42fd80f2a0edd1c84d01de17e3e8b9c2ea23d02dbd860e9468b003",
       "review_sha256": "5dc4d8e5471fff7c12b9dd62a7ded6a06c9f0f4fd7c8f54a30d1034b38e0d618"
+    },
+    {
+      "scope": "Exact pinned upstream source-only fixture admission",
+      "source_manifest_sha256": "bf5dd113ae772c272764558c93027c7902f5e4eec5423a20910f2e7077db192b",
+      "review_sha256": "515cc137498d4aceb6dbf9d9d55c151e2e4c312aef235899f1c5349e3e1722df"
     }
   ]
 }
