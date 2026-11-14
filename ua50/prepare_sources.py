@@ -45,11 +45,11 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = '5dab2dab1aca23e6d914bd5304ee957f3dc741f57d19457c6ef3b3af3ecf562d'
+CURRENT_PATCH_LOCK = '25b96683858ec2fbfbcb171cd6e93927d6c9fbe315f8e5ffe919cae65f784b44'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current first-answer/5dab lock admitted; standalone B803/760e/a199/e781 refused')
+        raise ValueError('only current finished384/25b9 lock admitted; old5dab/B803/760e/a199/e781 refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
@@ -60,15 +60,15 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/runtime-root.patch', 'xllama'), ('patch/runtime-llama.patch', 'llama'),
             ('patch/app-xllama.patch', 'xllama'), ('patch/app-llama.patch', 'llama'),
             ('patch/cpu-pilot-root.patch', 'xllama'), ('patch/cpu-pilot-llama.patch', 'llama'),
-            ('patch/first-answer-root.patch', 'xllama')]:
-        raise ValueError('exact B803 six plus first-answer-root seven-patch order required')
+            ('patch/first-answer-root.patch', 'xllama'), ('patch/finished-answer-root.patch', 'xllama')]:
+        raise ValueError('exact accepted seven plus finished-answer-root eighth order required')
     for entry in lock['patches']:
         patch = checked_patch(operator, entry)
         if patch.stat().st_size != entry['bytes']:
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = 'bfb8316ad3fc88d26e9c35adf61a71be6c122939a2ce4176447cbcaa4117c76b'
+SHIPPING_INVENTORY_SHA = 'fa4dd7e0ee539be2b4b1c041739b9643898cd9d91c980bc13b97f0ae89dd5ea9'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):

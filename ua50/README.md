@@ -8,14 +8,16 @@ The patch rationale, implementation and evidence limits have one home:
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
 - Patch lock SHA-256:
-  `5dab2dab1aca23e6d914bd5304ee957f3dc741f57d19457c6ef3b3af3ecf562d`.
+  `25b96683858ec2fbfbcb171cd6e93927d6c9fbe315f8e5ffe919cae65f784b44`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
 The first four patches retain the accepted application/runtime bytes. Two
-additional patches carry the explicit console CPU smoke pilot. A seventh root
-patch adds a separate bounded first-answer mode; the current lock and
-source/import inventories bind all seven. The unsigned build and package-guard commands are unchanged; its public receipt
-omits captured absolute tool-installation paths. The workflow enforces LF
+additional patches carry the explicit console CPU smoke pilot. The seventh root
+patch retains the bounded first-answer mode. An eighth root patch adds a separate
+384-sample finished-answer candidate; the current lock and source/import
+inventories bind all eight. The two generation profiles keep the same context,
+CPU-thread count and expert-cache configuration. The unsigned build and
+package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
 installation before submodule/network operations. These operator-only corrections
@@ -40,12 +42,14 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The separate signing workflow binds the first-answer unsigned artifact and the
-unchanged accepted baseline. Its validator requires the current seven-patch,
-47-file source receipt. Manual signing requires a fresh installed version and
-an explicitly selected higher patched version plus a still higher stock
-forward-recovery version. Signing does not install or launch the application,
-and a recovery package alone does not prove recovery compatibility.
+The existing signing workflow remains bound to the earlier seven-patch
+first-answer artifact. It must not be used to attest this eight-patch successor.
+A new signing attempt needs the actual inspected unsigned artifact, current
+source-receipt validators and an exact artifact-bound signing recipe. Manual
+signing also requires a fresh installed version and an explicitly selected higher
+patched version plus a still higher stock forward-recovery version. Signing does
+not install or launch the application, and a recovery package alone does not
+prove recovery compatibility.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -56,17 +60,18 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch 5dab2dab1aca23e6d914bd5304ee957f3dc741f57d19457c6ef3b3af3ecf562d
+python operator/ua50/prepare_sources.py product operator/ua50 patch 25b96683858ec2fbfbcb171cd6e93927d6c9fbe315f8e5ffe919cae65f784b44
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, seven ordered patch files and source/import inventories. Old
+exact lock, eight ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
 the pinned route once and checks all 47 selected shipping postimages,
-including both `.inc` dependencies and the gated Windows CPU-pilot unit, before writing its source receipt.
+including both `.inc` dependencies and the gated Windows CPU-pilot unit, before
+writing its source receipt.
 
 The helper rejects weight and private-key-like files in the product tree,
 except for nineteen exact tensor-free tokenizer fixtures and one exact Keynote
@@ -91,8 +96,12 @@ compiled, linked and produced an inspected unsigned x64 package with all six
 patches and 45 selected source files verified. The separate
 [first-answer Windows build](https://github.com/vetax-by/xllama/actions/runs/43627054490)
 also produced an inspected unsigned x64 package with all seven patches and 47
-selected source files verified. Its signed preserving update and actual console
-text output remain separate acceptance steps.
+selected source files verified. That earlier profile subsequently produced a
+bounded console generation and normal teardown; its sample cap ended inside
+thinking, so it did not provide a completed final answer. This eight-patch
+384-sample successor still requires its own Windows artifact, signed preserving
+update and actual console-result acceptance. No private response or telemetry is
+included here.
 
 ## Bounded first-answer developer mode
 
@@ -113,3 +122,27 @@ New native claim/output files are exclusive; earlier smoke claims and results
 remain untouched. Installation must preserve application state and model files.
 No private console logs, generated responses, device credentials or signing keys
 are publication inputs. See the main patch document for evidence boundaries.
+
+## Separate finished-answer candidate
+
+The eighth patch preserves the existing 128-sample mode and adds a distinct
+`ua50-cpu-lfm24-finished-answer-v2` LocalFolder prefix with `.flag`, `.claim`,
+`.stop` and `.output.json` leaves. The new fixed profile allows up to 384 sampled
+tokens, including reasoning, in a context of at most 512. The tokenized prompt is
+limited to 128 and the entire prompt plus generation allowance must fit the
+resolved context; no prompt trimming or automatic extension is allowed.
+
+The same single-user prompt, checkpoint template, tokenizer-owned BOS, CPU-only
+thread, nonfused operations and two-slot expert cache are retained. Collector and
+serialization bookkeeping is explicitly charged to the joint memory plan; the
+runtime reserve and metadata-probe allowance remain unchanged. This profile does
+not implement the separately considered larger-cache optimization.
+
+The private record retains the same schema and raw-piece/timing rules with the
+new scope and limits. A terminated final text, a length-capped text after
+thinking and reasoning that never reaches a final section are different
+outcomes. No closing tag or final answer is manufactured. Existing per-piece,
+aggregate-text and JSON byte caps remain strict; oversized serialization refuses
+before writing rather than clipping output. Normal runtime completion alone is
+not assistant-quality acceptance, and 384 samples do not guarantee a final
+answer. Old claims, outputs and ordinary application behavior remain intact.

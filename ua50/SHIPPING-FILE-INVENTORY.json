@@ -14,8 +14,8 @@
       "file": "postimage/include/xllama/cpu_expert_session.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_expert_session.h",
-      "bytes": 4176,
-      "sha256": "2c4807cf68e7f411234a2593a5585657a5149efafaa8d1fe3592c2036447d6bc",
+      "bytes": 4231,
+      "sha256": "b4525d1e6f6301e307c72a8040bc69d2037083cd44cbbd009abd35156995b034",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -284,8 +284,8 @@
       "file": "postimage/src/bridge/cpu_expert_app_session.inc",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_app_session.inc",
-      "bytes": 7642,
-      "sha256": "a8b8975edc6c934de219af8d2cde04bb57fd9049712ecd957d654b3bbdc2c9a6",
+      "bytes": 7673,
+      "sha256": "ba2a65b52397b9a0996c1307b27695a57bd5fce0183757762f665c6a3087d95f",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -294,8 +294,8 @@
       "file": "postimage/src/bridge/cpu_expert_session.cpp",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_session.cpp",
-      "bytes": 13024,
-      "sha256": "41f2928f7d3df55f4613d290af45d15bc05b5ac1a2465e8bf84f5469b3f29bff",
+      "bytes": 13100,
+      "sha256": "a679db88a6cd243bef9064a7f2752b181698c9139e1f30bfad2fe9add33c31e5",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -366,8 +366,8 @@
       "target_path": "uwp/App.cpp",
       "stock_preimage_sha256": "0ad5044e9e072fe9501bad3ef0d29c384e6b25c47012e5dd1b48c23cfde0b94c",
       "stock_git_blob": "ce40fbce37965da85548382f5dc3c8cb2b159c51",
-      "bytes": 28478,
-      "sha256": "a25cb44cc6a9913e098e4983a2b24b4511edbe4ce9ba592f3d28144d591dedeb",
+      "bytes": 29101,
+      "sha256": "4ad925687df642f8b62bdef33767db7626721fe39ae3fffd3e30eaf40cdc12e9",
       "changed_or_added": true
     },
     {
@@ -386,8 +386,8 @@
       "target_path": "uwp/cpu-expert-pilot.cpp",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
-      "bytes": 18881,
-      "sha256": "b97baa1efc36d399bb5a14e8934eeab9df008badcad68dc91040ea4bcc33c6de",
+      "bytes": 19618,
+      "sha256": "3e1c10d253ef45951ad2fedebeffce15fd8157c48d021deddfaf4044dbfc54a7",
       "changed_or_added": true
     },
     {
@@ -406,8 +406,8 @@
       "target_path": "uwp/inference-bridge.h",
       "stock_preimage_sha256": "3aaf59fad43d544ba451ff3a201a2f76b5ff9da4275cd7075ec9b0bc5e88c621",
       "stock_git_blob": "66e05db464c95116ca6829a34d42d9ed17d7411d",
-      "bytes": 5646,
-      "sha256": "c6137cb91b6f8dd726b99161b137ca9a81722fc415f529090cc7b2a8d9169e6c",
+      "bytes": 5685,
+      "sha256": "6234b65c558af423dc5152b1c28a188850a7f9c093524ec58c27393d4b975538",
       "changed_or_added": true
     },
     {
@@ -457,8 +457,8 @@
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true,
-      "bytes": 8033,
-      "sha256": "20b7a413b6bb693a4cb293f7b2de6f259b6d94dde59ed9448891b102e9d1e440"
+      "bytes": 8860,
+      "sha256": "94157600fbce2f815ee786c99d6e14931ea509e4e0d541c0730a8a35549ea151"
     },
     {
       "file": "postimage/include/xllama/first_answer_template.h",

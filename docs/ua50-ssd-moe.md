@@ -142,10 +142,35 @@ markers and observed termination of the bound process. Partial diagnostics and
 an output file by themselves do not prove normal completion. Old smoke claims
 remain intact; this mode has its own exclusive activation and result namespace.
 
-This first-answer successor has portable functional evidence using explicit fake
-native/platform boundaries and an independently inspected Windows build. Actual
-console text-generation acceptance remains pending; the earlier short smoke test
-does not validate this new mode.
+This first-answer profile has portable functional evidence using explicit fake
+native/platform boundaries, an independently inspected Windows build and a
+bounded console generation with normal teardown. The sample cap ended inside
+thinking, so that run did not produce a completed final assistant answer. Private
+responses, device telemetry and runtime identifiers are not publication inputs.
+
+### Separate finished-answer candidate
+
+An eighth preparation patch preserves the earlier modes and adds the separate
+`ua50-cpu-lfm24-finished-answer-v2` prefix with its own flag, persistent claim,
+cooperative-stop and private-output leaves. Its fixed profile allows up to 384
+sampled tokens, including reasoning, with a context of at most 512. The actual
+prompt must be at most 128 tokens and the complete prompt plus generation
+allowance must fit without trimming. CPU-only execution, one thread, the source
+chat template and the two-slot expert cache remain unchanged.
+
+Collector and serialization memory is explicitly charged to the native joint
+plan. The larger generation allowance does not weaken quota, pressure, reserve,
+held-file integrity, ownership or terminal-close requirements. The same raw JSON
+schema carries the new scope and limits; per-piece, aggregate-text and serialized
+output byte caps still refuse overflow rather than clipping output.
+
+A terminated final text, a length-capped text after thinking and open reasoning
+without a final section are classified separately while retaining the original
+record. Neither literal closing-tag presence nor normal teardown asserts semantic
+answer quality. The new profile has narrow portable fake-boundary functional
+and source/shipping evidence; its own Windows build, signed preserving update
+and console generation remain pending. It does not implement a larger expert
+cache, GPU execution or automatic continuation beyond the sample cap.
 
 ## Evidence and limits
 
@@ -165,15 +190,17 @@ The distinct [seven-patch first-answer build](https://github.com/vetax-by/xllama
 has also completed compilation, linking and package inspection, with all 47
 selected source files verified. Its unsigned package is 21,072,488 bytes,
 SHA-256 `808e50ba90d42b09c745eeb67221719afa4e50e80a04817ceb3724d7fe6be89f`,
-also version `1.7.0.0`. A signed higher-version preserving update and actual
-console output acceptance remain required. Build warnings are retained; this is
-not a warning-free build or proof of runtime correctness.
+also version `1.7.0.0`. That profile subsequently produced bounded console
+reasoning after a signed preserving update, as qualified above. The separate
+384-sample successor still requires its own build, update and output acceptance.
+Build warnings are retained; this is not a warning-free build or proof of runtime
+correctness.
 
 | Area                          | What has been checked                                                                                                                         | What it does not establish                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Native CPU integration        | Actual LFM2MoE factory/context/decode on generated GGUF fixtures, resident/cache logits, routes, mixed-quant slice ledgers and fault handling | Real checkpoint parity, useful assistant quality or Xbox performance                                                 |
 | Real 8B checkpoint            | One successful native prompt and next-token step using streamed experts                                                                       | Two-session reproducibility, resident-reference parity, sustained speed or context quality                           |
-| Real 24B checkpoint           | One bounded CPU console prompt/next-token smoke path with source-qualified held-file integrity and normal teardown                              | Exported answer text, real resident-reference parity, sustained speed, long context or assistant quality              |
+| Real 24B checkpoint           | Bounded CPU smoke and generated reasoning with source-qualified held-file integrity and normal teardown                              | Completed final assistant answer, real resident-reference parity, sustained speed, long context or assistant quality              |
 | Portable reader core          | Nine fake-backend test groups                                                                                                                 | Windows API behavior or real device cancellation                                                                     |
 | Session hub and adapter/owner | Actual hub tests and five functional adapter/owner groups with ASan/UBSan; named native/platform boundaries are fakes                         | Native math, production Windows I/O or BCrypt execution                                                              |
 | Shipping preparation          | Exact patch order, selected postimages, registration and source-admission checks                                                              | Actual installation or runtime behavior on the console                                                               |
@@ -212,11 +239,11 @@ gitlink remains upstream-pinned; its modifications are carried as checked
 patches, not committed inside the submodule. Use the preparation recipe below
 instead of treating the raw fork checkout as an already prepared build tree.
 
-[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for seven
+[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for eight
 ordered patches. The route on a separate clean base tree is: stock AppContainer
 guard once, runtime root patch, runtime llama patch, application root patch,
-application llama patch, CPU pilot root patch, CPU pilot llama patch and finally
-one first-answer root patch. Do not additionally apply
+application llama patch, CPU pilot root patch, CPU pilot llama patch, the
+first-answer root patch and finally one finished-answer root patch. Do not additionally apply
 intermediate development patches or apply a cumulative patch twice.
 
 The two new `.inc` files are shipping include dependencies of `session.cpp`,

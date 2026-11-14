@@ -3,19 +3,20 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "5dab2dab1aca23e6d914bd5304ee957f3dc741f57d19457c6ef3b3af3ecf562d",
-  "source_bundle_sha256": "22580ed3cefb58535b95a83f8843feac5ab64225e036d8ff77b413bfc0e0111c",
+  "patch_lock_sha256": "25b96683858ec2fbfbcb171cd6e93927d6c9fbe315f8e5ffe919cae65f784b44",
+  "source_bundle_sha256": "72069e0f3c411cd25ce077687381042a8e7c8751561c9df2d5ad4502967db00a",
   "source_reviews": {
-    "composition": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
+    "composition": "575e528a3dfe05358cc33e6f3dbc4dc6f277a9c4b17bfc837cb7742a4355d5fe",
     "cpu_pilot": "efe7dbb8a350c1ca99c07386b207570580d7d13457f2ad247518da9d380f66dd",
-    "operator_admission": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
+    "operator_admission": "de555cb0fc005b34ce950704479923b55026ed84ae0bdf1faa79f23d0f7bf99f",
     "base_composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
     "current_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb",
     "first_answer_source_shipping": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
-    "first_answer_operator_binding": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3"
+    "first_answer_operator_binding": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
+    "finished_answer_source_shipping": "575e528a3dfe05358cc33e6f3dbc4dc6f277a9c4b17bfc837cb7742a4355d5fe"
   },
-  "qualification": "The earlier six-patch CPU smoke path built on Windows and completed a bounded console prompt/step. The seven-patch first-answer successor has now compiled, linked and produced an independently inspected unsigned Windows package; signed preserving update and real output acceptance remain pending. No private console telemetry or model response is included.",
-  "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Six reviewed runtime/application/CPU patches retain their bytes; one reviewed root patch adds the bounded first-answer mode. Operator and signing bindings remain separate.",
+  "qualification": "The earlier first-answer profile compiled on Windows and produced bounded console reasoning with normal teardown, ending at its sample cap before a final answer. The eight-patch384-sample successor has source/shipping and portable fake-boundary evidence only; its Windows artifact, signed preserving update and actual output acceptance remain pending. No private response or console telemetry is included.",
+  "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Seven accepted patches retain their bytes; one eighth root patch adds a separate bounded finished-answer profile. Runtime and operator inputs remain exact reviewed source bytes.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
     {
@@ -39,9 +40,9 @@
       "review_sha256": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
     }
   ],
-  "operator_admission_manifest_sha256": "aa2a45b858cad85f8e3642f37f0b6e152256d8f58c682967b8904058354ec70c",
-  "operator_composition_manifest_sha256": "aa2a45b858cad85f8e3642f37f0b6e152256d8f58c682967b8904058354ec70c",
-  "operator_sha256": "bb0e41ab086a9b93498dff97b98a602ad64a8f74b1f224745d63311e05c3036e",
+  "operator_admission_manifest_sha256": "d702a5d507350c0b73d2bbfb9bf15d7eeaee937350d802fbd28881bdd8eb74e1",
+  "operator_composition_manifest_sha256": "d702a5d507350c0b73d2bbfb9bf15d7eeaee937350d802fbd28881bdd8eb74e1",
+  "operator_sha256": "794b3c9d026f837b3b8f1939d5cd821cbd1e6cb0ab9bef0bfd8e3dcb2a494d9d",
   "build_receipt_hygiene": {
     "source_manifest_sha256": "d3fbfbba1ba02743601c0d77fc41400f9894756a19f8473894b177809420c3e8",
     "review_sha256": "a398cc06c8a5117ebd2010f47c41f544d470319b8f63251df2cc275281b815da",
@@ -91,8 +92,23 @@
     "source_review": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
     "operator_review": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
     "actual_Windows_build": true,
-    "actual_console_text_output": false,
+    "actual_console_text_output": true,
     "correction_sha256": "650ed6335925a7a574c8d11f6945db94e4b4689cac41dd8662ed85a2a2361f82",
-    "actual_Windows_artifact_review": "f215e5d010744b56578030008bcacf2e0b676a9ec7cfead5f1517ae77651867f"
+    "actual_Windows_artifact_review": "f215e5d010744b56578030008bcacf2e0b676a9ec7cfead5f1517ae77651867f",
+    "console_output_qualification": "Bounded generated reasoning, normal teardown; no completed final answer or general assistant-quality acceptance. Raw output remains private."
+  },
+  "finished_answer_source": {
+    "patch_lock_sha256": "25b96683858ec2fbfbcb171cd6e93927d6c9fbe315f8e5ffe919cae65f784b44",
+    "source_bundle_sha256": "72069e0f3c411cd25ce077687381042a8e7c8751561c9df2d5ad4502967db00a",
+    "source_sha256": "821bc60d17de2b6f3e3aec47df299366d237a6381225228450ffb0bab19b33ba",
+    "patches": 8,
+    "selected_shipping_inputs": 47,
+    "source_review": "575e528a3dfe05358cc33e6f3dbc4dc6f277a9c4b17bfc837cb7742a4355d5fe",
+    "operator_review": "de555cb0fc005b34ce950704479923b55026ed84ae0bdf1faa79f23d0f7bf99f",
+    "max_new_samples": 384,
+    "max_context": 512,
+    "actual_Windows_build": false,
+    "actual_console_text_output": false,
+    "cache_optimization_implemented": false
   }
 }

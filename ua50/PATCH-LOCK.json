@@ -43,6 +43,12 @@
       "target": "xllama",
       "bytes": 38377,
       "sha256": "b38dfa1b21dc881b7a4285d7c7e0d13aaf999267d46a7f59d286f90aed3c660b"
+    },
+    {
+      "file": "patch/finished-answer-root.patch",
+      "target": "xllama",
+      "bytes": 22845,
+      "sha256": "6e4f94bc5bb0b4d49eacd2e0b1f0638e40b6231ccbfff4924f57eeff4af2ed1b"
     }
   ]
 }
