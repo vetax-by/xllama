@@ -20,10 +20,25 @@ jobs:
   compile:
     runs-on: windows-2022
     timeout-minutes: 45
+    # Exact byte pins require LF worktrees on the disposable Windows runner.
+    # Inherited before BOTH checkout actions and later submodule/git commands.
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+      GIT_CONFIG_KEY_1: core.eol
+      GIT_CONFIG_VALUE_1: lf
     defaults:
       run:
         shell: pwsh
     steps:
+      - name: Verify exact Git checkout byte policy
+        run: |
+          $autocrlf = git config --get core.autocrlf
+          if ($LASTEXITCODE -ne 0 -or $autocrlf.Trim() -ne 'false') { throw 'exact-byte checkout requires core.autocrlf=false' }
+          $eol = git config --get core.eol
+          if ($LASTEXITCODE -ne 0 -or $eol.Trim() -ne 'lf') { throw 'exact-byte checkout requires core.eol=lf' }
+          Write-Host "Exact-byte Git policy: core.autocrlf=$autocrlf core.eol=$eol"
       - name: Checkout reviewed operator repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
