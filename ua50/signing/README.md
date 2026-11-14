@@ -27,3 +27,9 @@ The job uses a standard public Windows runner, has a 20-minute job limit and
 retains its bounded public output for one day. Dispatch requires a separate
 selected attempt; publishing this recipe does not start it. A failed or unknown
 operation requires reconciliation, not an automatic retry.
+
+Fixed-name UTC BEGIN/END/FAIL markers identify signing phases without logging
+arguments or key identities. The child-process CIM query requests a 15-second
+operation timeout; this is not a proven wall-clock deadline. Unknown process or
+cleanup state still prevents export. Phase markers diagnose the current attempt;
+they do not establish the cause of an earlier timeout.

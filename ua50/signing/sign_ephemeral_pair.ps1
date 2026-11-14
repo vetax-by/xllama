@@ -9,6 +9,26 @@ param(
     [Parameter(Mandatory)][string]$SdkBin
 )
 $ErrorActionPreference = 'Stop'
+# Diagnostics are best-effort: no validation/host/stack exception escapes into cleanup.
+$script:PhaseStack = $null
+try { $script:PhaseStack = [Collections.Generic.Stack[string]]::new() } catch { }
+function Write-SigningPhase([string]$State, [string]$Phase) {
+    try {
+        if ($State -notin @('BEGIN','END') -or $Phase -cnotmatch '^[A-Za-z0-9_.-]{1,80}$') { return }
+        if ($State -eq 'BEGIN' -and $null -ne $script:PhaseStack) { $script:PhaseStack.Push($Phase) }
+        Write-Host ('[UA50_SIGN_PHASE] {0} {1} {2}' -f [DateTime]::UtcNow.ToString('o'),$State,$Phase)
+        if ($State -eq 'END' -and $null -ne $script:PhaseStack -and $script:PhaseStack.Count -and $script:PhaseStack.Peek() -eq $Phase) { [void]$script:PhaseStack.Pop() }
+    } catch { } # Logging failure must not skip cleanup or change operational outcome.
+}
+function Write-SigningFailure {
+    try {
+        $label = if ($null -ne $script:PhaseStack -and $script:PhaseStack.Count) { $script:PhaseStack.Peek() } else { 'UNSCOPED' }
+        Write-Host ('[UA50_SIGN_PHASE] {0} FAIL {1}' -f [DateTime]::UtcNow.ToString('o'),$label)
+        if ($null -ne $script:PhaseStack) { $script:PhaseStack.Clear() }
+    } catch { } # No exception/error text is logged, including a logger's own error.
+}
+try {
+Write-SigningPhase BEGIN 'PAIR_PREFLIGHT'
 if ($env:OS -ne 'Windows_NT') { throw 'selected disposable Windows lane required' }
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 function Public-Hash($Cert) {
@@ -18,8 +38,10 @@ function Public-Hash($Cert) {
 function Assert-NoChildTools {
     # Calls below are synchronous console invocations; no background process is started.
     # A remaining direct child, or inability to query, prevents cleanup/export.
-    $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $PID" -ErrorAction Stop)
+    Write-SigningPhase BEGIN 'CHILD_OBSERVATION'
+    $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $PID" -Property ProcessId -OperationTimeoutSec 15 -ErrorAction Stop)
     if ($children.Count -ne 0) { throw 'owned signing call may still be active; retain key/trust, no export' }
+Write-SigningPhase END 'CHILD_OBSERVATION'
 }
 foreach ($path in @($InputPlan,$ArtifactRoot,$PrivateRoot,$Output,$SdkBin)) {
     if (-not [IO.Path]::IsPathRooted($path)) { throw 'explicit absolute private-lane paths required' }
@@ -31,26 +53,34 @@ foreach ($name in @('makeappx.exe','signtool.exe')) {
     if (-not (Test-Path -LiteralPath (Join-Path $SdkBin $name) -PathType Leaf)) { throw 'existing selected SDK required; no installation/fallback' }
 }
 $validator = Join-Path $PSScriptRoot 'validate_pair_inputs.py'
+Write-SigningPhase BEGIN 'PAIR_PYTHON_PREFLIGHT'
 $raw = & python $validator --plan $InputPlan --input-root $ArtifactRoot
 if ($LASTEXITCODE -ne 0) { throw 'pair preflight refused BEFORE key/trust generation' }
+Write-SigningPhase END 'PAIR_PYTHON_PREFLIGHT'
 $plan = $raw | ConvertFrom-Json
 New-Item -ItemType Directory -Path $PrivateRoot | Out-Null
 $helper = Join-Path $PSScriptRoot 'sign_copy.ps1'
 $tag = 'ua50-owned-sign-' + [Guid]::NewGuid().ToString('N')
+Write-SigningPhase BEGIN 'CERT_STORE_SNAPSHOT'
 $preMy = @(Get-ChildItem Cert:\CurrentUser\My | ForEach-Object { $_.Thumbprint })
+Write-SigningPhase END 'CERT_STORE_SNAPSHOT'
 $owned = $null; $thumb = $null; $publicHash = $null; $keyName = $null; $keyProvider = $null
 $createAttempted = $false; $trustAttempted = $false; $operationError = $null
 $cleanupErrors = @(); $callsReturned = $false; $cleanupProved = $false
+Write-SigningPhase END 'PAIR_PREFLIGHT'
 try {
     Assert-NoChildTools
     $createAttempted = $true
     # Exactly ONE key/certificate, CurrentUser scope, nonexportable CNG software key.
+Write-SigningPhase BEGIN 'KEY_CREATE'
     $owned = New-SelfSignedCertificate -Type Custom -Subject 'CN=xllama-dev' `
         -FriendlyName $tag -CertStoreLocation 'Cert:\CurrentUser\My' `
         -Provider 'Microsoft Software Key Storage Provider' -KeyAlgorithm RSA -KeyLength 2048 `
         -HashAlgorithm SHA256 -KeyUsage DigitalSignature -KeyExportPolicy NonExportable `
         -NotAfter ([DateTime]::UtcNow.AddDays(7)) `
         -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
+Write-SigningPhase END 'KEY_CREATE'
+Write-SigningPhase BEGIN 'KEY_BINDING'
     if ($preMy -contains $owned.Thumbprint) { throw 'owned certificate unexpectedly pre-existed; no deletion authority' }
     $thumb = $owned.Thumbprint
     $publicHash = Public-Hash $owned
@@ -60,7 +90,9 @@ try {
         if ($rsa -isnot [Security.Cryptography.RSACng] -or $rsa.Key.IsMachineKey -or [int]$rsa.Key.ExportPolicy -ne 0) { throw 'owned CurrentUser nonexportable CNG key required' }
         $keyName = $rsa.Key.KeyName; $keyProvider = $rsa.Key.Provider
     } finally { if ($rsa) { $rsa.Dispose() } }
+Write-SigningPhase END 'KEY_BINDING'
     # Export PUBLIC DER only, stripping any private-key association before trust add.
+Write-SigningPhase BEGIN 'PUBLIC_TRUST_ADD'
     $public = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
         $owned.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
     try {
@@ -74,30 +106,36 @@ try {
             $store.Add($public)
         } finally { $store.Close() }
     } finally { $public.Dispose() }
+Write-SigningPhase END 'PUBLIC_TRUST_ADD'
     foreach ($arm in @('Patched','Stock')) {
         $entry = $plan.$arm
         $installed = if ($arm -eq 'Patched') { $plan.InstalledVersion } else { $plan.PatchedVersion }
         $newVersion = if ($arm -eq 'Patched') { $plan.PatchedVersion } else { $plan.RecoveryVersion }
         # Direct synchronous invocation; helper waits on every Python/SDK console process.
+Write-SigningPhase BEGIN ('SIGN_COPY_' + $arm)
         & $helper -UnsignedPackage $entry.Package -ExpectedUnsignedSha256 $entry.PackageSHA256 `
             -SourceReceipt $entry.SourceReceipt -ExpectedSourceReceiptSha256 $entry.SourceReceiptSHA256 `
             -ExpectedTrack $entry.Track -InstalledVersion $installed -NewVersion $newVersion `
             -SdkBin $SdkBin -PrivateWork (Join-Path $PrivateRoot ($arm + '-work')) `
             -Output (Join-Path $PrivateRoot ($arm + '-signed')) `
             -CertificateThumbprint $thumb -ExpectedPublicCertificateSha256 $publicHash
+Write-SigningPhase END ('SIGN_COPY_' + $arm)
         Assert-NoChildTools
     }
     $callsReturned = $true
 } catch {
     $operationError = $_
+    Write-SigningFailure
 } finally {
     # Cleanup only after synchronous calls unwind AND no owned child remains.
     # Abrupt worker/job kill cannot promise finally: no cleanup/export success inferred.
+Write-SigningPhase BEGIN 'CLEANUP'
     $terminal = $false
-    try { Assert-NoChildTools; $terminal = $true } catch { $cleanupErrors += 'TOOL_TERMINAL_UNKNOWN' }
+    try { Assert-NoChildTools; $terminal = $true } catch { $cleanupErrors += 'TOOL_TERMINAL_UNKNOWN'; Write-SigningFailure }
     if ($terminal -and $thumb) {
         if ($trustAttempted) {
             try {
+Write-SigningPhase BEGIN 'OWNED_TRUST_REMOVE'
                 $store = [Security.Cryptography.X509Certificates.X509Store]::new('Root','CurrentUser')
                 try {
                     $store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
@@ -108,9 +146,11 @@ try {
                     }
                     if (@($store.Certificates.Find('FindByThumbprint',$thumb,$false)).Count -ne 0) { throw 'owned trust removal unproven' }
                 } finally { $store.Close() }
-            } catch { $cleanupErrors += 'OWNED_PUBLIC_TRUST_CLEANUP_UNPROVEN' }
+Write-SigningPhase END 'OWNED_TRUST_REMOVE'
+            } catch { $cleanupErrors += 'OWNED_PUBLIC_TRUST_CLEANUP_UNPROVEN'; Write-SigningFailure }
         }
         try {
+Write-SigningPhase BEGIN 'OWNED_KEY_REMOVE'
             $ownedPath = "Cert:\CurrentUser\My\$thumb"
             if (Test-Path -LiteralPath $ownedPath) {
                 $current = Get-Item -LiteralPath $ownedPath
@@ -119,7 +159,8 @@ try {
             }
             if (Test-Path -LiteralPath $ownedPath) { throw 'owned signer entry remains' }
             if (-not $keyName -or -not $keyProvider -or [Security.Cryptography.CngKey]::Exists($keyName,$keyProvider)) { throw 'owned private key deletion unproven' }
-        } catch { $cleanupErrors += 'OWNED_PRIVATE_KEY_CLEANUP_UNPROVEN' }
+Write-SigningPhase END 'OWNED_KEY_REMOVE'
+        } catch { $cleanupErrors += 'OWNED_PRIVATE_KEY_CLEANUP_UNPROVEN'; Write-SigningFailure }
     } elseif ($createAttempted) { $cleanupErrors += 'KEY_CREATION_OR_TERMINAL_STATE_UNKNOWN_RETAIN' }
     if ($owned) { $owned.Dispose() }
     $cleanupProved = $terminal -and $thumb -and $cleanupErrors.Count -eq 0
@@ -127,10 +168,12 @@ try {
         calls_returned=$callsReturned; terminal_children_absent=$terminal; cleanup_proved=$cleanupProved;
         errors=$cleanupErrors; private_key_exported=$false; device_mutations=0
     } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $PrivateRoot 'OWNED-CLEANUP.json') -Encoding utf8
+Write-SigningPhase END 'CLEANUP'
 }
 if ($operationError) { throw $operationError }
 if (-not $callsReturned -or -not $cleanupProved) { throw 'pair or exact owned cleanup incomplete; no export/retry' }
 # Both independently verified signed packages must exist before PUBLIC-only export.
+Write-SigningPhase BEGIN 'PUBLIC_PAIR_EXPORT'
 $patched = Join-Path $PrivateRoot 'Patched-signed'
 $stock = Join-Path $PrivateRoot 'Stock-signed'
 if ((Hash (Join-Path $patched 'xllama-test.cer')) -ne $publicHash -or (Hash (Join-Path $stock 'xllama-test.cer')) -ne $publicHash) { throw 'pair signer differs' }
@@ -146,3 +189,10 @@ Copy-Item -LiteralPath (Join-Path $patched 'xllama-test.cer') -Destination (Join
     cleanup_proved=$cleanupProved; recovery_payload='accepted STOCK baseline, NOT old1495';
     console_trust='UNKNOWN'; LocalState_schema_compatibility='UNPROVEN'; install_performed=$false
 } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Output 'PAIR-RECEIPT.json') -Encoding utf8
+
+Write-SigningPhase END 'PUBLIC_PAIR_EXPORT'
+} catch {
+    $originalSigningError = $_
+    Write-SigningFailure
+    throw $originalSigningError
+}

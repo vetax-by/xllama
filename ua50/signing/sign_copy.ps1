@@ -18,6 +18,26 @@ param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$ExpectedPublicCertificateSha256
 )
 $ErrorActionPreference = 'Stop'
+# Diagnostics are best-effort: no validation/host/stack exception escapes into cleanup.
+$script:PhaseStack = $null
+try { $script:PhaseStack = [Collections.Generic.Stack[string]]::new() } catch { }
+function Write-SigningPhase([string]$State, [string]$Phase) {
+    try {
+        if ($State -notin @('BEGIN','END') -or $Phase -cnotmatch '^[A-Za-z0-9_.-]{1,80}$') { return }
+        if ($State -eq 'BEGIN' -and $null -ne $script:PhaseStack) { $script:PhaseStack.Push($Phase) }
+        Write-Host ('[UA50_SIGN_PHASE] {0} {1} {2}' -f [DateTime]::UtcNow.ToString('o'),$State,$Phase)
+        if ($State -eq 'END' -and $null -ne $script:PhaseStack -and $script:PhaseStack.Count -and $script:PhaseStack.Peek() -eq $Phase) { [void]$script:PhaseStack.Pop() }
+    } catch { } # Logging failure must not skip cleanup or change operational outcome.
+}
+function Write-SigningFailure {
+    try {
+        $label = if ($null -ne $script:PhaseStack -and $script:PhaseStack.Count) { $script:PhaseStack.Peek() } else { 'UNSCOPED' }
+        Write-Host ('[UA50_SIGN_PHASE] {0} FAIL {1}' -f [DateTime]::UtcNow.ToString('o'),$label)
+        if ($null -ne $script:PhaseStack) { $script:PhaseStack.Clear() }
+    } catch { } # No exception/error text is logged, including a logger's own error.
+}
+try {
+Write-SigningPhase BEGIN 'COPY_PREFLIGHT'
 if ($env:OS -ne 'Windows_NT') { throw 'Windows SDK signing lane required; no installs attempted' }
 function Run-Native([string]$Exe, [string[]]$Argv) {
     & $Exe @Argv
@@ -39,6 +59,7 @@ $signtool = Join-Path $SdkBin 'signtool.exe'
 foreach ($tool in @($makeappx,$signtool)) { if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) { throw 'selected SDK tool missing; no PATH fallback/install' } }
 if ((Test-Path -LiteralPath $PrivateWork) -or (Test-Path -LiteralPath $Output)) { throw 'exclusive private/output paths must not exist' }
 # CurrentUser/My only; no PFX/password on disk, argv or log.
+Write-SigningPhase BEGIN 'SIGNER_LOOKUP_BINDING'
 $cert = Get-Item -LiteralPath "Cert:\CurrentUser\My\$CertificateThumbprint"
 if (-not $cert.HasPrivateKey -or $cert.Subject -cne 'CN=xllama-dev') { throw 'exact publisher/private signing capability required' }
 $now = [DateTime]::UtcNow
@@ -49,18 +70,33 @@ $public = $cert.Export([Security.Cryptography.X509Certificates.X509ContentType]:
 $algorithm = [Security.Cryptography.SHA256]::Create()
 try { $publicHash = ([BitConverter]::ToString($algorithm.ComputeHash($public))).Replace('-','').ToLowerInvariant() } finally { $algorithm.Dispose() }
 if ($publicHash -ne $ExpectedPublicCertificateSha256.ToLowerInvariant()) { throw 'selected public certificate SHA mismatch' }
+Write-SigningPhase END 'SIGNER_LOOKUP_BINDING'
 $helper = Join-Path $PSScriptRoot 'package_copy.py'
+Write-SigningPhase END 'COPY_PREFLIGHT'
+Write-SigningPhase BEGIN 'COPY_PYTHON_PREPARE'
 Run-Native 'python' @($helper,'prepare','--package',$inputPath,'--sha256',$ExpectedUnsignedSha256.ToLowerInvariant(),'--installed',$InstalledVersion,'--new',$NewVersion,'--work',$PrivateWork)
+Write-SigningPhase END 'COPY_PYTHON_PREPARE'
 # Helper changes ONLY root Identity.Version; all other payload bytes stay exact.
 $tree = Join-Path $PrivateWork 'unpacked'
 $copy = Join-Path $PrivateWork 'xllama-update.msix'
+Write-SigningPhase BEGIN 'SDK_MAKEAPPX'
 Run-Native $makeappx @('pack','/d',$tree,'/p',$copy,'/h','SHA256','/no')
+Write-SigningPhase END 'SDK_MAKEAPPX'
+Write-SigningPhase BEGIN 'SDK_SIGNTOOL_SIGN'
 Run-Native $signtool @('sign','/fd','SHA256','/s','My','/sha1',$CertificateThumbprint,$copy)
+Write-SigningPhase END 'SDK_SIGNTOOL_SIGN'
 # Fail on missing local trust. This does NOT prove Xbox trust.
+Write-SigningPhase BEGIN 'SDK_SIGNTOOL_VERIFY'
 Run-Native $signtool @('verify','/pa','/all','/v',$copy)
+Write-SigningPhase END 'SDK_SIGNTOOL_VERIFY'
+Write-SigningPhase BEGIN 'AUTHENTICODE_VERIFY'
 $signature = Get-AuthenticodeSignature -LiteralPath $copy
 if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $cert.Thumbprint) { throw 'signature verification/signer mismatch' }
+Write-SigningPhase END 'AUTHENTICODE_VERIFY'
+Write-SigningPhase BEGIN 'COPY_PYTHON_VERIFY'
 Run-Native 'python' @($helper,'verify','--package',$copy,'--plan',(Join-Path $PrivateWork 'COPY-PLAN.json'))
+Write-SigningPhase END 'COPY_PYTHON_VERIFY'
+Write-SigningPhase BEGIN 'COPY_EXPORT'
 if ((Hash $inputPath) -ne $ExpectedUnsignedSha256.ToLowerInvariant()) { throw 'original unsigned changed; refuse publication' }
 # Explicit output whitelist ONLY signed copy, public DER CER and public receipt.
 New-Item -ItemType Directory -Path $Output | Out-Null
@@ -76,3 +112,10 @@ $record = [ordered]@{
 $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Output 'SIGNED-COPY-RECEIPT.json') -Encoding utf8
 # Existing certificate belongs to its provisioning owner: do NOT delete it here.
 # Failed private work is retained; no retry, device mutation or forced cleanup.
+
+Write-SigningPhase END 'COPY_EXPORT'
+} catch {
+    $originalSigningError = $_
+    Write-SigningFailure
+    throw $originalSigningError
+}

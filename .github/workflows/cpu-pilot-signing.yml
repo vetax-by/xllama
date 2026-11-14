@@ -51,8 +51,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $pins = @{
             'package_copy.py' = '26f8feb3116c34a51a72171b39e5138f58b5c95ad819abff639d047215e5f777'
-            'sign_copy.ps1' = 'f5576f9a4646d745e3c360985b0d4d84457251cd8c324a66bb4b6529a847bf1b'
-            'sign_ephemeral_pair.ps1' = '2f84cc3f3cebe1c89770fd4f48f2f4cbc05ed849db9d0a9e2b95d5f3347ca9f3'
+            'sign_copy.ps1' = '1adfcfe9d6da33cf7dd814dd6ffe65a9bef50f1fdb68d8ccff511f596d2ac3d4'
+            'sign_ephemeral_pair.ps1' = 'e97e3d0bf77213f27f7f6601cccf855e3d589df6a3de6afee957d0c226c7bcea'
             'validate_pair_inputs.py' = '30d5c13b0914949d76a3039de584dcaec693d7418c9c3e2b1ed2e1a7f907e944'
             'input-template.json' = '47298d494c1af3b8f86f5d078fe8939c0c2506f10d85e278e81d3a0ac73d00c4'
           }
