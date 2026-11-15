@@ -76,8 +76,30 @@ jobs:
           New-Item -ItemType Directory -Path $root | Out-Null
           gh run download 43718869460 --repo vetax-by/xllama --name ua50-uwp-patch-43718869460 --dir (Join-Path $root 'patched')
           if ($LASTEXITCODE -ne 0) { throw 'Exact patched artifact download failed; no retry' }
-          gh run download 43592901046 --repo vetax-by/xllama --name ua50-uwp-baseline-43592901046 --dir (Join-Path $root 'stock')
-          if ($LASTEXITCODE -ne 0) { throw 'Exact baseline artifact download failed; no retry' }
+          # Byte-exact retained archive from accepted run43592901046; transport mirror only, no rebuild.
+          $transport = Join-Path $root 'stock-transport'
+          New-Item -ItemType Directory -Path $transport | Out-Null
+          gh release download ua50-accepted-stock-43592901046-v1 --repo vetax-by/xllama --pattern ua50-accepted-stock-43592901046-e4e4d8a2.zip --dir $transport
+          if ($LASTEXITCODE -ne 0) { throw 'Exact retained stock archive download failed; no retry' }
+          $archive = Join-Path $transport 'ua50-accepted-stock-43592901046-e4e4d8a2.zip'
+          if ((Get-Item -LiteralPath $archive).Length -ne 20926013) { throw 'Retained stock archive size mismatch' }
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'e4e4d8a257befd33b4630f52e13edd797d560c2e56f5970c8771f4fdf054bae9') { throw 'Retained stock archive SHA mismatch' }
+          $members = @{
+            'BUILD-RECEIPT.json' = 1600
+            'UA50-SOURCE-RECEIPT.json' = 42707
+            'xllama_1.7.0.0_x64.msix' = 20987510
+          }
+          $zip = [IO.Compression.ZipFile]::OpenRead($archive)
+          try {
+            if ($zip.Entries.Count -ne 3) { throw 'Retained stock archive member count mismatch' }
+            $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            foreach ($entry in $zip.Entries) {
+              if (-not $members.ContainsKey($entry.FullName) -or -not $seen.Add($entry.FullName)) { throw 'Retained stock archive member refused' }
+              if ($entry.Length -ne $members[$entry.FullName]) { throw 'Retained stock member length mismatch' }
+            }
+          } finally { $zip.Dispose() }
+          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $root 'stock')
+          # Existing independent Python and PowerShell gates still verify exact stock package/source SHA before keys.
       - name: Sign preserving update and stock forward-recovery copies
         timeout-minutes: 10
         env:
