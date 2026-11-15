@@ -8,7 +8,7 @@ The patch rationale, implementation and evidence limits have one home:
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
 - Patch lock SHA-256:
-  `f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e`.
+  `5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
 The first four patches retain the accepted application/runtime bytes. Two
@@ -18,8 +18,8 @@ patch retains the bounded first-answer mode. An eighth root patch adds a separat
 profiles and their shared instrumentation; the current lock and inventories bind
 the ten historical entries. Two further configurable-runner patches add a
 strict typed developer entrypoint, explicit successor records and bounded I/O
-aggregates; the current twelve-entry lock and inventories bind 51 selected
-files. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
+aggregates; those twelve entries are retained. Two additional root/native GPU bridge patches
+bring the current route to fourteen entries and 65 selected shipping files. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -45,15 +45,11 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The signing recipe binds the inspected configurable-runner artifact and the
-reusable stock baseline. Both the Python preflight and independent PowerShell
-copy helper require the current twelve-patch lock and 51 selected files.
-The workflow pins both helpers and the exact artifact template; it retains the
-manual-only trigger, ephemeral non-exportable signing identity and owned cleanup.
-A signing attempt still needs an exact separately selected artifact/version-bound
-disposition, fresh installed-version facts, a higher patched version and a still
-higher stock forward-recovery version. Signing does not install or launch the
-application, and a recovery package alone does not prove compatibility.
+The existing signing workflow and helpers remain tied to their separately
+reviewed historical artifact. They are excluded from this compile-source change.
+A future signing lane must bind the actual new unsigned artifact and both
+independent current source-receipt validators before use. Signing and installation
+need separate selections; this preparation does not select them.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -64,17 +60,17 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e
+python operator/ua50/prepare_sources.py product operator/ua50 patch 5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, twelve ordered patch files and source/import inventories. Old
+exact lock, fourteen ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 51 selected shipping postimages,
-including both `.inc` dependencies and the gated Windows CPU-pilot unit, before
+the pinned route once and checks all 65 selected shipping postimages,
+including shipping `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 
 The helper rejects weight and private-key-like files in the product tree,
@@ -111,10 +107,10 @@ final section, native termination and normal teardown. This is a single-turn
 milestone, not assistant-quality, long-context or sustained-performance
 acceptance. The [ten-patch cache Windows build](https://github.com/vetax-by/xllama/actions/runs/43658336759)
 also produced an inspected unsigned package, without a cache-profile update or
-console A/B measurements. The [configurable replacement Windows build](https://github.com/vetax-by/xllama/actions/runs/43680931110)
-now produced its own inspected unsigned package after a narrow header-resolution
-correction. Signing and preserving update remain pending; native CPU configuration
-qualification follows as a separate task. No private response or telemetry is included here.
+console A/B measurements. The configurable CPU successor subsequently completed a separately reviewed
+Windows artifact, signed preserving update and bounded CPU configuration cases.
+Those outcomes belong to the historical CPU revision. The current GPU bridge
+still requires its own Windows artifact, signing, update and native correctness checks. No private response or telemetry is included here.
 
 ## Bounded first-answer developer mode
 
@@ -188,3 +184,33 @@ and storage-measurement boundaries are described in the canonical
 [configurable runner section](../docs/ua50-ssd-moe.md#configurable-developer-runner).
 The historical flags remain separate. Only a supported typed config is
 accepted; no config can enable an unimplemented GPU, UI or history path.
+
+## Synchronous selected-expert GPU proof candidate
+
+The current addition is an explicit CPU-graph/D3D12 expert bridge for Q4_K and
+Q6_K matrices. Routing and activation packing stay in the CPU graph. One GPU
+matrix slot and one outstanding submission retain their host leases until the
+actual fence completes. It does not advertise general routed-operator support
+or silently fall back to CPU. Current proof configs retain one CPU worker and
+two host-cache slots; worker/cache performance sweeps are not implemented here.
+
+Two separate developer stages cover sixteen primitive vectors and then two
+model output rows. The latter requires an independently accepted primitive
+result for the same inspected artifact, shader and adapter. Actual package,
+shader, adapter, quota and prerequisite bindings are required before a run.
+The GPU config, ticket, result and trace use explicit successor versions;
+historical CPU records and validators remain unchanged.
+
+Numerical checks compare all selected elements online with a fixed tolerance
+and bounded summary/witnesses. Full rows are not retained, so the saved summary
+cannot independently reproduce every numerical error. The proof allocation is
+charged separately from the collector, native plan and GPU resources. Shared
+UMA is not additional memory; reserve and probe protections remain unchanged.
+Unknown fences retain resources until a real terminal state. Unavailable GPU
+compute timestamps remain null.
+
+Source review and portable synthetic author checks passed. Windows/pilot/native
+quant kernels, shaders and console execution have not yet been accepted for
+this revision. There is no GPU correctness, fit, speed or model-quality claim.
+Correctness and lifecycle checks precede stability/usability and later performance
+work. No Velocity/DirectStorage or FSR integration is included.

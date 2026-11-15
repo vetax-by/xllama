@@ -1,6 +1,5 @@
 {
-  "status": "DIRECT_INCLUDES_NOT_TRANSITIVE_SDK_IMPORT_PROOF",
-  "includes": [
+  "direct_includes_only": [
     {
       "from": "include/xllama/cpu_expert_session.h",
       "line": 2,
@@ -152,6 +151,18 @@
       "include": "algorithm"
     },
     {
+      "from": "include/xllama/expert_gpu_d3d12.h",
+      "line": 2,
+      "style": "\"",
+      "include": "../../llama.cpp/src/ua50/expert_gpu.h"
+    },
+    {
+      "from": "include/xllama/expert_gpu_d3d12.h",
+      "line": 3,
+      "style": "<",
+      "include": "functional"
+    },
+    {
       "from": "include/xllama/first_answer_record.h",
       "line": 2,
       "style": "\"",
@@ -210,6 +221,186 @@
       "line": 3,
       "style": "<",
       "include": "string"
+    },
+    {
+      "from": "include/xllama/ggml_d3d12.h",
+      "line": 23,
+      "style": "<",
+      "include": "cstddef"
+    },
+    {
+      "from": "include/xllama/ggml_d3d12.h",
+      "line": 24,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/ggml_d3d12.h",
+      "line": 25,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/ggml_d3d12.h",
+      "line": 26,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/ggml_d3d12.h",
+      "line": 28,
+      "style": "\"",
+      "include": "ggml-backend.h"
+    },
+    {
+      "from": "include/xllama/ggml_d3d12.h",
+      "line": 29,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 2,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 3,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 4,
+      "style": "<",
+      "include": "utility"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 5,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 6,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 7,
+      "style": "<",
+      "include": "charconv"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 8,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 9,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 10,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 11,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/gpu_numeric_proof.h",
+      "line": 12,
+      "style": "<",
+      "include": "string_view"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 2,
+      "style": "\"",
+      "include": "cpu_expert_session.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 3,
+      "style": "\"",
+      "include": "gpu_numeric_proof.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 4,
+      "style": "\"",
+      "include": "gpu_proof_trace.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 5,
+      "style": "\"",
+      "include": "first_answer_template.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 6,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 7,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "include/xllama/gpu_proof_trace.h",
+      "line": 2,
+      "style": "\"",
+      "include": "ua50/expert_gpu.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_trace.h",
+      "line": 3,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/gpu_proof_trace.h",
+      "line": 4,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "include/xllama/gpu_proof_trace.h",
+      "line": 5,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/gpu_run_config.h",
+      "line": 2,
+      "style": "\"",
+      "include": "dev_run_config.h"
+    },
+    {
+      "from": "include/xllama/gpu_run_config.h",
+      "line": 3,
+      "style": "\"",
+      "include": "gpu_numeric_proof.h"
+    },
+    {
+      "from": "include/xllama/gpu_run_config.h",
+      "line": 4,
+      "style": "\"",
+      "include": "first_answer_template.h"
     },
     {
       "from": "include/xllama/session.h",
@@ -975,19 +1166,19 @@
     },
     {
       "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
-      "line": 2545,
+      "line": 2572,
       "style": "\"",
       "include": "windows.h"
     },
     {
       "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
-      "line": 2636,
+      "line": 2663,
       "style": "<",
       "include": "sys/types.h"
     },
     {
       "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
-      "line": 2637,
+      "line": 2664,
       "style": "<",
       "include": "sys/resource.h"
     },
@@ -1898,6 +2089,54 @@
       "include": "ggml-common.h"
     },
     {
+      "from": "llama.cpp/src/ua50/expert_gpu.h",
+      "line": 2,
+      "style": "\"",
+      "include": "expert_cache.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_gpu.h",
+      "line": 3,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_gpu.h",
+      "line": 4,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_gpu.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_gpu.h",
+      "line": 6,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_gpu.h",
+      "line": 7,
+      "style": "<",
+      "include": "thread"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_gpu.h",
+      "line": 8,
+      "style": "<",
+      "include": "mutex"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_gpu.h",
+      "line": 9,
+      "style": "<",
+      "include": "string"
+    },
+    {
       "from": "llama.cpp/src/ua50/ggml-ua50.h",
       "line": 2,
       "style": "<",
@@ -1954,18 +2193,24 @@
     {
       "from": "llama.cpp/src/ua50/native_provider.h",
       "line": 5,
-      "style": "<",
-      "include": "array"
+      "style": "\"",
+      "include": "expert_gpu.h"
     },
     {
       "from": "llama.cpp/src/ua50/native_provider.h",
       "line": 6,
       "style": "<",
-      "include": "memory"
+      "include": "array"
     },
     {
       "from": "llama.cpp/src/ua50/native_provider.h",
       "line": 7,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.h",
+      "line": 8,
       "style": "<",
       "include": "functional"
     },
@@ -2076,6 +2321,252 @@
       "line": 10,
       "style": "<",
       "include": "climits"
+    },
+    {
+      "from": "src/bridge/cpu_expert_session.cpp",
+      "line": 11,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "src/bridge/d3d12_compute.cpp",
+      "line": 4,
+      "style": "\"",
+      "include": "d3d12_compute.h"
+    },
+    {
+      "from": "src/bridge/d3d12_compute.cpp",
+      "line": 8,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "src/bridge/d3d12_compute.cpp",
+      "line": 10,
+      "style": "\"",
+      "include": "xllama/d3d12_dyn.h"
+    },
+    {
+      "from": "src/bridge/d3d12_compute.h",
+      "line": 18,
+      "style": "<",
+      "include": "Windows.h"
+    },
+    {
+      "from": "src/bridge/d3d12_compute.h",
+      "line": 19,
+      "style": "<",
+      "include": "d3d12.h"
+    },
+    {
+      "from": "src/bridge/d3d12_compute.h",
+      "line": 20,
+      "style": "<",
+      "include": "dxgi1_4.h"
+    },
+    {
+      "from": "src/bridge/d3d12_compute.h",
+      "line": 21,
+      "style": "<",
+      "include": "wrl/client.h"
+    },
+    {
+      "from": "src/bridge/d3d12_compute.h",
+      "line": 23,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "xllama/ggml_d3d12.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 9,
+      "style": "\"",
+      "include": "xllama/expert_gpu_d3d12.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 11,
+      "style": "\"",
+      "include": "ggml-cpu.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 13,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 14,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 15,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 16,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 17,
+      "style": "<",
+      "include": "ctime"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 18,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 19,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 20,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 326,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 327,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 328,
+      "style": "<",
+      "include": "mutex"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 329,
+      "style": "<",
+      "include": "random"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 331,
+      "style": "<",
+      "include": "dxgi1_4.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 333,
+      "style": "\"",
+      "include": "d3d12_compute.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 334,
+      "style": "<",
+      "include": "bcrypt.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 335,
+      "style": "<",
+      "include": "winrt/Windows.System.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 336,
+      "style": "\"",
+      "include": "ggml-alloc.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 337,
+      "style": "\"",
+      "include": "ggml-backend-impl.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 338,
+      "style": "\"",
+      "include": "ggml-backend.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 339,
+      "style": "\"",
+      "include": "ggml_d3d12_get_rows_q6_k_dxil.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 340,
+      "style": "\"",
+      "include": "ggml_d3d12_mmv_q4_0_t128_dxil.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 341,
+      "style": "\"",
+      "include": "ggml_d3d12_mmv_q4_0_t64_dxil.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 342,
+      "style": "\"",
+      "include": "ggml_d3d12_mmv_q4_k_t128_dxil.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 343,
+      "style": "\"",
+      "include": "ggml_d3d12_mmv_q4_k_t64_dxil.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 344,
+      "style": "\"",
+      "include": "ggml_d3d12_mmv_q6_k_t128_dxil.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 345,
+      "style": "\"",
+      "include": "ggml_d3d12_mmv_q6_k_t64_dxil.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 346,
+      "style": "\"",
+      "include": "xllama/d3d12_dyn.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 347,
+      "style": "\"",
+      "include": "xllama/platform.h"
+    },
+    {
+      "from": "src/bridge/ggml_d3d12.cpp",
+      "line": 1250,
+      "style": "\"",
+      "include": "expert_gpu_d3d12.inc"
     },
     {
       "from": "src/bridge/held_file_sha256_win.cpp",
@@ -2861,61 +3352,103 @@
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 14,
       "style": "<",
-      "include": "condition_variable"
+      "include": "optional"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 15,
       "style": "<",
-      "include": "filesystem"
+      "include": "array"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 16,
       "style": "<",
-      "include": "mutex"
+      "include": "condition_variable"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 17,
       "style": "<",
-      "include": "thread"
+      "include": "filesystem"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 18,
       "style": "<",
-      "include": "cstdio"
+      "include": "mutex"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 19,
-      "style": "\"",
-      "include": "xllama/first_answer_record.h"
+      "style": "<",
+      "include": "thread"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 20,
-      "style": "\"",
-      "include": "ua50/cache_trace.h"
+      "style": "<",
+      "include": "cstdio"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 21,
       "style": "\"",
-      "include": "../src/platform/ua50/dev_run_io.h"
+      "include": "xllama/first_answer_record.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 22,
       "style": "\"",
-      "include": "dev-run-input.h"
+      "include": "ua50/cache_trace.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 23,
+      "style": "\"",
+      "include": "../src/platform/ua50/dev_run_io.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 24,
+      "style": "\"",
+      "include": "dev-run-input.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 25,
+      "style": "\"",
+      "include": "gpu-proof-input.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 26,
+      "style": "\"",
+      "include": "xllama/expert_gpu_d3d12.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 27,
+      "style": "\"",
+      "include": "xllama/gpu_proof_controller.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 28,
+      "style": "\"",
+      "include": "xllama/gpu_proof_build_pins.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 29,
       "style": "<",
       "include": "winrt/Windows.ApplicationModel.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 363,
+      "style": "\"",
+      "include": "gpu-proof-pilot.inc"
     },
     {
       "from": "uwp/dev-run-input.h",
@@ -2954,6 +3487,18 @@
       "include": "cstring"
     },
     {
+      "from": "uwp/gpu-proof-input.h",
+      "line": 2,
+      "style": "\"",
+      "include": "dev-run-input.h"
+    },
+    {
+      "from": "uwp/gpu-proof-input.h",
+      "line": 3,
+      "style": "\"",
+      "include": "xllama/gpu_run_config.h"
+    },
+    {
       "from": "uwp/inference-bridge.h",
       "line": 6,
       "style": "\"",
@@ -2977,5 +3522,6 @@
       "style": "\"",
       "include": "xllama/training_params.h"
     }
-  ]
+  ],
+  "not_transitive_Windows_SDK_proof": true
 }

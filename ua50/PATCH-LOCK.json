@@ -1,6 +1,7 @@
 {
-  "xllama": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
-  "llama": "d81235049384534c167caea52b85a694f6103d14",
+  "status": "PROSPECTIVE_SOURCE_DELTA_UNCOMPILED_NOT_RELEASE",
+  "parent_patch_lock_sha256": "f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e",
+  "parent12_reused_not_replayed": true,
   "patches": [
     {
       "file": "patch/runtime-root.patch",
@@ -73,6 +74,18 @@
       "target": "llama",
       "bytes": 13348,
       "sha256": "91b7a694284fa3ac4745b6eedf799f5d86a5d7019255bbf43bc68827f3c7dd9c"
+    },
+    {
+      "file": "patch/ua68-expert-gpu-root.patch",
+      "target": "xllama",
+      "bytes": 87860,
+      "sha256": "e2170ac0506b4ae549ad94ed3d7ecd944396bc4408181dfc0e83272c097f82a1"
+    },
+    {
+      "file": "patch/ua68-expert-gpu-native.patch",
+      "target": "llama",
+      "bytes": 19805,
+      "sha256": "bc191807b162b3848c628a3048a86ce9a20ff2753c2933e617770c75b66d88bc"
     }
   ]
 }

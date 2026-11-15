@@ -1,0 +1,815 @@
+diff --git a/include/xllama/cpu_expert_session.h b/include/xllama/cpu_expert_session.h
+--- a/include/xllama/cpu_expert_session.h
++++ b/include/xllama/cpu_expert_session.h
+@@ -20,6 +20,8 @@
+   throw std::invalid_argument("unsupported CPU planning profile");
+  }
+  bool enabled=false;
++ std::shared_ptr<ua50::ExpertGpu> hybrid_gpu; // explicit synchronous MMID bridge; CPU graph remains CPU
++ size_t numerical_proof_owned_bytes=0; // separately admitted, never borrowed from collector
+  llama_model_params model=llama_model_default_params();
+  llama_context_params context=llama_context_default_params();
+  size_t slots=2,cache_ceiling=16u*1024u*1024u,stage_ceiling=4u*1024u*1024u;
+@@ -33,6 +35,7 @@
+  std::function<void(const char*,const ua50::Counters&)> cache_events;
+  size_t instrumentation_owned_bytes=0;
+  std::function<void(const CpuExpertEffective&)> effective_observer;
++ std::function<void(uint32_t,const ua50::Tensor&,const char*)> hybrid_catalog;
+ };
+ class CpuExpertSession final:public std::enable_shared_from_this<CpuExpertSession> {
+ public:
+@@ -51,6 +54,9 @@
+  uint32_t batch_length() const;
+  using Effective=CpuExpertEffective;
+  Effective effective() const;
++ void primitive_vector(const char* tensor_name,uint32_t expert,const unsigned char* q8,size_t bytes,float* cpu,float* gpu,std::shared_ptr<ua50::ExpertGpu> executor);
++ void capture_logits(float* destination,size_t elements) const; // exact128000 online proof, owning thread only
++ std::shared_ptr<ua50::ExpertGpu> hybrid_gpu()const{return gpu_;}
+  void invalidate(const char*) noexcept;
+  void log_drained_counters() const;
+  State state() const noexcept{return state_.load(std::memory_order_acquire);}
+@@ -61,6 +67,7 @@
+  CpuExpertSession()=default;
+  struct ModelDelete{void operator()(llama_model*p)const noexcept{llama_model_free(p);}};
+  struct ContextDelete{void operator()(llama_context*p)const noexcept{llama_free(p);}};
++ std::shared_ptr<ua50::ExpertGpu> gpu_;
+  std::shared_ptr<ua50::uwp::WindowsInputCandidate> input_; // held beyond context/model/Reader
+  std::unique_ptr<llama_model,ModelDelete> model_;
+  std::unique_ptr<llama_context,ContextDelete> context_;
+diff --git a/include/xllama/expert_gpu_d3d12.h b/include/xllama/expert_gpu_d3d12.h
+new file mode 100644
+--- /dev/null
++++ b/include/xllama/expert_gpu_d3d12.h
+@@ -0,0 +1,12 @@
++#pragma once
++#include "../../llama.cpp/src/ua50/expert_gpu.h"
++#include <functional>
++namespace xllama {
++struct ExpertGpuAdmission {
++ std::string adapter_luid,shader_sha256;
++ // Actual caller's native joint plan/quota guard; absent => refusal before resource allocation.
++ std::function<void(const ua50::GpuSnapshot&,uint64_t pending_bytes)> admit;
++};
++// No fallback/non-Windows emulation. Caller must bind exact actual identity.
++std::shared_ptr<ua50::ExpertGpu> make_expert_gpu_d3d12(const ExpertGpuAdmission&);
++}
+diff --git a/include/xllama/gpu_numeric_proof.h b/include/xllama/gpu_numeric_proof.h
+new file mode 100644
+--- /dev/null
++++ b/include/xllama/gpu_numeric_proof.h
+@@ -0,0 +1,84 @@
++#pragma once
++#include <array>
++#include <algorithm>
++#include <utility>
++#include <cmath>
++#include <cstdio>
++#include <charconv>
++#include <cstdint>
++#include <cstring>
++#include <limits>
++#include <stdexcept>
++#include <string_view>
++namespace xllama::gpu_proof {
++static_assert(sizeof(float)==4&&std::numeric_limits<float>::is_iec559,"proof requires IEEE F32");
++inline constexpr size_t vocab=128000,primitive_rows=16,model_rows=2,max_rows=18,proof_cap=4u<<20,summary_cap=65536;
++inline constexpr double absolute_tolerance=.001,relative_tolerance=.001;
++struct Witness {uint32_t index=0,cpu_bits=0,gpu_bits=0;double error=0,tolerance=0;bool valid=false,nonfinite=false;};
++struct Row {
++ uint32_t stage=0,ordinal=0,role=0,expert=0,pattern=0,position=0;
++ uint64_t expected=0,visited=0,compared=0,finite_cpu=0,finite_gpu=0,finite_pairs=0,violations=0;
++ double maxabs=0,squared=0,compensation=0;Witness worst[2]{},first{};bool complete=false;
++};
++class SummaryWriter {
++ char*p_;size_t size_=0,cap_;
++public:
++ SummaryWriter(char*p,size_t cap):p_(p),cap_(cap){}
++ void text(std::string_view s){if(s.size()>cap_-size_)throw std::length_error("numeric summary cap");std::memcpy(p_+size_,s.data(),s.size());size_+=s.size();}
++ void number(uint64_t n){char x[32];auto s=std::snprintf(x,sizeof(x),"%llu",static_cast<unsigned long long>(n));if(s<0||size_t(s)>=sizeof(x))throw std::runtime_error("numeric serialization");text({x,size_t(s)});}
++ void real(double d){if(!std::isfinite(d)){text("null");return;}char x[64];auto r=std::to_chars(x,x+sizeof(x),d,std::chars_format::general,17);if(r.ec!=std::errc{})throw std::runtime_error("numeric serialization");text({x,size_t(r.ptr-x)});}
++ void quoted_hex32(uint32_t b){char x[11];std::snprintf(x,sizeof(x),"\"%08x\"",b);text(x);}
++ std::string_view result()const{return {p_,size_};}
++};
++// One concrete storage owner. Native context/output/GPU allocation is charged separately.
++enum class Stage{Primitive16,Model2};
++class Proof final {
++ Stage stage_;
++ std::array<float,vocab*2> reference_{};
++ std::array<float,vocab> working_{};
++ std::array<float,4096> primitive_{};
++ std::array<float,2048> f32_input_{};
++ alignas(64) std::array<unsigned char,2336> q8_{};
++ std::array<char,summary_cap> serialized_{};
++ std::array<Row,max_rows> rows_{};size_t count_=0;bool failed_=false,greedy_equal_=true;uint32_t greedy_checks_=0;
++ static uint32_t bits(float f){uint32_t u;std::memcpy(&u,&f,4);return u;}
++ static bool worse(const Witness&a,const Witness&b){return !b.valid||(a.nonfinite&&!b.nonfinite)||(a.nonfinite==b.nonfinite&&(a.error>b.error||(a.error==b.error&&a.index<b.index)));}
++ static void witness(SummaryWriter&w,const Witness&v){if(!v.valid){w.text("null");return;}w.text("{\"index\":");w.number(v.index);w.text(",\"cpu_bits\":");w.quoted_hex32(v.cpu_bits);w.text(",\"gpu_bits\":");w.quoted_hex32(v.gpu_bits);w.text(",\"nonfinite\":");w.text(v.nonfinite?"true":"false");w.text(",\"abs_error\":");if(v.nonfinite)w.text("null");else w.real(v.error);w.text(",\"tolerance\":");if(v.nonfinite)w.text("null");else w.real(v.tolerance);w.text("}");}
++public:
++ explicit Proof(Stage stage):stage_(stage){if(sizeof(*this)>proof_cap)throw std::length_error("proof actual sizeof over cap");}
++ Proof(const Proof&)=delete;Proof&operator=(const Proof&)=delete;
++ float* reference(size_t i){if(i>=2)throw std::out_of_range("reference row");return reference_.data()+i*vocab;}
++ float* working(){return working_.data();}float* primitive_cpu(){return primitive_.data();}float* primitive_gpu(){return primitive_.data()+2048;}
++ float* f32_input(){return f32_input_.data();}unsigned char*q8(){return q8_.data();}
++ static constexpr size_t required_owned_bytes(){return proof_cap;} // conservative reserve includes control block/serialization/metadata
++ void greedy(bool same){if(stage_!=Stage::Model2||greedy_checks_==2)throw std::logic_error("greedy proof envelope");++greedy_checks_;greedy_equal_=greedy_equal_&&same;if(!same)failed_=true;}
++ void compare(uint32_t stage,uint32_t ordinal,uint32_t role,uint32_t expert,uint32_t pattern,uint32_t position,const float*cpu,const float*gpu,size_t n){
++  if(count_==max_rows||!cpu||!gpu||!n||(stage==3&&(ordinal>=16||n>2048))||(stage==4&&(ordinal>=2||n!=vocab))||(stage!=3&&stage!=4))throw std::invalid_argument("proof fixed row envelope");
++  if((stage_==Stage::Primitive16&&stage!=3)||(stage_==Stage::Model2&&stage!=4)||ordinal!=count_||(stage==3&&n!=(ordinal/4<2?1536u:2048u)))throw std::invalid_argument("numeric fixed stage/order/row size");
++  for(size_t k=0;k<count_;++k)if(rows_[k].stage==stage&&rows_[k].ordinal==ordinal)throw std::invalid_argument("duplicate numeric row");
++  Row&r=rows_[count_++];r.stage=stage;r.ordinal=ordinal;r.role=role;r.expert=expert;r.pattern=pattern;r.position=position;r.expected=n;
++  for(size_t i=0;i<n;++i){++r.visited;const bool a=std::isfinite(cpu[i]),b=std::isfinite(gpu[i]);r.finite_cpu+=a;r.finite_gpu+=b;
++   Witness v;v.valid=true;v.index=uint32_t(i);v.cpu_bits=bits(cpu[i]);v.gpu_bits=bits(gpu[i]);v.nonfinite=!(a&&b);
++   if(a&&b){++r.finite_pairs;++r.compared;v.error=std::abs(double(gpu[i])-double(cpu[i]));v.tolerance=absolute_tolerance+relative_tolerance*std::abs(double(cpu[i]));
++    if(!std::isfinite(v.error)||!std::isfinite(v.tolerance))throw std::overflow_error("numeric difference overflow");
++    r.maxabs=std::max(r.maxabs,v.error);double y=v.error*v.error-r.compensation,t=r.squared+y;r.compensation=(t-r.squared)-y;r.squared=t;if(!std::isfinite(t))throw std::overflow_error("numeric RMS overflow");}
++   const bool violation=v.nonfinite||v.error>v.tolerance;if(violation){++r.violations;failed_=true;if(!r.first.valid)r.first=v;}
++   if(worse(v,r.worst[0])){r.worst[1]=r.worst[0];r.worst[0]=v;}else if(worse(v,r.worst[1]))r.worst[1]=v;
++  }
++  r.complete=r.visited==r.expected;
++ }
++ bool complete()const{size_t a=0,b=0;uint64_t na=0,nb=0;for(size_t i=0;i<count_;++i){auto&r=rows_[i];if(!r.complete)return false;if(r.stage==3){++a;na+=r.expected;}else{++b;nb+=r.expected;}}return stage_==Stage::Primitive16?(a==16&&b==0&&na==28672):(a==0&&b==2&&nb==256000);}
++ bool passed()const{return complete()&&!failed_&&greedy_equal_&&(stage_==Stage::Primitive16||greedy_checks_==2);}
++ // Rawrows are transient only. Returned summary stays owned until caller copies/commits or destroys Proof.
++ std::string_view summary(bool owner_terminal,bool final_gate=false){
++  SummaryWriter w(serialized_.data(),serialized_.size());w.text("{\"schema\":\"ua68-online-numerical-proof-v1\",\"raw_rows_saved\":false,\"offline_rawrow_replay\":false,\"complete\":");w.text(complete()?"true":"false");w.text(",\"normal_numerical_proof\":");w.text(passed()&&owner_terminal&&final_gate?"true":"false");w.text(",\"owner_terminal\":");w.text(owner_terminal?"true":"false");w.text(",\"greedy_equal\":");if(stage_==Stage::Primitive16||!greedy_checks_)w.text("null");else w.text(greedy_equal_?"true":"false");w.text(",\"greedy_checks\":");w.number(greedy_checks_);w.text(",\"threshold\":{\"absolute\":0.001,\"relative_to_cpu\":0.001},\"expected_rows\":");w.number(stage_==Stage::Primitive16?16:2);w.text(",\"expected_pairs\":");w.number(stage_==Stage::Primitive16?28672:256000);w.text(",\"rows\":[");
++  uint64_t compared=0,visited=0,violations=0,fc=0,fg=0,completed_rows=0;double sum=0,comp=0,ma=0;Witness first{};uint32_t firstrow=0;
++  for(size_t i=0;i<count_;++i){auto&r=rows_[i];if(i)w.text(",");w.text("{\"stage\":");w.number(r.stage);w.text(",\"ordinal\":");w.number(r.ordinal);w.text(",\"role\":");w.number(r.role);w.text(",\"expert\":");w.number(r.expert);w.text(",\"pattern\":");w.number(r.pattern);w.text(",\"position\":");w.number(r.position);
++   for(auto x:{std::pair<const char*,uint64_t>{"expected",r.expected},{"visited",r.visited},{"compared",r.compared},{"finite_cpu",r.finite_cpu},{"finite_gpu",r.finite_gpu},{"finite_pairs",r.finite_pairs},{"violations",r.violations}}){w.text(",\"");w.text(x.first);w.text("\":");w.number(x.second);}
++   w.text(",\"maxabs\":");if(r.compared)w.real(r.maxabs);else w.text("null");w.text(",\"rms\":");if(r.compared)w.real(std::sqrt(r.squared/double(r.compared)));else w.text("null");w.text(",\"first_divergence\":");witness(w,r.first);w.text(",\"worst\":[");witness(w,r.worst[0]);w.text(",");witness(w,r.worst[1]);w.text("]}");
++   completed_rows+=r.complete;compared+=r.compared;visited+=r.visited;violations+=r.violations;fc+=r.finite_cpu;fg+=r.finite_gpu;double y=r.squared-comp,t=sum+y;comp=(t-sum)-y;sum=t;ma=std::max(ma,r.maxabs);if(!first.valid&&r.first.valid){first=r.first;firstrow=uint32_t(i);}}
++  w.text("],\"totals\":{\"completed_rows\":");w.number(completed_rows);w.text(",\"attempted_rows\":");w.number(count_);w.text(",\"visited\":");w.number(visited);w.text(",\"compared\":");w.number(compared);w.text(",\"finite_cpu\":");w.number(fc);w.text(",\"finite_gpu\":");w.number(fg);w.text(",\"violations\":");w.number(violations);w.text(",\"maxabs\":");if(compared)w.real(ma);else w.text("null");w.text(",\"rms\":");if(compared&&std::isfinite(sum))w.real(std::sqrt(sum/double(compared)));else w.text("null");w.text("},\"first_divergence_row\":");if(first.valid)w.number(firstrow);else w.text("null");w.text(",\"first_divergence\":");witness(w,first);w.text("}");return w.result();
++ }
++};
++static_assert(sizeof(Proof)<proof_cap,"all reference/comparator storage must fit separate4MiB");
++}
+diff --git a/include/xllama/gpu_proof_build_pins.h b/include/xllama/gpu_proof_build_pins.h
+new file mode 100644
+--- /dev/null
++++ b/include/xllama/gpu_proof_build_pins.h
+@@ -0,0 +1,8 @@
++#pragma once
++namespace xllama::gpu_proof {
++inline constexpr char comparator_source_sha[]="482e0c34618e36219fdca78d25370761091693542d3078347de8bba39db2030e";
++inline constexpr char oracle_source_sha[]="ca597eda9badb7efe8d2d54f9e9ea313bfd1a0249f0aa04139c12c1f8e30d892";
++inline constexpr char threshold_descriptor_sha[]="a2bf5226cd18cc492a91f90b85a3d06c58363aa7eb406662ad090335dc63b9cf";
++inline constexpr char patterns_descriptor_sha[]="9b1370a4441e67c4c8878d238613e327dd6ed57a6ec441d989eeba24b2c9fa52";
++inline constexpr char oracle_revision[]="d81235049384534c167caea52b85a694f6103d14";
++}
+diff --git a/include/xllama/gpu_proof_controller.h b/include/xllama/gpu_proof_controller.h
+new file mode 100644
+--- /dev/null
++++ b/include/xllama/gpu_proof_controller.h
+@@ -0,0 +1,86 @@
++#pragma once
++#include "cpu_expert_session.h"
++#include "gpu_numeric_proof.h"
++#include "gpu_proof_trace.h"
++#include "first_answer_template.h"
++#include <atomic>
++#include <memory>
++namespace xllama::gpu_proof {
++// One coordinator; request_stop may be concurrent. All native calls stay in the actual owning session.
++class Controller {
++ std::shared_ptr<CpuExpertSession> current_;
++ std::shared_ptr<ua50::ExpertGpu> gpu_;std::atomic<bool> stopped_{false};bool used_=false;
++ std::shared_ptr<Proof> proof_;std::shared_ptr<Trace> trace_;
++ std::array<llama_token,128> prompt_{};size_t prompt_count_=0;uint32_t cpu_rows_=0,gpu_rows_=0;llama_token t0_=-1,t1_=-1,g0_=-1,g1_=-1;
++ std::function<void(const char*)> progress_;
++ void gate(const char*p){if(stopped_.load())throw std::runtime_error("hybrid proof stopped");if(!progress_)throw std::runtime_error("proof watchdog/phase callback absent");progress_(p);}
++ void attach(std::shared_ptr<CpuExpertSession> s){if(std::atomic_load(&current_))throw std::logic_error("two simultaneous proof contexts");std::atomic_store(&current_,std::move(s));}
++ void close_current(){auto s=std::atomic_load(&current_);if(!s)return;if(!s->close())throw std::logic_error("proof owner not terminal");if(s->first_failure_after_drain()[0])throw std::runtime_error(s->first_failure_after_drain());std::atomic_store(&current_,std::shared_ptr<CpuExpertSession>{});}
++ CpuExpertOptIn options(const CpuExpertOptIn&base,std::shared_ptr<ua50::ExpertGpu>gpu){
++  if(base.slots!=2||base.cache_ceiling!=(16u<<20)||base.context.n_ctx!=512||base.context.n_batch!=1||base.context.n_ubatch!=1||base.context.n_threads!=1||base.context.n_threads_batch!=1||base.model.n_gpu_layers!=0||base.model.main_gpu!=-1||base.context.op_offload||base.context.offload_kqv)throw std::invalid_argument("proof fixed requested envelope; no clamp");
++  auto opt=base;opt.hybrid_gpu=std::move(gpu);opt.numerical_proof_owned_bytes=Proof::required_owned_bytes();
++  opt.slots=2;opt.cache_ceiling=16u<<20;opt.plan_profile=CpuExpertOptIn::PlanProfile::FinishedAnswer512;
++  // Trace and controller allocations are additional to the already separate proof4MiB reserve.
++  opt.instrumentation_owned_bytes=ua50::add(opt.instrumentation_owned_bytes,ua50::add(Trace::required_owned_bytes(),sizeof(Controller)+4096));
++  opt.route_trace=[trace=trace_](uint32_t r,uint64_t e,uint64_t off,uint64_t len){trace->key(r,e,off,len);};
++  opt.hybrid_catalog=[trace=trace_](uint32_t id,const ua50::Tensor&t,const char*n){trace->role(id,t,n);};
++  return opt;
++ }
++ void decode(std::shared_ptr<CpuExpertSession>s,llama_token token,uint32_t position,uint32_t phase,bool output){
++  gate("proof-before-decode");trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
++  int32_t nseq=1;llama_seq_id sequence=0;llama_seq_id*sequence_ptr=&sequence;int8_t logits=output?1:0;llama_pos pos=llama_pos(position);
++  llama_batch b{};b.n_tokens=1;b.token=&token;b.pos=&pos;b.n_seq_id=&nseq;b.seq_id=&sequence_ptr;b.logits=&logits;
++  if(s->decode(b)!=0)throw std::runtime_error("proof native decode failed; no continuation");
++  trace_->end(phase==2?gpu_->counts():ua50::GpuCounts{});gate("proof-after-decode");
++ }
++ static llama_token greedy(const float*row){llama_token best=0;for(size_t i=0;i<vocab;++i){if(!std::isfinite(row[i]))throw std::runtime_error("nonfinite native row");if(row[i]>row[size_t(best)])best=llama_token(i);}return best;}
++ void prefill(std::shared_ptr<CpuExpertSession>s,uint32_t phase){s->begin_fresh_turn();for(size_t i=0;i<prompt_count_;++i)decode(s,prompt_[i],uint32_t(i),phase,i+1==prompt_count_);}
++public:
++ Controller(std::shared_ptr<Proof>proof,std::shared_ptr<Trace>trace,std::shared_ptr<ua50::ExpertGpu>gpu,std::function<void(const char*)> progress):gpu_(std::move(gpu)),proof_(std::move(proof)),trace_(std::move(trace)),progress_(std::move(progress)){
++  if(!gpu_||!proof_||!trace_||!progress_)throw std::invalid_argument("proof complete ownership required");
++ }
++ ~Controller(){request_stop();drain();}
++ void request_stop()noexcept{stopped_.store(true);gpu_->request_stop();auto s=std::atomic_load(&current_);if(s)s->request_stop();}
++ bool terminal()const{return !std::atomic_load(&current_)&&gpu_->terminal();}
++ void drain()noexcept{auto s=std::atomic_load(&current_);if(s){s->request_stop();while(!s->close())std::this_thread::yield();std::atomic_store(&current_,std::shared_ptr<CpuExpertSession>{});}gpu_->drain();}
++ // No alternate input identities or hidden re-tokenization accepted.
++ void model2(const CpuExpertOptIn&base){
++  if(used_)throw std::logic_error("proof controller one-use");used_=true;
++  try{
++   gate("cpu-reference-open");auto cpu_options=options(base,{});auto cpu=CpuExpertSession::open_if_requested(&cpu_options);if(!cpu)throw std::runtime_error("CPU reference unavailable");attach(cpu);
++   const auto*v=llama_model_get_vocab(cpu->model_view());if(!llama_vocab_get_add_bos(v))throw std::runtime_error("proof BOS policy");
++   auto rendered=first_answer::render(llama_model_chat_template(cpu->model_view(),nullptr),true,llama_vocab_bos(v));
++   auto ids=cpu->tokenize(rendered);if(ids.empty()||ids.size()>128||ids.size()+2>512||ids[0]!=llama_vocab_bos(v)||std::count(ids.begin(),ids.end(),llama_vocab_bos(v))!=1||llama_vocab_n_tokens(v)!=128000)throw std::runtime_error("proof prompt/state admission");prompt_count_=ids.size();std::copy(ids.begin(),ids.end(),prompt_.begin());
++   std::unique_ptr<llama_sampler,decltype(&llama_sampler_free)> sampler(llama_sampler_init_greedy(),llama_sampler_free);if(!sampler)throw std::bad_alloc();
++   prefill(cpu,1);cpu->capture_logits(proof_->reference(0),vocab);++cpu_rows_;t0_=cpu->sample(sampler.get());if(t0_!=greedy(proof_->reference(0)))throw std::runtime_error("native greedy/reference argmax mismatch");
++   if(llama_vocab_is_eog(v,t0_))throw std::runtime_error("EARLY_TERMINATOR reference coverage1of2");
++   decode(cpu,t0_,uint32_t(prompt_count_),1,true);cpu->capture_logits(proof_->reference(1),vocab);++cpu_rows_;t1_=cpu->sample(sampler.get());if(t1_!=greedy(proof_->reference(1)))throw std::runtime_error("native second greedy mismatch");
++   close_current();cpu.reset(); // Actual model/context destruction BEFORE hybrid creation, retained rows only.
++   gate("hybrid-open");auto hybrid_options=options(base,gpu_);auto hybrid=CpuExpertSession::open_if_requested(&hybrid_options);if(!hybrid)throw std::runtime_error("hybrid unavailable");attach(hybrid);
++   const auto*hv=llama_model_get_vocab(hybrid->model_view());auto hrendered=first_answer::render(llama_model_chat_template(hybrid->model_view(),nullptr),llama_vocab_get_add_bos(hv),llama_vocab_bos(hv));auto hids=hybrid->tokenize(hrendered);
++   if(hids!=ids||hybrid->context_length()!=512)throw std::runtime_error("reference/hybrid logical input state mismatch");
++   prefill(hybrid,2);hybrid->capture_logits(proof_->working(),vocab);++gpu_rows_;proof_->compare(4,0,0,0,0,uint32_t(prompt_count_-1),proof_->reference(0),proof_->working(),vocab);g0_=hybrid->sample(sampler.get());proof_->greedy(g0_==t0_&&greedy(proof_->working())==t0_);
++   decode(hybrid,t0_,uint32_t(prompt_count_),2,true);hybrid->capture_logits(proof_->working(),vocab);++gpu_rows_;proof_->compare(4,1,0,0,0,uint32_t(prompt_count_),proof_->reference(1),proof_->working(),vocab);g1_=hybrid->sample(sampler.get());proof_->greedy(g1_==t1_&&greedy(proof_->working())==t1_);
++   gate("model-proof-compute-complete"); // final owner retained through postSHA+monitor join
++  }catch(...){request_stop();drain();throw;}
++ }
++ void primitive16(const CpuExpertOptIn&base){
++  if(used_)throw std::logic_error("proof controller one-use");used_=true;
++  try{
++   gate("primitive-open");auto opt=options(base,{});auto owner=CpuExpertSession::open_if_requested(&opt);if(!owner)throw std::runtime_error("primitive owner unavailable");attach(owner);trace_->primitive_begin();
++   const char*names[]={"blk.2.ffn_gate_exps.weight","blk.2.ffn_up_exps.weight","blk.5.ffn_down_exps.weight","blk.2.ffn_down_exps.weight"};
++   for(uint32_t c=0;c<4;++c)for(uint32_t e=0;e<2;++e)for(uint32_t pattern=0;pattern<2;++pattern){
++    gate("primitive-vector");uint32_t k=c<2?2048:1536,n=c<2?1536:2048;
++    // Actual block_q8_K layout used by CPU vec_dot and compiled shaders, no extra GPU re-quantization.
++    ua50::fill_q8_pattern(proof_->q8(),2336,k,pattern);
++    auto before=gpu_->counts();owner->primitive_vector(names[c],e?63:0,proof_->q8(),k/256*292,proof_->primitive_cpu(),proof_->primitive_gpu(),gpu_);auto after=gpu_->counts();
++    const uint32_t ordinal=c*4+e*2+pattern,role=trace_->id_for(names[c]);proof_->compare(3,ordinal,role,e?63:0,pattern,0,proof_->primitive_cpu(),proof_->primitive_gpu(),n);trace_->primitive_end(ordinal,role,e?63:0,pattern,n,before,after);
++   }
++   gate("primitive-compute-complete"); // retain owner through final integrity/monitor gate
++  }catch(...){request_stop();drain();throw;}
++ }
++ void finish_normal(){close_current();gpu_->drain();if(!terminal())throw std::runtime_error("proof terminal missing");}
++ void seal(bool normal){trace_->seal(normal&&terminal(),uint32_t(prompt_count_),t0_,t1_,proof_->passed());}
++ uint32_t cpu_rows()const{return cpu_rows_;}uint32_t gpu_rows()const{return gpu_rows_;}size_t prompt_count()const{return prompt_count_;}const llama_token*prompt_ids()const{return prompt_.data();}llama_token t0()const{return t0_;}llama_token t1()const{return t1_;}llama_token g0()const{return g0_;}llama_token g1()const{return g1_;}
++};
++}
+diff --git a/include/xllama/gpu_proof_trace.h b/include/xllama/gpu_proof_trace.h
+new file mode 100644
+--- /dev/null
++++ b/include/xllama/gpu_proof_trace.h
+@@ -0,0 +1,66 @@
++#pragma once
++#include "ua50/expert_gpu.h"
++#include <array>
++#include <cstring>
++#include <string>
++namespace xllama::gpu_proof {
++// New binary, no CPU UA50TRC1/2 bytes or reserved-field reinterpretation.
++class Trace {
++ static constexpr size_t header=512,roles=header,frames=roles+114*48,keys=frames+258*48,primitives=keys+117648*2,footer=primitives+16*32;
++ std::array<unsigned char,footer+256> data_{};std::array<bool,114> known_{};
++ size_t frame_count_=0,key_count_=0,primitive_count_=0;int current_=-1;uint32_t phase_=0;bool overflow_=false,sealed_=false;
++ ua50::GpuCounts before_{};
++ void put(size_t at,uint64_t v,size_t bytes){if(at+bytes>data_.size())throw std::length_error("GPU trace bounds");for(size_t i=0;i<bytes;++i)data_[at+i]=static_cast<unsigned char>(v>>(8*i));}
++ uint64_t get(size_t at,size_t bytes)const{uint64_t n=0;for(size_t i=0;i<bytes;++i)n|=uint64_t(data_[at+i])<<(8*i);return n;}
++ void digest(size_t at,const std::string&s,size_t bytes){if(s.size()!=bytes*2)throw std::invalid_argument("trace identity digest");for(size_t i=0;i<bytes;++i){unsigned n=0;for(size_t j=0;j<2;++j){char c=s[i*2+j];unsigned d=c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:99;if(d>15)throw std::invalid_argument("trace identity hex");n=n*16+d;}data_[at+i]=static_cast<unsigned char>(n);}}
++ static uint64_t fnv(const unsigned char*p,size_t n){uint64_t h=14695981039346656037ull;for(size_t i=0;i<n;++i){h^=p[i];h*=1099511628211ull;}return h;}
++public:
++ static constexpr size_t file_bytes=footer+256,capacity_bytes=524288;
++ Trace(uint32_t pid,uint32_t selected_stage,const std::string&run,const std::string&config,const std::string&ticket,const std::string&engine,const std::string&shader){
++  if(!pid||(selected_stage!=3&&selected_stage!=4))throw std::invalid_argument("GPU trace stage/PID");std::memcpy(data_.data(),"UA68TRC1",8);put(8,1,4);put(12,file_bytes,4);put(16,pid,4);put(20,selected_stage,4);put(24,512,4);put(28,1,4);put(32,2,4);put(36,114,4);digest(64,run,16);digest(80,config,32);digest(112,ticket,32);digest(144,engine,32);digest(176,shader,32);
++ }
++ static constexpr size_t required_owned_bytes(){return sizeof(Trace);}
++ void role(uint32_t id,const ua50::Tensor&t,const char*name){
++  if(sealed_||id>=114||t.experts!=64||!name)throw std::invalid_argument("GPU trace registry");size_t a=roles+id*48;std::array<unsigned char,48> prior{};std::memcpy(prior.data(),data_.data()+a,48);
++  put(a,id,2);put(a+2,t.quant==ua50::Quant::q4_k?1:t.quant==ua50::Quant::q6_k?2:0,2);put(a+4,t.columns,4);put(a+8,t.rows,4);put(a+12,t.experts,4);put(a+16,t.offset,8);put(a+24,t.nb02,8);const auto name_hash=fnv(reinterpret_cast<const unsigned char*>(name),std::strlen(name));for(size_t other=0;other<114;++other)if(other!=id&&known_[other]&&get(roles+other*48+32,8)==name_hash)throw std::invalid_argument("trace name hash collision");put(a+32,name_hash,8);put(a+40,1,8);
++  if(known_[id]&&std::memcmp(prior.data(),data_.data()+a,48))throw std::invalid_argument("CPU/hybrid actual registry differs");known_[id]=true;
++ }
++ void begin(uint32_t phase,uint32_t position,ua50::GpuCounts before={}){
++  if(sealed_||current_>=0||frame_count_==258||(phase!=1&&phase!=2))throw std::length_error("GPU frame phase/bounds");phase_=phase;current_=int(frame_count_++);before_=before;auto a=frames+size_t(current_)*48;put(a,phase,4);put(a+4,position,4);put(a+8,key_count_,4);
++ }
++ void key(uint32_t id,uint64_t expert,uint64_t offset,uint64_t bytes){
++  if(sealed_||id>=114||expert>=64||!known_[id]||offset!=get(roles+id*48+16,8)+expert*get(roles+id*48+24,8)||bytes!=get(roles+id*48+24,8))throw std::invalid_argument("GPU trace exact acquire extent");
++  if(phase_==3)return; // primitive request recorded explicitly after its terminal comparator row
++  if(current_<0||key_count_==117648){overflow_=true;throw std::length_error("GPU ordered key cap");}put(keys+key_count_*2,id*64+expert,2);++key_count_;
++ }
++ uint32_t id_for(const char*name)const{uint64_t h=fnv(reinterpret_cast<const unsigned char*>(name),std::strlen(name));for(uint32_t i=0;i<114;++i)if(known_[i]&&get(roles+i*48+32,8)==h)return i;throw std::invalid_argument("named primitive role absent");}
++ void primitive_begin(){if(current_>=0||sealed_)throw std::logic_error("primitive phase busy");phase_=3;}
++ void primitive_end(uint32_t ordinal,uint32_t role,uint32_t expert,uint32_t pattern,uint32_t elements,const ua50::GpuCounts&before,const ua50::GpuCounts&after){
++  if(primitive_count_==16||ordinal!=primitive_count_||after.submits-before.submits!=1||after.completed-before.completed!=1||!after.terminal)throw std::runtime_error("primitive actual dispatch/terminal mismatch");size_t a=primitives+primitive_count_++*32;put(a,ordinal,4);put(a+4,role*64+expert,4);put(a+8,pattern,4);put(a+12,elements,4);put(a+16,1,8);put(a+24,1,8);
++ }
++ void end(const ua50::GpuCounts&after={}){
++  if(current_<0)throw std::logic_error("GPU frame end without start");size_t a=frames+size_t(current_)*48;const auto n=key_count_-get(a+8,4);put(a+12,n,4);if(n!=456)throw std::runtime_error("GPU full role route coverage");
++  if(phase_==2){if(after.submits<before_.submits||after.completed<before_.completed||after.published<before_.published||after.submits-before_.submits!=456||after.completed-before_.completed!=456||after.published-before_.published!=456||!after.terminal)throw std::runtime_error("GPU actual dispatched role coverage");put(a+16,456,8);put(a+24,456,8);put(a+32,456,8);}
++  put(a+40,1,8);current_=-1;
++ }
++ struct Routes {bool available=false,equal=false;uint32_t frame=0,key=0,cpu_key=0,gpu_key=0;};
++ Routes compare_model_routes(uint32_t prompt_count)const{
++  Routes out;const size_t n=size_t(prompt_count)+1;if(!prompt_count||prompt_count>128||frame_count_!=2*n||current_>=0)return out;
++  out.available=true;out.equal=true;for(size_t i=0;i<n;++i){size_t a=frames+i*48,b=frames+(i+n)*48;
++   if(get(a,4)!=1||get(b,4)!=2||get(a+4,4)!=get(b+4,4)||get(a+12,4)!=456||get(b+12,4)!=456){out.available=false;out.equal=false;return out;}
++   const auto ka=get(a+8,4),kb=get(b+8,4);for(size_t j=0;j<456;++j)if(get(keys+(ka+j)*2,2)!=get(keys+(kb+j)*2,2)){out.equal=false;out.frame=uint32_t(i);out.key=uint32_t(j);out.cpu_key=uint32_t(get(keys+(ka+j)*2,2));out.gpu_key=uint32_t(get(keys+(kb+j)*2,2));return out;}}
++  return out;
++ }
++ void seal(bool normal,uint32_t prompt_count,int32_t t0,int32_t t1,bool proof_complete){
++  if(sealed_)throw std::logic_error("trace seal twice");bool registry=true;for(bool k:known_)registry=registry&&k;
++  const uint32_t stage=uint32_t(get(20,4));const bool shape=stage==3?(primitive_count_==16&&frame_count_==0&&key_count_==0):(primitive_count_==0&&prompt_count>0&&prompt_count<=128&&frame_count_==2*(prompt_count+1)&&key_count_==frame_count_*456);
++  const auto route=compare_model_routes(prompt_count);const bool route_ok=stage==3||(route.available&&route.equal);
++  const bool complete=normal&&proof_complete&&registry&&shape&&route_ok&&!overflow_&&current_<0;
++  put(40,prompt_count,4);put(44,uint32_t(t0),4);put(48,uint32_t(t1),4);put(footer,complete?1:0,8);put(footer+8,frame_count_,8);put(footer+16,key_count_,8);put(footer+24,primitive_count_,8);put(footer+32,overflow_?1:0,8);sealed_=true;
++ }
++ bool complete()const{return sealed_&&get(footer,8)==1;}
++ const unsigned char*data()const{return data_.data();}
++ uint64_t whole_fnv()const{return fnv(data_.data(),data_.size());}
++};
++static_assert(Trace::file_bytes<=Trace::capacity_bytes,"GPU trace cap");
++}
+diff --git a/include/xllama/gpu_run_config.h b/include/xllama/gpu_run_config.h
+new file mode 100644
+--- /dev/null
++++ b/include/xllama/gpu_run_config.h
+@@ -0,0 +1,31 @@
++#pragma once
++#include "dev_run_config.h"
++#include "gpu_numeric_proof.h"
++#include "first_answer_template.h"
++namespace xllama::gpu_run {
++inline constexpr char engine_sha[]="2b904dcee7f3dfc51f05724a1e493b6fdc22b333410608ad8321e170a8b98bd4";
++inline constexpr char capabilities[]=R"UA68({"CPU_threads":1,"GPU_timestamps":"not_collected_first_slice","activation_tag":"gpu-expert-proof-v1","batch":1,"collector_charge":2097152,"config_max_bytes":16384,"config_schema":"ua68-gpu-proof-config-v1","context":512,"contract":"ua68-expert-sync-contract-v1","driver_probe":268435456,"experts":64,"gpu_outstanding":1,"gpu_slots":1,"host_cache_slots":2,"main_cap":262144,"model_pairs":256000,"model_rows":2,"model_sha256":"d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d","native_wall_seconds":1200,"no_fallback":true,"output_schema":"ua68-gpu-proof-output-v1","primitive_pairs":28672,"primitive_rows":16,"proof_owned_cap":4194304,"quants":["Q4_K","Q6_K"],"raw_rows_saved":false,"reserve":536870912,"roles":114,"run_prefix":"ua68-gpu-proof-v1.","stages":["primitive16","model2"],"summary_cap":65536,"threshold":{"absolute":0.001,"relative_to_cpu":0.001},"ticket_leaf":"ua68-gpu-proof-v1.ticket.json","ticket_max_bytes":4096,"ticket_schema":"ua68-gpu-proof-ticket-v1","trace_cap":524288,"trace_file_bytes":254432,"trace_schema":"UA68TRC1","tuple":"cpu_graph_d3d12_expert_sync","unsupported":["fused","GPU_cache","async","prefetch","threads_not_1","alternate_model","history","UI","context_not_512","performance_sweep"],"watchdog_seconds":180}
++)UA68";
++struct Config {
++ std::string raw,id,adapter_luid,shader_sha,primitive_acceptance_sha;dev_run::Config cpu;size_t parser_charge=0;
++ gpu_proof::Stage stage=gpu_proof::Stage::Primitive16;
++ size_t owned_bytes()const{return sizeof(*this)+raw.capacity()+id.capacity()+adapter_luid.capacity()+shader_sha.capacity()+primitive_acceptance_sha.capacity()+cpu.owned_bytes()+parser_charge;}
++ std::string leaf(const char* suffix)const{dev_run::need(dev_run::run_id(id),"GPU run id");return "ua68-gpu-proof-v1."+id+"."+suffix;}
++};
++inline Config parse(std::string raw){
++ auto j=dev_run::Parser(raw).parse(16384);j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256"});j.at("schema").eq("ua68-gpu-proof-config-v1");j.at("engine_contract_sha256").eq(engine_sha);
++ Config c;c.raw=std::move(raw);c.parser_charge=j.owned();dev_run::need(j.at("run_id").type==dev_run::Json::Type::string&&dev_run::run_id(j.at("run_id").text),"GPU run id");c.id=j.at("run_id").text;
++ const auto& stage=j.at("stage");dev_run::need(stage.type==dev_run::Json::Type::string,"GPU stage");if(stage.text=="primitive16")c.stage=gpu_proof::Stage::Primitive16;else if(stage.text=="model2")c.stage=gpu_proof::Stage::Model2;else throw std::invalid_argument("GPU stage unsupported");
++ auto&base=j.at("base_cpu_json");dev_run::need(base.type==dev_run::Json::Type::string,"explicit immutable CPU envelope required");c.cpu=dev_run::parse_config(base.text);
++ dev_run::need(c.cpu.id==c.id&&c.cpu.slots==2&&c.cpu.cache_ceiling==(16u<<20)&&c.cpu.prompt_cap==128&&c.cpu.max_new==2&&c.cpu.prompt==first_answer::greeting,"GPU exact fixed reference profile");
++ const auto&e=j.at("execution");e.keys({"kind","adapter_luid","compiled_shader_sha256"});e.at("kind").eq("cpu_graph_d3d12_expert_sync");
++ dev_run::need(e.at("adapter_luid").type==dev_run::Json::Type::string&&e.at("compiled_shader_sha256").type==dev_run::Json::Type::string,"GPU identity types");c.adapter_luid=e.at("adapter_luid").text;c.shader_sha=e.at("compiled_shader_sha256").text;
++ dev_run::need(c.adapter_luid.size()==17&&c.adapter_luid[8]==':'&&dev_run::hex(c.adapter_luid.substr(0,8),8)&&dev_run::hex(c.adapter_luid.substr(9),8)&&dev_run::hex(c.shader_sha,64),"GPU exact identity");
++ auto&pr=j.at("prerequisite_primitive_acceptance_sha256");if(c.stage==gpu_proof::Stage::Model2){dev_run::need(pr.type==dev_run::Json::Type::string&&dev_run::hex(pr.text,64),"model2 externally accepted primitive prerequisite");c.primitive_acceptance_sha=pr.text;}else dev_run::need(pr.type==dev_run::Json::Type::null,"primitive has no prerequisite override");
++ return c;
++}
++struct Ticket {std::string raw,selection,id,config_sha;uint64_t expires=0;size_t parser_charge=0;};
++inline Ticket ticket(std::string raw,uint64_t now){auto j=dev_run::Parser(raw).parse(4096);j.keys({"schema","selection_id","run_id","config_sha256","engine_contract_sha256","expires_at_epoch_ms"});j.at("schema").eq("ua68-gpu-proof-ticket-v1");j.at("engine_contract_sha256").eq(engine_sha);Ticket t;t.raw=std::move(raw);t.parser_charge=j.owned();
++ dev_run::need(j.at("run_id").type==dev_run::Json::Type::string&&dev_run::run_id(j.at("run_id").text),"GPU ticket id");t.id=j.at("run_id").text;dev_run::need(j.at("config_sha256").type==dev_run::Json::Type::string&&dev_run::hex(j.at("config_sha256").text,64),"GPU ticket hash");t.config_sha=j.at("config_sha256").text;
++ dev_run::need(j.at("selection_id").type==dev_run::Json::Type::string,"GPU ticket selection");t.selection=j.at("selection_id").text;dev_run::need(!t.selection.empty()&&t.selection.size()<=64&&std::all_of(t.selection.begin(),t.selection.end(),[](char x){return (x>='a'&&x<='z')||(x>='0'&&x<='9')||x=='-';}),"GPU selection chars");t.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);dev_run::need(t.expires>now&&t.expires-now<=1800000,"GPU original ticket expiry");return t;}
++}
+diff --git a/src/bridge/cpu_expert_session.cpp b/src/bridge/cpu_expert_session.cpp
+--- a/src/bridge/cpu_expert_session.cpp
++++ b/src/bridge/cpu_expert_session.cpp
+@@ -8,6 +8,7 @@
+ #include <stdexcept>
+ #include <cstdio>
+ #include <climits>
++#include <cstring>
+ namespace xllama {
+ void CpuExpertSession::latch_failure(const char*s) noexcept {
+  if(!first_failure_[0])std::snprintf(first_failure_,sizeof(first_failure_),"%s",s?s:"expert failure");
+@@ -29,8 +30,10 @@
+   auto plan=ua50::inspect_expert_input(input->file,opt->slots);
+   if(!plan.full_payload || plan.available_file_bytes!=input->admission.bytes || plan.cache_owned_bytes>opt->cache_ceiling || plan.stage_bytes>opt->stage_ceiling)throw std::invalid_argument("expert full payload/component budget refused");
+   out->applied_cache_ceiling_=opt->cache_ceiling;
++  if(opt->hybrid_gpu && (opt->slots!=2 || opt->context.n_threads!=1 || opt->context.n_threads_batch!=1 || opt->context.n_ctx!=512 || plan.records!=114 || plan.experts!=64 || plan.layers!=40 || plan.max_matrix!=2580480 || opt->numerical_proof_owned_bytes!=(4u<<20)))throw std::invalid_argument("hybrid exact tuple/metadata/proof budget");
++  out->gpu_=opt->hybrid_gpu;
+   opt->admit_budget(plan,opt->context); // mandatory BEFORE model/context allocation
+-  ua50::OwnedExpertLoad owned;owned.slots=opt->slots;owned.cache_ceiling=opt->cache_ceiling;owned.stage_ceiling=opt->stage_ceiling;
++  ua50::OwnedExpertLoad owned;owned.gpu=out->gpu_;if(owned.gpu)owned.admit_hybrid=[opt](const ua50::ExpertLoadPlan&p){opt->admit_budget(p,opt->context);};owned.slots=opt->slots;owned.cache_ceiling=opt->cache_ceiling;owned.stage_ceiling=opt->stage_ceiling;
+   owned.input.file=input->file;owned.input.file_anchor=input->file_anchor;
+   owned.input.contract=ua50::InputContract::windows_held_verified;
+   owned.input.admission_anchor=input->admission_anchor;owned.input.validate_binding=input->validate_binding;
+@@ -45,6 +48,7 @@
+   if(opt->cache_events){auto* m=dynamic_cast<llama_model_base*>(out->model_.get());
+    if(!m || !m->expert_provider())throw std::runtime_error("cache events provider missing");
+    m->expert_provider()->enable_timing();}
++  if(opt->hybrid_catalog){auto*m=dynamic_cast<llama_model_base*>(out->model_.get());if(!m||!m->expert_provider())throw std::runtime_error("hybrid registry unavailable");m->expert_provider()->validate_hybrid_catalog();m->expert_provider()->visit_registry(opt->hybrid_catalog);}
+   out->context_.reset(llama_init_from_model(out->model_.get(),opt->context));
+   if(!out->context_)throw std::runtime_error("expert context allocation refused");
+   auto sched=out->context_->get_sched();
+@@ -79,6 +83,7 @@
+   const bool cancelled=should_abort(this);turn_abort_=nullptr;
+   auto model=dynamic_cast<llama_model_base*>(model_.get());auto provider=model?model->expert_provider():nullptr;
+   if(!provider || provider->active_leases())throw std::runtime_error("expert graph lease barrier incomplete");
++  if(gpu_&&(!gpu_->terminal()||gpu_->error()[0])){latch_failure(gpu_->error()[0]?gpu_->error():"hybrid terminal incomplete");throw std::runtime_error("hybrid terminal GPU failure");}
+   if(provider->error()[0]){latch_failure(provider->error());throw std::runtime_error("expert provider terminal failure");}
+   if(rc || cancelled){
+    latch_failure(cancelled?"expert cancellation":"native decode nonzero; no continuation");state_.store(State::Invalid);close();return rc?rc:2;
+@@ -91,6 +96,7 @@
+ }
+ void CpuExpertSession::request_stop() noexcept{
+  stop_.store(true,std::memory_order_release);
++ auto gpu=std::atomic_load(&gpu_);if(gpu)gpu->request_stop();
+  auto input=std::atomic_load(&input_);if(input&&input->control)input->control->request_stop();
+ }
+ bool CpuExpertSession::close() noexcept{
+@@ -98,11 +104,12 @@
+  for(;;){if(s==State::Closed)return true;if(s==State::Decoding || s==State::Closing)return false;if(state_.compare_exchange_weak(s,State::Closing))break;}
+  request_stop();
+  if(context_)llama_synchronize(context_.get()); // wait graph workers before their buffers are released
++ if(gpu_){gpu_->drain();if(!gpu_->terminal())std::terminate();}
+  auto input=std::atomic_load(&input_);if(input&&input->control)input->control->drain_to_terminal(); // may block forever; never early-free pending I/O
+  // Snapshot after actual graph/I/O drain, before provider destruction. Callback
+  // failure cannot skip owning teardown and will prevent complete trace sealing.
+  try{cache_event("terminal");}catch(...){latch_failure("cache terminal telemetry failed");}
+- context_.reset();model_.reset(); // provider/Reader destroyed before admission/file anchors
++ context_.reset();model_.reset();std::atomic_store(&gpu_,std::shared_ptr<ua50::ExpertGpu>{}); // provider/Reader destroyed before admission/file anchors
+  std::atomic_store(&input_,std::shared_ptr<ua50::uwp::WindowsInputCandidate>{});input.reset();
+  state_.store(State::Closed,std::memory_order_release);return true;
+ }
+@@ -117,6 +124,28 @@
+  if(!p||p->active_leases())throw std::runtime_error("effective state before native drain");const auto&c=p->counters();
+  const auto applied=cpu_pilot::applied_cache(p->slot_count(),applied_cache_ceiling_,p->reserved_budget(),p->requested_owned_bytes(),c.arena_bytes,c.metadata_bytes);
+  return {llama_n_ctx(context_.get()),uint32_t(llama_n_threads(context_.get())),uint32_t(llama_n_threads_batch(context_.get())),applied.slots,applied.ceiling,applied.owned,applied.arena,applied.metadata};
++}
++void CpuExpertSession::primitive_vector(const char*name,uint32_t expert,const unsigned char*q8,size_t bytes,float*cpu,float*gpu,std::shared_ptr<ua50::ExpertGpu> executor){
++ auto keep_alive=shared_from_this();State expected=State::Ready;if(!state_.compare_exchange_strong(expected,State::Decoding))throw std::logic_error("primitive owner not ready");
++ std::shared_ptr<ua50::NativeProvider> provider;bool leased=false;
++ try{
++  if(!executor||!name||!cpu||!gpu||!q8||stop_.load())throw std::invalid_argument("primitive source/stop");
++  auto*m=dynamic_cast<llama_model_base*>(model_.get());provider=m?m->expert_provider():nullptr;if(!provider)throw std::runtime_error("primitive provider missing");provider->validate_hybrid_catalog();
++  auto*t=provider->tensor_named(name);if(!provider->acquire(t,expert))throw std::runtime_error(provider->error());leased=true;
++  const auto quant=t->type==GGML_TYPE_Q4_K?ua50::Quant::q4_k:ua50::Quant::q6_k;
++  ua50::ExpertVector request{quant,provider->role_id(t),expert,uint32_t(t->ne[0]),uint32_t(t->ne[1]),reinterpret_cast<const unsigned char*>(provider->data(t)),size_t(t->nb[2]),q8,bytes};ua50::check_vector(request);
++  auto*trait=ggml_get_type_traits_cpu(t->type);if(!trait||trait->vec_dot_type!=GGML_TYPE_Q8_K||!trait->vec_dot)throw std::runtime_error("primitive actual CPU Q8 oracle unavailable");
++  for(size_t row=0;row<request.n;++row)trait->vec_dot(int(request.k),cpu+row,0,request.weights+row*t->nb[1],0,q8,0,1);
++  if(stop_.load())throw std::runtime_error("primitive stopped before GPU submit");
++  const float*result=executor->execute(request);executor->drain();if(!executor->terminal()||executor->error()[0]||stop_.load())throw std::runtime_error("primitive GPU stopped/failed");
++  std::memcpy(gpu,result,request.n*sizeof(float));provider->release();leased=false;state_.store(State::Ready);
++ }catch(const std::exception&e){latch_failure(e.what());if(executor){executor->request_stop();executor->drain();}if(leased)provider->release();state_.store(State::Invalid);close();throw;}
++ catch(...){latch_failure("primitive unknown terminal failure; no continuation");if(executor){executor->request_stop();executor->drain();}if(leased)provider->release();state_.store(State::Invalid);close();throw;}
++}
++void CpuExpertSession::capture_logits(float* destination,size_t elements) const {
++ model_view();if(!destination||elements!=128000||llama_vocab_n_tokens(llama_model_get_vocab(model_.get()))!=128000)throw std::invalid_argument("numerical proof full-row extent");
++ const float* row=llama_get_logits_ith(context_.get(),-1);if(!row)throw std::runtime_error("native logits unavailable");
++ std::memcpy(destination,row,elements*sizeof(float));
+ }
+ std::vector<llama_token> CpuExpertSession::tokenize(const std::string&s) const{
+  const auto*v=llama_model_get_vocab(model_view());
+@@ -197,6 +226,8 @@
+  if(opt.plan_profile!=CpuExpertOptIn::PlanProfile::Smoke64)result.output=cpu_pilot::add(result.output,
+   opt.plan_profile==CpuExpertOptIn::PlanProfile::FinishedAnswer512?2u*1024u*1024u:1024u*1024u);
+  result.output=cpu_pilot::add(result.output,opt.instrumentation_owned_bytes);
++ if(opt.numerical_proof_owned_bytes){if(opt.numerical_proof_owned_bytes!=(4u<<20))throw std::invalid_argument("proof fixed owned cap");result.output=cpu_pilot::add(result.output,opt.numerical_proof_owned_bytes);}
++ if(opt.hybrid_gpu){if(!opt.hybrid_gpu->terminal())throw std::runtime_error("GPU plan before terminal");result.output=cpu_pilot::add(result.output,opt.hybrid_gpu->required_owned_bytes());}
+  result.cache=input.cache_owned_bytes;result.stage=input.stage_bytes;
+  if(fsetpos(file,&restore.pos))throw std::runtime_error("sizing FILE restore");
+  (void)result.total();return result;
+diff --git a/src/bridge/expert_gpu_d3d12.inc b/src/bridge/expert_gpu_d3d12.inc
+new file mode 100644
+--- /dev/null
++++ b/src/bridge/expert_gpu_d3d12.inc
+@@ -0,0 +1,106 @@
++// Included once by ggml_d3d12.cpp inside Windows xllama namespace; not a TU.
++namespace {
++using ExpertClock=std::chrono::steady_clock;
++uint64_t expert_ns(ExpertClock::time_point a){auto n=std::chrono::duration_cast<std::chrono::nanoseconds>(ExpertClock::now()-a).count();if(n<0)throw std::runtime_error("GPU monotonic clock");return uint64_t(n);}
++std::string expert_shader_sha(){
++ BCRYPT_ALG_HANDLE a=nullptr;BCRYPT_HASH_HANDLE h=nullptr;DWORD len=0,got=0;std::vector<unsigned char> obj;unsigned char out[32]{};
++ auto ck=[](NTSTATUS x){if(x<0)throw std::runtime_error("GPU shader BCrypt identity failed");};
++ try{ck(BCryptOpenAlgorithmProvider(&a,BCRYPT_SHA256_ALGORITHM,nullptr,0));ck(BCryptGetProperty(a,BCRYPT_OBJECT_LENGTH,reinterpret_cast<PUCHAR>(&len),sizeof(len),&got,0));if(got!=sizeof(len)||!len||len>65536)throw std::runtime_error("GPU hash object bound");obj.resize(len);ck(BCryptCreateHash(a,&h,obj.data(),len,nullptr,0,0));
++  // Domain + explicit byte lengths + ACTUAL compiled-in DXIL, not requested digest.
++  const unsigned char domain[]="ua68-q4k-q6k-t64-dxil-v1";ck(BCryptHashData(h,const_cast<PUCHAR>(domain),sizeof(domain),0));
++  for(auto b:{std::pair<const unsigned char*,size_t>{kGgmlD3d12MmvQ4KT64Dxil,kGgmlD3d12MmvQ4KT64DxilSize},std::pair<const unsigned char*,size_t>{kGgmlD3d12MmvQ6KT64Dxil,kGgmlD3d12MmvQ6KT64DxilSize}}){unsigned char size[8]{};for(unsigned i=0;i<8;++i)size[i]=static_cast<unsigned char>(uint64_t(b.second)>>(8*i));ck(BCryptHashData(h,size,8,0));ck(BCryptHashData(h,const_cast<PUCHAR>(b.first),ULONG(b.second),0));}
++  ck(BCryptFinishHash(h,out,sizeof(out),0));BCryptDestroyHash(h);h=nullptr;BCryptCloseAlgorithmProvider(a,0);a=nullptr;
++ }catch(...){if(h)BCryptDestroyHash(h);if(a)BCryptCloseAlgorithmProvider(a,0);throw;}
++ const char*hex="0123456789abcdef";std::string s;for(auto x:out){s+=hex[x>>4];s+=hex[x&15];}return s;
++}
++class ExpertD3DQueue final:public ua50::ExpertQueue {
++ Gpu& g_;ExpertGpuAdmission admission_;ua50::GpuSnapshot info_;ua50::GpuCounts counts_;
++ ComPtr<ID3D12Resource> weight_,q8_,out_;ComPtr<ID3D12Fence> fence_;d3d12c::FenceEvent event_;
++ unsigned char*q8_ptr_=nullptr;float*out_ptr_=nullptr;UINT64 value_=0;bool inflight_=false,terminal_=true,weight_ready_=false;
++ std::unique_lock<std::mutex> lock_;char cause_[256]{};
++ void fail(const char*s)noexcept{if(!cause_[0])std::snprintf(cause_,sizeof(cause_),"%s",s);}
++ void check(HRESULT hr,const char*what){if(FAILED(hr)){fail(d3d12c::hr_message(what,hr).c_str());throw std::runtime_error(cause_);}}
++ uint64_t allocation(const D3D12_RESOURCE_DESC& d){auto a=g_.device->GetResourceAllocationInfo(0,1,&d);if(a.SizeInBytes==UINT64_MAX||!a.SizeInBytes||!a.Alignment)throw std::runtime_error("GPU allocation size unknown");return a.SizeInBytes;}
++ D3D12_RESOURCE_DESC desc(uint64_t bytes,D3D12_RESOURCE_FLAGS f){D3D12_RESOURCE_DESC d{};d.Dimension=D3D12_RESOURCE_DIMENSION_BUFFER;d.Width=bytes;d.Height=1;d.DepthOrArraySize=1;d.MipLevels=1;d.SampleDesc.Count=1;d.Layout=D3D12_TEXTURE_LAYOUT_ROW_MAJOR;d.Flags=f;return d;}
++ ua50::GpuSnapshot current()const{
++  auto x=info_;x.app_limit=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();x.app_usage=winrt::Windows::System::MemoryManager::AppMemoryUsage();
++  ComPtr<IDXGIFactory4> factory;ComPtr<IDXGIAdapter3> adapter;DXGI_QUERY_VIDEO_MEMORY_INFO m{};
++  if(FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))||FAILED(factory->EnumAdapterByLuid(g_.luid,IID_PPV_ARGS(&adapter)))||FAILED(adapter->QueryVideoMemoryInfo(0,DXGI_MEMORY_SEGMENT_GROUP_LOCAL,&m)))throw std::runtime_error("GPU DXGI placement unknown");
++  DXGI_ADAPTER_DESC1 descriptor{};if(FAILED(adapter->GetDesc1(&descriptor))||(descriptor.Flags&DXGI_ADAPTER_FLAG_SOFTWARE))throw std::runtime_error("actual hardware GPU adapter required");
++  x.dxgi_budget=m.Budget;x.dxgi_usage=m.CurrentUsage;return x;
++ }
++ void quota(uint64_t pending){auto x=current();auto level=winrt::Windows::System::MemoryManager::AppMemoryUsageLevel();
++  if(!x.app_limit||x.app_limit!=info_.app_limit||x.app_usage>x.app_limit||(level!=winrt::Windows::System::AppMemoryUsageLevel::Low&&level!=winrt::Windows::System::AppMemoryUsageLevel::Medium)||ua50::add(pending,512ull<<20)>x.app_limit-x.app_usage||!x.dxgi_budget||x.dxgi_usage>x.dxgi_budget||pending>x.dxgi_budget-x.dxgi_usage)throw std::runtime_error("hybrid fresh quota/placement/limit-change refused");
++  admission_.admit(x,pending);
++ }
++ void barrier(D3D12_RESOURCE_STATES from,D3D12_RESOURCE_STATES to){D3D12_RESOURCE_BARRIER b{};b.Type=D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;b.Transition.pResource=weight_.Get();b.Transition.Subresource=D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;b.Transition.StateBefore=from;b.Transition.StateAfter=to;g_.cl->ResourceBarrier(1,&b);}
++public:
++ explicit ExpertD3DQueue(Gpu&g,const ExpertGpuAdmission&a,uint64_t init_delta):g_(g),admission_(a){
++  if(a.adapter_luid.empty()||a.shader_sha256.empty()||!a.admit||!g.ok)throw std::invalid_argument("GPU exact identity/admission missing");
++  std::lock_guard<std::mutex> guard(g.mu);char luid[32];std::snprintf(luid,sizeof(luid),"%08x:%08x",unsigned(g.luid.HighPart),unsigned(g.luid.LowPart));info_.adapter_luid=luid;info_.shader_sha256=expert_shader_sha();info_.cache_coherent_uma=true;
++  info_.init_observed_app_delta=init_delta;info_.app_limit=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();
++  if(info_.adapter_luid!=a.adapter_luid||info_.shader_sha256!=a.shader_sha256)throw std::runtime_error("constructed GPU identity mismatch");
++  auto wd=desc(2580480+16,D3D12_RESOURCE_FLAG_NONE),qd=desc(1u<<20,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),od=desc(8192+64,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
++  auto &l=info_.resources;
++  for(auto b:{std::pair<const char*,ID3D12Resource*>{"stock_upload",g.staging.Get()}, {"stock_readback",g.readback.Get()}}){if(!b.second)throw std::runtime_error("stock resource absent");l.add(b.first,allocation(b.second->GetDesc()),true);}
++  if(g.xq)l.add("stock_activation",allocation(g.xq->GetDesc()),true);
++  if(g.ts_rb)l.add("stock_timestamps",allocation(g.ts_rb->GetDesc()),true);
++  l.add("expert_weight",allocation(wd));l.add("expert_q8",allocation(qd));l.add("expert_output",allocation(od));
++  // Queue/PSO/descriptor/driver allocation is not fabricated from sizeof: reserve full probe and check actual init delta.
++  quota(l.total());const auto before_owned=current().app_usage;std::string err;
++  weight_=d3d12c::create_buffer(g.device.Get(),wd.Width,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_FLAG_NONE,D3D12_RESOURCE_STATE_COPY_DEST,"ua68_expert_weight",&err);
++  D3D12_HEAP_PROPERTIES hp{};hp.Type=D3D12_HEAP_TYPE_CUSTOM;hp.CPUPageProperty=D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;hp.MemoryPoolPreference=D3D12_MEMORY_POOL_L0;
++  q8_=d3d12c::create_buffer_props(g.device.Get(),qd.Width,hp,qd.Flags,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,"ua68_q8",&err);
++  out_=d3d12c::create_buffer_props(g.device.Get(),od.Width,hp,od.Flags,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,"ua68_out",&err);
++  if(!weight_||!q8_||!out_)throw std::runtime_error("expert resource creation: "+err);
++  void*v=nullptr;check(q8_->Map(0,nullptr,&v),"Map expertQ8");q8_ptr_=static_cast<unsigned char*>(v);check(out_->Map(0,nullptr,&v),"Map expertOutput");out_ptr_=static_cast<float*>(v);
++  check(g.device->CreateFence(0,D3D12_FENCE_FLAG_NONE,IID_PPV_ARGS(&fence_)),"Create expert fence");event_.h=CreateEventW(nullptr,FALSE,FALSE,nullptr);if(!event_.h)throw std::runtime_error("expert fence event unavailable");quota(0);
++  const auto after_owned=current().app_usage;if(after_owned<before_owned||after_owned-before_owned>info_.resources.total())throw std::runtime_error("GPU owned creation/probe observation refused");info_.owned_creation_app_delta=after_owned-before_owned;
++ }
++ ~ExpertD3DQueue(){while(inflight_&&!wait_terminal())std::this_thread::yield();if(q8_ptr_)q8_->Unmap(0,nullptr);if(out_ptr_)out_->Unmap(0,nullptr);}
++ void stage_submit(const ua50::ExpertVector&x)override{
++  if(inflight_||cause_[0])throw std::runtime_error("GPU queue terminal/busy");quota(0);ua50::check_vector(x);
++  lock_=std::unique_lock<std::mutex>(g_.mu);quota(0);auto t=ExpertClock::now();
++  std::memcpy(g_.staging_ptr,x.weights,x.weight_bytes);std::memset(g_.staging_ptr+x.weight_bytes,0,16);std::memcpy(q8_ptr_,x.q8,x.q8_bytes);
++  const uint32_t sentinel=0x7fc0dead;for(size_t i=0;i<2048;++i)std::memcpy(out_ptr_+i,&sentinel,4);std::memset(reinterpret_cast<unsigned char*>(out_ptr_)+8192,0xa5,64);counts_.copy_cpu_ns=ua50::add(counts_.copy_cpu_ns,expert_ns(t));
++  check(g_.alloc->Reset(),"Reset expert allocator");check(g_.cl->Reset(g_.alloc.Get(),nullptr),"Reset expert commands");
++  if(weight_ready_)barrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COPY_DEST);
++  g_.cl->CopyBufferRegion(weight_.Get(),0,g_.staging.Get(),0,x.weight_bytes+16);barrier(D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);weight_ready_=true;
++  uint32_t constants[8]={x.n,x.k,x.k/256,uint32_t(ua50::block(x.quant).bytes*(x.k/256)),uint32_t(x.q8_bytes),uint32_t(x.n),0,0};
++  g_.cl->SetComputeRootSignature(g_.root.Get());g_.cl->SetPipelineState(g_.pso[x.quant==ua50::Quant::q4_k?kPsoQ4K:kPsoQ6K][0].Get());
++  g_.cl->SetComputeRoot32BitConstants(0,8,constants,0);g_.cl->SetComputeRootShaderResourceView(1,weight_->GetGPUVirtualAddress());g_.cl->SetComputeRootUnorderedAccessView(2,out_->GetGPUVirtualAddress());g_.cl->SetComputeRootUnorderedAccessView(3,q8_->GetGPUVirtualAddress());
++  g_.cl->Dispatch((x.n+3)/4,1,1);D3D12_RESOURCE_BARRIER visibility{};visibility.Type=D3D12_RESOURCE_BARRIER_TYPE_UAV;visibility.UAV.pResource=out_.Get();g_.cl->ResourceBarrier(1,&visibility);check(g_.cl->Close(),"Close expert commands");
++  ID3D12CommandList*lists[]={g_.cl.Get()};inflight_=true;terminal_=false;++counts_.submits;g_.queue->ExecuteCommandLists(1,lists);
++  ++value_;counts_.fence_value=value_;counts_.terminal=false;
++  HRESULT hr=g_.queue->Signal(fence_.Get(),value_);if(FAILED(hr)){fail(d3d12c::hr_message("expert Signal",hr).c_str());value_=UINT64_MAX;}
++ }
++ bool wait_terminal()noexcept override{
++  if(!inflight_)return true;
++  struct PollTimer{ExpertD3DQueue*self;ExpertClock::time_point start=ExpertClock::now();~PollTimer(){try{self->counts_.fence_wait_ns=ua50::add(self->counts_.fence_wait_ns,expert_ns(start));}catch(...){self->fail("expert wait clock overflow");}}} timer{this};
++  auto removed=g_.device->GetDeviceRemovedReason();if(FAILED(removed)){fail(d3d12c::hr_message("expert device removed",removed).c_str());terminal_=true;return true;}
++  if(value_==UINT64_MAX)return false; // failed signal: NO terminal proof while live device
++  UINT64 done=fence_->GetCompletedValue();if(done==UINT64_MAX){fail("expert fence invalid; waiting device terminal");return false;}
++  if(done<value_){HRESULT hr=fence_->SetEventOnCompletion(value_,event_.h);if(FAILED(hr)){fail(d3d12c::hr_message("expert SetEventOnCompletion",hr).c_str());return false;}DWORD w=WaitForSingleObject(event_.h,25);if(w==WAIT_FAILED){fail("expert WaitForSingleObject failed");return false;}if(w!=WAIT_OBJECT_0&&w!=WAIT_TIMEOUT){fail("expert wait unexpected result");return false;}done=fence_->GetCompletedValue();if(done==UINT64_MAX||done<value_)return false;}
++  terminal_=true;counts_.terminal=true;counts_.completed++;
++  return true;
++ }
++ const float*output()override{
++  quota(0);if(inflight_||!terminal_||cause_[0])throw std::runtime_error("GPU output before actual terminal");
++  const auto*guard=reinterpret_cast<const unsigned char*>(out_ptr_)+8192;for(size_t i=0;i<64;++i)if(guard[i]!=0xa5)throw std::runtime_error("GPU output guard changed");return out_ptr_;
++ }
++ void release_terminal()noexcept override{if(!terminal_)std::terminate();inflight_=false;counts_.terminal=true;if(lock_.owns_lock())lock_.unlock();}
++ bool submitted()const noexcept override{return inflight_;}
++ const char*error()const noexcept override{return cause_;}
++ ua50::GpuSnapshot snapshot()const override{return current();}
++ ua50::GpuCounts counts()const override{return counts_;} // timestamps explicitly unavailable; no invented zero duration
++ size_t owned_bytes()const override{return size_t(ua50::add(ua50::add(sizeof(*this)+4096,info_.adapter_luid.capacity()+info_.shader_sha256.capacity()+admission_.adapter_luid.capacity()+admission_.shader_sha256.capacity()),info_.resources.total()));}
++};
++} // anonymous
++std::shared_ptr<ua50::ExpertGpu> make_expert_gpu_d3d12(const ExpertGpuAdmission&a){
++ if(!a.admit)throw std::invalid_argument("GPU native admission required");
++ const uint64_t before=winrt::Windows::System::MemoryManager::AppMemoryUsage();const uint64_t limit=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();
++ if(!limit||before>limit||limit-before<(512ull<<20)+(256ull<<20))throw std::runtime_error("GPU initialization reserve/probe refused");
++ auto&g=gpu();const uint64_t after=winrt::Windows::System::MemoryManager::AppMemoryUsage();
++ if(!g.ok||winrt::Windows::System::MemoryManager::AppMemoryUsageLimit()!=limit||after<before||after-before>(256ull<<20)||after>limit-(512ull<<20))throw std::runtime_error("GPU actual initialization/probe refused");
++ return std::make_shared<ua50::SynchronousExpertGpu>(std::make_shared<ExpertD3DQueue>(g,a,after-before));
++}
+diff --git a/src/bridge/ggml_d3d12.cpp b/src/bridge/ggml_d3d12.cpp
+--- a/src/bridge/ggml_d3d12.cpp
++++ b/src/bridge/ggml_d3d12.cpp
+@@ -6,6 +6,7 @@
+ #ifdef XLLAMA_USE_LLAMA
+ 
+     #include "xllama/ggml_d3d12.h"
++    #include "xllama/expert_gpu_d3d12.h"
+ 
+     #include "ggml-cpu.h"
+ 
+@@ -300,6 +301,7 @@
+ 
+ namespace xllama {
+ 
++std::shared_ptr<ua50::ExpertGpu> make_expert_gpu_d3d12(const ExpertGpuAdmission&){throw std::runtime_error("UA68 D3D12 unavailable; no fallback");}
+ bool ggml_d3d12_register() {
+     return false;
+ }
+@@ -329,6 +331,8 @@
+         #include <dxgi1_4.h>
+ 
+         #include "d3d12_compute.h"
++        #include <bcrypt.h>
++        #include <winrt/Windows.System.h>
+         #include "ggml-alloc.h"
+         #include "ggml-backend-impl.h"
+         #include "ggml-backend.h"
+@@ -1243,6 +1247,8 @@
+ 
+ } // namespace
+ 
++#include "expert_gpu_d3d12.inc"
++
+ bool ggml_d3d12_register() {
+     static std::once_flag once;
+     static bool registered = false;
+diff --git a/uwp/App.cpp b/uwp/App.cpp
+--- a/uwp/App.cpp
++++ b/uwp/App.cpp
+@@ -429,6 +429,13 @@
+         // Consume the flag BEFORE the run:
+         // a later start without the flag goes back to interactive.
+ #if defined(XLLAMA_USE_LLAMA)
++        const int gpu_ticket_presence=dev_ticket_presence(L"ua68-gpu-proof-v1.ticket.json");
++        if(gpu_ticket_presence<0)return 1;
++        if(gpu_ticket_presence>0){
++            for(const auto* old:{L"ua50-dev-run-v1.ticket.json",L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag",L"diffuse.flag",L"bench.flag",L"membw.flag",L"diskbw.flag",L"gpubw.flag",L"gpugemv.flag",L"d3d12be.flag",L"gpustep.flag",L"ramceil.flag",L"mic.flag",L"logits.flag",L"oprepro.flag",L"train.flag",L"api.flag",L"native-capture.flag",L"diffuse-inproc.flag",L"gpustep-inproc.flag"})if(dev_ticket_presence(old)!=0)return 1;
++            // New held ticket/claim namespace only; no pathname deletion/rearm.
++            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(winrt::make<HeadlessView>(&::xllama::bridge::run_expert_gpu_proof_configured,"gpu-expert-proof-v1"));return 0;
++        }
+         const int ticket_presence=dev_ticket_presence(L"ua50-dev-run-v1.ticket.json");
+         if(ticket_presence<0)return 1;
+         if(ticket_presence>0) {
+diff --git a/uwp/cpu-expert-pilot.cpp b/uwp/cpu-expert-pilot.cpp
+--- a/uwp/cpu-expert-pilot.cpp
++++ b/uwp/cpu-expert-pilot.cpp
+@@ -11,6 +11,8 @@
+ #include <winrt/Windows.Storage.h>
+ #include <windows.h>
+ #include <chrono>
++#include <optional>
++#include <array>
+ #include <condition_variable>
+ #include <filesystem>
+ #include <mutex>
+@@ -20,6 +22,10 @@
+ #include "ua50/cache_trace.h"
+ #include "../src/platform/ua50/dev_run_io.h"
+ #include "dev-run-input.h"
++#include "gpu-proof-input.h"
++#include "xllama/expert_gpu_d3d12.h"
++#include "xllama/gpu_proof_controller.h"
++#include "xllama/gpu_proof_build_pins.h"
+ #include <winrt/Windows.ApplicationModel.h>
+ 
+ namespace xllama::bridge {
+@@ -35,6 +41,9 @@
+     std::thread monitor;
+     winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging_revoker limit_changed;
+     std::weak_ptr<ua50::uwp::WindowsInputControl> control;
++    std::weak_ptr<gpu_proof::Controller> gpu_controller;
++    std::atomic<int64_t> gpu_progress_ns{0};
++    bool gpu_aggregate_quota=false;std::atomic<uint64_t> gpu_quota_snapshots{0};
+     FILE* held=nullptr; // borrowed only on the serialized owning hub thread
+     std::wstring stop_path;
+     ua50::uwp::Clock::time_point deadline;
+@@ -50,7 +59,7 @@
+         FILETIME ft{};GetSystemTimeAsFileTime(&ft);ULARGE_INTEGER utc{};utc.LowPart=ft.dwLowDateTime;utc.HighPart=ft.dwHighDateTime;
+         char line[384];std::snprintf(line,sizeof(line),"[cpu-pilot] quota phase=%s pid=%lu utc100ns=%llu limit=%llu usage=%llu level=%d pressure=%d\n",
+             phase,GetCurrentProcessId(),static_cast<unsigned long long>(utc.QuadPart),static_cast<unsigned long long>(q.limit),static_cast<unsigned long long>(q.usage),static_cast<int>(level),q.pressure?1:0);
+-        log_output(line);
++        if(gpu_aggregate_quota)gpu_quota_snapshots.fetch_add(1,std::memory_order_relaxed);else log_output(line);
+         if(final_limit!=q.limit) {log_output("[cpu-pilot] quota changed during bracketed sample\n");throw std::runtime_error("quota changed during sample");}
+         if(level!=winrt::Windows::System::AppMemoryUsageLevel::Low && level!=winrt::Windows::System::AppMemoryUsageLevel::Medium && !q.pressure)
+             throw std::runtime_error("unknown MemoryManager level");
+@@ -58,6 +67,7 @@
+     }
+     void phase(const char* name,uint64_t pending=0) {
+         if(abort->load() || ua50::uwp::Clock::now()>=deadline || (ticket_expiry&&dev_utc_ms()>=ticket_expiry))throw std::runtime_error("pilot stop/deadline");
++        const auto progress=gpu_progress_ns.load();if(progress>0){const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(ua50::uwp::Clock::now().time_since_epoch()).count();if(now<progress||now-progress>180000000000ll)throw std::runtime_error("GPU proof watchdog/clock");}
+         check(snapshot(name),initial_limit,pending);
+     }
+     void request_stop() noexcept {
+@@ -65,6 +75,7 @@
+         std::shared_ptr<ua50::uwp::WindowsInputControl> c;
+         {std::lock_guard<std::mutex> lock(mutex);c=control.lock();}
+         if(c)c->request_stop(); // stop request is NOT proof of terminal I/O
++        std::shared_ptr<gpu_proof::Controller> gpu;{std::lock_guard<std::mutex> lock(mutex);gpu=gpu_controller.lock();}if(gpu)gpu->request_stop();
+     }
+     void start_monitor() {
+         monitor=std::thread([this]{
+@@ -349,4 +360,5 @@
+ }
+ void run_cpu_expert_cache_a2(){run_cpu_expert_stage(true,true,1);}
+ void run_cpu_expert_cache_b512(){run_cpu_expert_stage(true,true,2);}
++#include "gpu-proof-pilot.inc"
+ } // namespace xllama::bridge
+diff --git a/uwp/gpu-proof-input.h b/uwp/gpu-proof-input.h
+new file mode 100644
+--- /dev/null
++++ b/uwp/gpu-proof-input.h
+@@ -0,0 +1,15 @@
++#pragma once
++#include "dev-run-input.h"
++#include "xllama/gpu_run_config.h"
++namespace xllama::bridge {
++struct GpuProofInput {
++ DevHandle held_ticket;gpu_run::Config config;gpu_run::Ticket ticket;dev_run::OneUse use;std::string config_sha,ticket_sha;std::filesystem::path root;
++ explicit GpuProofInput(std::filesystem::path base):root(std::move(base)){
++  open_dev_file(held_ticket,root/L"ua68-gpu-proof-v1.ticket.json",true);auto traw=read_dev_file(held_ticket,4096);ticket_sha=dev_sha(traw);ticket=gpu_run::ticket(std::move(traw),dev_utc_ms());
++  DevHandle cfg;const auto leaf="ua68-gpu-proof-v1."+ticket.id+".config.json";open_dev_file(cfg,root/std::wstring(leaf.begin(),leaf.end()),false);auto raw=read_dev_file(cfg,16384);config_sha=dev_sha(raw);config=gpu_run::parse(std::move(raw));cfg.close();dev_run::need(config.id==ticket.id&&config_sha==ticket.config_sha,"GPU ticket consumed bytes");
++ }
++ std::filesystem::path path(const char*suffix)const{auto leaf=config.leaf(suffix);return root/std::wstring(leaf.begin(),leaf.end());}
++ size_t owned_bytes()const{return sizeof(*this)+config.owned_bytes()+ticket.raw.capacity()+ticket.selection.capacity()+ticket.id.capacity()+ticket.config_sha.capacity()+ticket.parser_charge+config_sha.capacity()+ticket_sha.capacity()+4096;}
++ void spend(){dev_run::need(ticket.expires>dev_utc_ms(),"GPU expiry before claim");use.spend([&]{DevHandle c(CreateFile2(path("claim").c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(c.value==INVALID_HANDLE_VALUE)throw std::runtime_error("GPU claim already used/unavailable");auto s=ticket_sha+"\n";DWORD n=0;if(!WriteFile(c.value,s.data(),DWORD(s.size()),&n,nullptr)||n!=s.size()||!FlushFileBuffers(c.value))throw std::runtime_error("GPU claim durable write");c.close();},[&]{dev_run::need(ticket.expires>dev_utc_ms(),"GPU expiry before consume");FILE_DISPOSITION_INFO d{};d.DeleteFile=TRUE;if(!SetFileInformationByHandle(held_ticket.value,FileDispositionInfo,&d,sizeof(d)))throw std::runtime_error("GPU held ticket disposition failed");held_ticket.close();});dev_run::need(use.may_start_model(),"GPU ticket not consumed");}
++};
++}
+diff --git a/uwp/gpu-proof-pilot.inc b/uwp/gpu-proof-pilot.inc
+new file mode 100644
+--- /dev/null
++++ b/uwp/gpu-proof-pilot.inc
+@@ -0,0 +1,98 @@
++// Actual dedicated developer headless entry. No UI/LAN or CPU ticket routing.
++// Future exact artifact/operator/Root selection must bind this new ticket/entry; source edits grant no launch.
++void run_expert_gpu_proof_configured(){
++ const std::string marker="[gpu-proof-v1]";auto compute=try_acquire_compute_job();if(!compute){log_output(marker+" REFUSED compute busy\n");return;}
++ auto&hub=session_hub();std::unique_lock<std::mutex> hub_lock(hub.mtx,std::try_to_lock);if(!hub_lock||hub.session||hub.failed_expert_load){log_output(marker+" REFUSED existing owner\n");return;}
++ auto state=std::make_shared<Pilot>();state->gpu_aggregate_quota=true;state->deadline=ua50::uwp::Clock::now()+std::chrono::minutes(20);
++ std::shared_ptr<GpuProofInput> input;std::shared_ptr<ua50::ExpertGpu> gpu;std::shared_ptr<gpu_proof::Controller> controller;
++ std::shared_ptr<gpu_proof::Proof> proof;std::shared_ptr<gpu_proof::Trace> trace;
++ std::optional<ua50::uwp::WindowsInputCandidate> guard;ModelWriteGate::Permit writer;CpuExpertOptIn opt;
++ std::array<CpuExpertEffective,2> actual_effective{};std::array<ua50::Counters,2> host_counts{};size_t live_phase=0;uint64_t sha_calls=0,sha_requested=0,sha_returned=0,sha_elapsed_ns=0;
++ bool pre_sha=false,post_sha=false,normal=false,claim=false;std::string cause,package;ua50::GpuSnapshot gpu_effective;ua50::GpuCounts gpu_counts;
++ size_t pcount=0;uint32_t cpu_rows=0,gpu_rows=0;std::array<llama_token,128> prompt_ids{};llama_token t0=-1,t1=-1,g0=-1,g1=-1;HANDLE output=INVALID_HANDLE_VALUE,trace_file=INVALID_HANDLE_VALUE;
++ auto fail=[&](const char*s){if(cause.empty())cause=s?s:"unknown proof failure";normal=false;};
++ try{
++  auto q=state->snapshot("before-gpu-config");state->initial_limit=q.limit;check(q,q.limit,probe_allowance);
++  const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());
++  input=std::make_shared<GpuProofInput>(root);state->ticket_expiry=input->ticket.expires;const auto now=dev_utc_ms();if(now>=state->ticket_expiry)throw std::runtime_error("GPU ticket expired before admission");state->deadline=std::min(state->deadline,ua50::uwp::Clock::now()+std::chrono::milliseconds(state->ticket_expiry-now));state->stop_path=input->path("stop").wstring();
++  if(std::filesystem::exists(input->path("output.json"))||std::filesystem::exists(input->path("trace.bin")))throw std::runtime_error("GPU old output identity exists");
++  // Namespace admission and exact bytes precede claim/hash; authority is separately bound by future Ops/Root.
++  input->spend();claim=true;output=CreateFile2(input->path("output.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr);if(output==INVALID_HANDLE_VALUE)throw std::runtime_error("GPU main CREATE_NEW");trace_file=CreateFile2(input->path("trace.bin").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr);if(trace_file==INVALID_HANDLE_VALUE)throw std::runtime_error("GPU trace CREATE_NEW");
++  require_matching_catalogue();writer=ModelDownloader::WriterGate().try_acquire();if(!writer.owns_lock())throw std::runtime_error("GPU own-writer exclusion unavailable");
++  std::weak_ptr<Pilot> weak=state;state->limit_changed=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[weak](const auto&,const winrt::Windows::System::AppMemoryUsageLimitChangingEventArgs&a)noexcept{if(auto s=weak.lock())if(a.NewLimit()!=s->initial_limit)s->request_stop();});state->start_monitor();
++  for(const auto&folder:{root,root/L"models",root/L"models"/L"lfm25-24b-a2b-q4-k-m"}){CREATEFILE2_EXTENDED_PARAMETERS p{};p.dwSize=sizeof(p);p.dwFileFlags=FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT;DevHandle d(CreateFile2(folder.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,OPEN_EXISTING,&p));FILE_ATTRIBUTE_TAG_INFO a{};if(d.value==INVALID_HANDLE_VALUE||!GetFileInformationByHandleEx(d.value,FileAttributeTagInfo,&a,sizeof(a))||!(a.FileAttributes&FILE_ATTRIBUTE_DIRECTORY)||(a.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT))throw std::runtime_error("GPU LocalFolder model path unavailable/reparse");}
++  const auto path=(root/L"models"/L"lfm25-24b-a2b-q4-k-m"/file).wstring();
++  HashReadObserver hash_observer=[&](size_t want,size_t got,int64_t elapsed){if(elapsed<0)throw std::runtime_error("GPU SHA clock");sha_calls=add(sha_calls,1);sha_requested=add(sha_requested,want);sha_returned=add(sha_returned,got);sha_elapsed_ns=add(sha_elapsed_ns,uint64_t(elapsed));};
++  auto source=make_windows_expert_source(path,{bytes,sha},state->abort,state->deadline,4u<<20,hash_observer);
++  state->phase("outer-held-preSHA",probe_allowance);guard=source();pre_sha=true;state->held=guard->file;{std::lock_guard<std::mutex> l(state->mutex);state->control=guard->control;}
++  state->phase("GPU-driver-initialization",probe_allowance);
++  ExpertGpuAdmission admission{input->config.adapter_luid,input->config.shader_sha,[state](const ua50::GpuSnapshot&,uint64_t pending){state->phase("GPU-resource-admission",pending);}};
++  gpu=make_expert_gpu_d3d12(admission);gpu_effective=gpu->snapshot();state->phase("proof-storage-admission",add(4u<<20,gpu_proof::Trace::required_owned_bytes()));
++  proof=std::make_shared<gpu_proof::Proof>(input->config.stage);trace=std::make_shared<gpu_proof::Trace>(GetCurrentProcessId(),input->config.stage==gpu_proof::Stage::Primitive16?3:4,input->config.id,input->config_sha,input->ticket_sha,gpu_run::engine_sha,gpu_effective.shader_sha256);
++  opt.enabled=true;opt.plan_profile=CpuExpertOptIn::PlanProfile::FinishedAnswer512;opt.slots=2;opt.cache_ceiling=16u<<20;opt.stage_ceiling=4u<<20;opt.numerical_proof_owned_bytes=4u<<20;opt.instrumentation_owned_bytes=input->owned_bytes()+262144+4096;
++  opt.model.main_gpu=-1;opt.model.n_gpu_layers=0;opt.model.split_mode=LLAMA_SPLIT_MODE_NONE;opt.model.load_mode=LLAMA_LOAD_MODE_NONE;opt.model.lazy_mode=LLAMA_LAZY_MODE_OFF;opt.model.use_extra_bufts=false;
++  opt.context.n_ctx=512;opt.context.n_batch=1;opt.context.n_ubatch=1;opt.context.n_seq_max=1;opt.context.n_outputs_max=1;opt.context.n_outputs_max_per_seq=1;opt.context.n_threads=1;opt.context.n_threads_batch=1;opt.context.offload_kqv=false;opt.context.op_offload=false;opt.context.flash_attn_type=LLAMA_FLASH_ATTN_TYPE_DISABLED;opt.context.type_k=GGML_TYPE_F16;opt.context.type_v=GGML_TYPE_F16;
++  opt.model.progress_callback=[](float,void*p)->bool{return !static_cast<Pilot*>(p)->abort->load();};opt.model.progress_callback_user_data=state.get();
++  opt.admitted_source=[&,source]{
++   state->gpu_progress_ns.store(0);state->phase("fresh-session-heldSHA",probe_allowance);guard->validate_binding(guard->file);auto c=source();
++   if(c.admission.identity!=guard->admission.identity||c.admission.bytes!=bytes||c.admission.sha256!=sha)throw std::runtime_error("sequential reference source identity drift");return c;
++  };
++  // The guard FILE+writer remain across sequential contexts; each new session gets its own non-reusable control/FILE and FULL-held SHA, never resets an old control.
++  opt.admit_budget=[&](const ua50::ExpertLoadPlan&plan,const llama_context_params&){auto m=plan_cpu_expert_memory(guard->file,opt,plan);uint64_t extra=gpu->required_owned_bytes()+gpu_proof::Trace::required_owned_bytes()+sizeof(gpu_proof::Controller)+4096;state->phase("hybrid-joint-native-plan",add(m.total(),extra));};
++  opt.effective_observer=[&](const CpuExpertEffective&e){if(e.context!=512||e.threads!=1||e.threads_batch!=1||e.slots!=2||e.ceiling!=(16u<<20)||e.owned>e.ceiling)throw std::runtime_error("hybrid actual native effective mismatch");actual_effective[live_phase]=e;};
++  opt.phase_check=[state](const char*p){state->phase(p);};opt.cache_events=[&](const char*,const ua50::Counters&c){host_counts[live_phase]=c;};
++  auto progress=[&](const char*p){
++   const bool reference=std::strcmp(p,"cpu-reference-open")==0||std::strcmp(p,"primitive-open")==0;
++   const bool opening=reference||std::strcmp(p,"hybrid-open")==0;if(opening)state->gpu_progress_ns.store(0);
++   if(std::strcmp(p,"hybrid-open")==0)live_phase=1;
++   state->phase(p); // validate OLD progress before resetting it; no concealed long operation
++   if(std::strcmp(p,"proof-before-decode")==0||std::strcmp(p,"proof-after-decode")==0||std::strcmp(p,"primitive-vector")==0)state->gpu_progress_ns.store(std::chrono::duration_cast<std::chrono::nanoseconds>(ua50::uwp::Clock::now().time_since_epoch()).count());
++  };
++  controller=std::make_shared<gpu_proof::Controller>(proof,trace,gpu,progress);{std::lock_guard<std::mutex>l(state->mutex);state->gpu_controller=controller;}
++  if(input->config.stage==gpu_proof::Stage::Primitive16)controller->primitive16(opt);else controller->model2(opt);
++  state->gpu_progress_ns.store(0);state->phase("outer-held-postSHA");auto validator=make_held_sha256_validator({bytes,sha},[state]{return state->abort->load();},state->deadline,hash_observer);auto verified=validator(guard->file,bytes);guard->validate_binding(guard->file);post_sha=verified.bytes_checked==bytes&&verified.sha256==sha;
++  state->finish_monitor();if(state->abort->load())throw std::runtime_error("final monitor stop; retain numeric partial");
++  controller->finish_normal();if(!proof->passed())fail("NUMERICAL_GATE_FAILED_OR_INCOMPLETE; inspect bounded coverage/witness");normal=proof->passed()&&controller->terminal()&&post_sha&&actual_effective[0].context==512&&(input->config.stage==gpu_proof::Stage::Primitive16||actual_effective[1].context==512);
++ }catch(const std::exception&e){fail(e.what());}catch(...){fail("GPU proof unknown failure");}
++ state->finish_monitor();if(state->abort->load())fail("final monitor stopped; no normal commit");
++ if(controller){if(!normal){controller->request_stop();controller->drain();}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
++ if(gpu){gpu->drain();try{gpu_counts=gpu->counts();gpu_effective=gpu->snapshot();if(gpu->error()[0])fail(gpu->error());}catch(const std::exception&e){fail(e.what());}}
++ if(normal&&input){
++  const uint64_t hashes=input->config.stage==gpu_proof::Stage::Primitive16?3:4;
++  if(sha_calls!=hashes*((bytes+65535)/65536+1)||sha_requested!=hashes*(bytes+1)||sha_returned!=hashes*bytes)fail("all-held-SHA aggregate coverage mismatch");
++  const uint64_t frames=uint64_t(pcount)+1;const bool primitive=input->config.stage==gpu_proof::Stage::Primitive16;
++  const uint64_t dispatched=primitive?16:456*frames;
++  if(gpu_counts.requests!=dispatched||gpu_counts.submits!=dispatched||gpu_counts.completed!=dispatched||gpu_counts.returned!=dispatched||gpu_counts.published!=(primitive?0:dispatched)||gpu_counts.q4!=(primitive?12:384*frames)||gpu_counts.q6!=(primitive?4:72*frames)||gpu_counts.weight_bytes!=(primitive?31555584ull:865271808ull*frames)||gpu_counts.q8_bytes!=(primitive?32704ull:976448ull*frames))fail("actual GPU dispatched quant/byte coverage mismatch");
++ }
++ if(normal&&trace&&input&&input->config.stage==gpu_proof::Stage::Model2){auto routes=trace->compare_model_routes(uint32_t(pcount));if(!routes.available||!routes.equal)fail("CPU/hybrid ordered routing divergence or incomplete route coverage");}
++ // Release session-owned GPU resources before file/writer/main commit. Process-global stock GPU resources remain explicitly reported.
++ if(controller){try{controller->seal(normal);}catch(const std::exception&e){fail(e.what());}controller.reset();}
++ gpu.reset();opt.admitted_source={};opt.hybrid_gpu.reset();guard.reset();writer.release();state->held=nullptr;state->limit_changed.revoke();
++ try{
++  if(!input||!claim)throw std::runtime_error("GPU claim/input unavailable; no numerical evidence");
++  if(!proof||!trace){
++   if(output!=INVALID_HANDLE_VALUE){const auto quote=first_answer::quote;const std::string refused="{\"schema\":\"ua68-gpu-proof-output-v1\",\"normal\":false,\"status\":\"REFUSED_BEFORE_NUMERICAL_PROOF\",\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"error\":"+quote(cause)+",\"proof\":null,\"trace\":null,\"owner_file_writer_closed\":true}";DWORD written=0;if(!WriteFile(output,refused.data(),DWORD(refused.size()),&written,nullptr)||written!=refused.size()||!FlushFileBuffers(output))throw std::runtime_error("GPU refusal commit failed");if(!CloseHandle(output))throw std::runtime_error("GPU refusal close failed");output=INVALID_HANDLE_VALUE;log_output(marker+" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n");}
++   throw std::runtime_error("numerical proof not reached; empty trace not replayable");
++  }
++  package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
++  if(normal&&!trace->complete())fail("complete numerical trace unavailable");
++  auto summary=proof->summary(true,normal);if(summary.size()>65536)throw std::length_error("GPU summary cap");
++  if(trace_file==INVALID_HANDLE_VALUE)throw std::runtime_error("GPU trace missing");DWORD n=0;if(!WriteFile(trace_file,trace->data(),DWORD(trace->file_bytes),&n,nullptr)||n!=trace->file_bytes||!FlushFileBuffers(trace_file))throw std::runtime_error("GPU trace commit failed");if(!CloseHandle(trace_file)){trace_file=INVALID_HANDLE_VALUE;throw std::runtime_error("GPU trace close failed");}trace_file=INVALID_HANDLE_VALUE;
++  log_output(marker+(normal?" TRACE_COMMITTED complete replayable\n":" TRACE_COMMITTED partial not replayable\n"));
++  const auto quote=first_answer::quote;std::string json;json.reserve(262144);
++  json="{\"schema\":\"ua68-gpu-proof-output-v1\",\"normal\":"+std::string(normal?"true":"false")+",\"scope\":\"xbox-ua68-expert-sync-proof-v1\",\"stage\":"+quote(input->config.stage==gpu_proof::Stage::Primitive16?"primitive16":"model2")+",\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"engine_sha256\":"+quote(gpu_run::engine_sha)+",\"native_package_full_name\":"+quote(package)+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"requested\":"+input->config.raw+",\"effective\":{\"tuple\":\"cpu_graph_d3d12_expert_sync\",\"cpu_threads\":"+std::to_string(actual_effective[live_phase].threads)+",\"context\":"+std::to_string(actual_effective[live_phase].context)+",\"host_slots\":"+std::to_string(actual_effective[live_phase].slots)+",\"GPU_slots\":1,\"GPU_outstanding_max\":1,\"adapter_luid\":"+quote(gpu_effective.adapter_luid)+",\"compiled_shader_sha256\":"+quote(gpu_effective.shader_sha256)+",\"fallback\":false},\"comparator_source_sha256\":"+quote(gpu_proof::comparator_source_sha)+",\"oracle_source_sha256\":"+quote(gpu_proof::oracle_source_sha)+",\"threshold_descriptor_sha256\":"+quote(gpu_proof::threshold_descriptor_sha)+",\"patterns_descriptor_sha256\":"+quote(gpu_proof::patterns_descriptor_sha)+",\"oracle_native_revision\":"+quote(gpu_proof::oracle_revision)+",\"oracle_symbol\":\"ggml_get_type_traits_cpu(Q4_K/Q6_K).vec_dot/Q8_K\",\"machine_code_digest_available\":false,\"external_signed_artifact_binding_required\":true,\"pre_sha_verified\":"+(pre_sha?"true":"false")+",\"post_sha_verified\":"+(post_sha?"true":"false")+",\"owner_file_writer_closed\":true,\"error\":"+quote(cause)+",\"proof\":"+std::string(summary)+",\"reference_rows_captured\":"+std::to_string(cpu_rows)+",\"GPU_rows_captured\":"+std::to_string(gpu_rows)+",\"prompt_ids\":[";
++  for(size_t i=0;i<pcount;++i){if(i)json+=",";json+=std::to_string(prompt_ids[i]);}json+="],\"cpu_samples\":["+std::to_string(t0)+","+std::to_string(t1)+"],\"gpu_samples\":["+std::to_string(g0)+","+std::to_string(g1)+"],\"first_greedy_divergence_position\":"+(g0>=0&&g0!=t0?std::to_string(pcount-1):g1>=0&&g1!=t1?std::to_string(pcount):"null")+",\"trace\":{\"schema\":\"UA68TRC1\",\"bytes\":"+std::to_string(trace->file_bytes)+",\"complete\":"+(trace->complete()?"true":"false")+",\"fnv1a64\":\"";
++  char fnv[17];std::snprintf(fnv,sizeof(fnv),"%016llx",static_cast<unsigned long long>(trace->whole_fnv()));json+=fnv;json+="\"},\"GPU_counts\":{\"submits\":"+std::to_string(gpu_counts.submits)+",\"completed\":"+std::to_string(gpu_counts.completed)+",\"returned_vectors\":"+std::to_string(gpu_counts.returned)+",\"graph_published\":"+std::to_string(gpu_counts.published)+",\"q4\":"+std::to_string(gpu_counts.q4)+",\"q6\":"+std::to_string(gpu_counts.q6)+",\"weight_bytes\":"+std::to_string(gpu_counts.weight_bytes)+",\"q8_bytes\":"+std::to_string(gpu_counts.q8_bytes)+",\"fence_poll_wait_ns\":"+std::to_string(gpu_counts.fence_wait_ns)+",\"copy_CPU_ns\":"+std::to_string(gpu_counts.copy_cpu_ns)+",\"GPU_compute_ns\":null,\"timestamp_status\":\"not_collected_first_slice\",\"terminal\":"+(gpu_counts.terminal?"true":"false")+"},\"resources\":[";
++  for(size_t i=0;i<gpu_effective.resources.count;++i){auto&a=gpu_effective.resources.entries[i];if(i)json+=",";json+="{\"name\":"+quote(a.name)+",\"allocation_bytes\":"+std::to_string(a.bytes)+",\"process_global\":"+(a.existing?"true":"false")+"}";}
++  json+="],\"GPU_init_observed_app_usage_delta\":"+std::to_string(gpu_effective.init_observed_app_delta)+",\"GPU_owned_creation_app_usage_delta\":"+std::to_string(gpu_effective.owned_creation_app_delta)+",\"init_delta_is_driver_only\":false,\"driver_probe_reserved\":268435456,\"proof_reserved\":4194304,\"reserve\":536870912,\"quota_limit\":"+std::to_string(state->initial_limit)+",\"sampled_max_app_usage\":"+std::to_string(state->max_sampled_usage.load())+",\"quota_snapshot_count\":"+std::to_string(state->gpu_quota_snapshots.load())+",\"quota_log_mode\":\"aggregate_no_per_expert_lines\",\"sampled_not_peak\":true,\"DXGI_budget\":"+std::to_string(gpu_effective.dxgi_budget)+",\"DXGI_usage\":"+std::to_string(gpu_effective.dxgi_usage)+",\"UMA_separate_RAM\":false,\"SHA_calls\":"+std::to_string(sha_calls)+",\"SHA_requested\":"+std::to_string(sha_requested)+",\"SHA_returned\":"+std::to_string(sha_returned)+",\"host_cache\":[";
++  for(size_t i=0;i<2;++i){if(i)json+=",";auto&c=host_counts[i];json+="{\"requests\":"+std::to_string(c.requests)+",\"hits\":"+std::to_string(c.hits)+",\"misses\":"+std::to_string(c.misses)+",\"logical_reader_calls\":"+std::to_string(c.read_calls)+",\"logical_reader_bytes\":"+std::to_string(c.read_bytes)+",\"reader_ns\":"+std::to_string(c.reader_ns_total)+",\"acquire_ns\":"+std::to_string(c.acquire_ns_total)+"}";}
++  const auto routes=trace->compare_model_routes(uint32_t(pcount));
++  json+="],\"routes_equal\":"+(input->config.stage==gpu_proof::Stage::Primitive16?std::string("null"):routes.available?(routes.equal?std::string("true"):std::string("false")):std::string("null"))+",\"first_route_divergence\":";
++  if(routes.available&&!routes.equal)json+="{\"frame\":"+std::to_string(routes.frame)+",\"key_in_frame\":"+std::to_string(routes.key)+",\"cpu_key\":"+std::to_string(routes.cpu_key)+",\"gpu_key\":"+std::to_string(routes.gpu_key)+"}";else json+="null";
++  json+=",\"SHA_elapsed_ns\":"+std::to_string(sha_elapsed_ns)+",\"storage_coverage\":{\"provider_reader\":\"cache_success_commit_counters_only\",\"partial_reader_bytes_available\":false,\"metadata_load_file_io\":\"unobserved\",\"SHA\":\"all_instrumented_fread_EOF_and_errors\"},\"CPU_Q8_pack_ns\":null,\"physical_SSD_metrics\":null,\"raw_rows_saved\":false,\"offline_rawrow_replay\":false,\"native_consumption_epoch_exported\":false}";
++  if(json.size()>262144||json.capacity()>(2u<<20)||output==INVALID_HANDLE_VALUE)throw std::length_error("GPU combined main cap/output");n=0;if(!WriteFile(output,json.data(),DWORD(json.size()),&n,nullptr)||n!=json.size()||!FlushFileBuffers(output))throw std::runtime_error("GPU main commit failed");if(!CloseHandle(output)){output=INVALID_HANDLE_VALUE;throw std::runtime_error("GPU main close failed");}output=INVALID_HANDLE_VALUE;
++  log_output(marker+(normal?" OUTPUT_COMMITTED normal owner/file/writer closed\n":" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));
++ }catch(const std::exception&e){fail(e.what());log_output(marker+" OUTPUT_FAILED: "+e.what()+"\n");}
++ if(trace_file!=INVALID_HANDLE_VALUE)CloseHandle(trace_file);if(output!=INVALID_HANDLE_VALUE)CloseHandle(output);
++ log_output(marker+(normal?" terminal normal\n":" terminal stopped; no retry\n"));
++}
+diff --git a/uwp/inference-bridge.h b/uwp/inference-bridge.h
+--- a/uwp/inference-bridge.h
++++ b/uwp/inference-bridge.h
+@@ -120,3 +120,5 @@
+                                                const xllama::DeviceTrainCallbacks& cb = {});
+ 
+ } // namespace xllama::bridge
++
++namespace xllama::bridge {void run_expert_gpu_proof_configured();} // internal; no App/UI/LAN activation callsite

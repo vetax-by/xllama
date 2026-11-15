@@ -265,8 +265,8 @@ the model, or establish OOM or model fit. The refused attempt is not relabeled
 as a model correctness failure.
 
 The bounded console smoke milestone is not a performance benchmark. Dense-model
-D3D12 results do not prove routed expert support: external `MUL_MAT_ID` GPU
-execution is not implemented by this patch. Logical reader bytes are not
+Historical dense D3D12 results do not prove routed expert support. The new
+explicit selected-expert bridge described below still requires native GPU proof. Logical reader bytes are not
 physical SSD traffic; process RSS is not the full memory cost of OS page cache,
 KV, activations, UI and backend buffers.
 
@@ -291,12 +291,13 @@ instead of treating the raw fork checkout as an already prepared build tree.
 [`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for the
 ordered patch route. Apply the stock AppContainer guard once, then each listed
 patch in its exact order on a separate clean base tree. The configurable
-successor retains the ten historical entries and adds its root and native
-patches. Do not additionally apply intermediate development patches or apply a
+CPU successor retains the ten historical entries and adds its root and native
+patches. The GPU proof successor adds one root and one native patch after those
+twelve entries, for fourteen ordered patches and 65 shipping postimages. Do not additionally apply intermediate development patches or apply a
 cumulative patch twice.
 
-The two new `.inc` files are shipping include dependencies of `session.cpp`,
-not additional translation units. The first-answer record/template add two
+The historical session `.inc` files and the additional GPU `.inc` files are
+shipping include dependencies, not additional translation units. The first-answer record/template add two
 shipping headers without adding a translation unit. Test doubles, local fixtures, Linux-only
 reader adapters and reference overlays are excluded from the shipping set.
 
@@ -330,12 +331,48 @@ The explicit successor result and binary-trace versions preserve the historical 
 
 Storage aggregates distinguish covered provider Reader operations, held-file SHA reads and unobserved loader/metadata I/O. Reader and cache elapsed times are nested application measurements; terminal read bytes are logical completion bytes. SHA read time excludes hash computation and can affect the OS file cache. These values do not measure physical SSD traffic, service latency or saturation. Optional system metrics remain unavailable until explicitly supported and observed. Detail collection cannot silently exceed the charged trace, collector or JSON limits.
 
-Developer release acceptance covers reviewed source, inspected Windows artifacts, signing evidence and a preserving update. Native CPU configuration qualification follows as a separate task; the GPU direction stays blocked until independent CPU acceptance. A successful historical fixed-profile answer is not evidence that arbitrary configs, cache capacities or acceleration settings have been qualified.
+The historical CPU developer release completed reviewed source, inspected Windows artifacts, signing evidence and a preserving update. Independent bounded CPU configuration qualification subsequently covered the selected cases; it does not establish general model usability or GPU execution. A successful historical fixed-profile answer is not evidence that arbitrary configs, cache capacities or acceleration settings have been qualified.
 
 The first configurable Windows compile stopped at an unresolved developer
 header include. Its source-relative include route has been corrected without
-changing the engine contract, computation or project/import declarations. The separately selected
-[replacement Windows build](https://github.com/vetax-by/xllama/actions/runs/43680931110)
-compiled, linked and produced an inspected unsigned package. Signing, a
-preserving update and separate native CPU qualification remain required; the
-failed attempt remains part of the build history.
+changing the engine contract, computation or project/import declarations. A
+replacement CPU artifact subsequently passed separate inspection, signing and
+a preserving update. The original failed attempt remains a failure; it does not
+establish a usable package. This historical correction is not the new GPU build.
+
+## Selected-expert GPU correctness candidate
+
+The additional bridge executes selected Q4_K/Q6_K matrix vectors synchronously
+inside the existing CPU graph. It keeps CPU activation packing, ascending expert
+routing and the two-slot host cache. A single GPU slot and one outstanding
+submission hold their host inputs through fence completion, validate guards
+before publication and preserve the first error. It does not claim backend
+support for general `MUL_MAT_ID`, asynchronous paging or a GPU expert cache.
+
+A new closed developer protocol separates a sixteen-vector primitive stage
+from a two-row model stage. The second stage requires an actual independently
+accepted primitive receipt for the same artifact, package, engine, compiled
+shader and adapter. Missing bindings refuse. Historical CPU config/output/trace
+formats are preserved. One-use tickets, immutable run identities and original
+expiry remain mandatory; configuration is not execution authority.
+
+The numerical envelope compares all elements online against the CPU reference,
+with fixed tolerance, coverage/finite/error counts and bounded witnesses. CPU
+reference context closes before the hybrid context opens. Full numeric rows
+are not exported: saved summary consistency is not independent offline
+recomputation of every error or full-row parity. A separate charged proof
+allocation, collector, actual GPU resources and native plan must fit a fresh
+application quota with unchanged reserve and probe. DXGI budget is not extra RAM.
+
+Normal output requires actual fence/owner/file closure, integrity checks and
+trace then main commit. The operator separately checks process absence and
+caller closure before local proof finalization. Partial, stopped, unknown or
+contradictory records cannot establish normal proof. Reader timing is not
+physical SSD timing; GPU compute time remains unavailable in this first slice.
+
+Source and saved portable author checks are accepted; actual Windows/D3D12
+kernels/shaders and console primitive/model correctness remain pending. This
+candidate is not a general GPU chat runner or a configurable performance suite.
+Stability and practical model usability follow correctness; worker counts and
+memory profiles require separately implemented capabilities before later speed
+comparisons. Velocity/FSR research stays outside this implementation.

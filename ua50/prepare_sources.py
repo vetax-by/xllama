@@ -45,32 +45,33 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = 'f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e'
+CURRENT_PATCH_LOCK = '5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current configurable/f11d lock admitted; oldbd37/2d69/25b9/5dab/B803/760e/a199/e781 refused')
+        raise ValueError('only current UA68/5e34 lock admitted; oldf11d/bd37/2d69/25b9/5dab/B803/760e/a199/e781 refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
     lock = json.loads(raw)
-    if lock['xllama'] != XLLAMA or lock['llama'] != LLAMA:
-        raise ValueError('current runtime base mismatch')
+    if lock['parent_patch_lock_sha256'] != 'f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e' or lock['parent12_reused_not_replayed'] is not True:
+        raise ValueError('exact accepted CPU parent12 identity required')
     if [(e['file'], e['target']) for e in lock['patches']] != [
             ('patch/runtime-root.patch', 'xllama'), ('patch/runtime-llama.patch', 'llama'),
             ('patch/app-xllama.patch', 'xllama'), ('patch/app-llama.patch', 'llama'),
             ('patch/cpu-pilot-root.patch', 'xllama'), ('patch/cpu-pilot-llama.patch', 'llama'),
             ('patch/first-answer-root.patch', 'xllama'), ('patch/finished-answer-root.patch', 'xllama'),
             ('patch/cache-ab-root.patch', 'xllama'), ('patch/cache-ab-llama.patch', 'llama'),
-            ('patch/configurable-runner-root.patch', 'xllama'), ('patch/configurable-runner-llama.patch', 'llama')]:
-        raise ValueError('exact accepted ten plus configurable root and native twelfth order required')
+            ('patch/configurable-runner-root.patch', 'xllama'), ('patch/configurable-runner-llama.patch', 'llama'),
+            ('patch/ua68-expert-gpu-root.patch', 'xllama'), ('patch/ua68-expert-gpu-native.patch', 'llama')]:
+        raise ValueError('exact accepted twelve plus UA68 root and native fourteenth order required')
     for entry in lock['patches']:
         patch = checked_patch(operator, entry)
         if patch.stat().st_size != entry['bytes']:
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = 'f1e37f215bc33e23327911be5eece216586e1628b243bfd8247ba668cea66186'
+SHIPPING_INVENTORY_SHA = '30aa6c5d918cbdd57bdf45e5631ed3cfb8cc4667f34db428065c66769cf8a2b9'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):
@@ -80,9 +81,12 @@ def admitted_shipping_inventory(operator):
     imports = (operator / 'COMPILER-IMPORT-INVENTORY.json').read_bytes()
     if hashlib.sha256(imports).hexdigest() != COMPILER_INVENTORY_SHA:
         raise ValueError('compiler/import declarations changed')
-    entries = json.loads(raw)['selected_materialized_files']
-    if len(entries) != 51:
-        raise ValueError('exact fifty-one selected shipping files required')
+    includes = (operator / 'INCLUDE-DEPENDENCY-INVENTORY.json').read_bytes()
+    if hashlib.sha256(includes).hexdigest() != '1af686f389de54f5cf7fa128c980a880f55be92f77afd4f42a7d6a53568f9c82' or len(json.loads(includes)['direct_includes_only']) != 587:
+        raise ValueError('exact current 587 direct source includes required')
+    entries = json.loads(raw)['selected_source_files']
+    if len(entries) != 65:
+        raise ValueError('exact sixty-five selected shipping files required')
     seen = set()
     for entry in entries:
         target, path = entry['target'], entry['target_path']
