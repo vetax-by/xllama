@@ -168,10 +168,45 @@ A terminated final text, a length-capped text after thinking and open reasoning
 without a final section are classified separately while retaining the original
 record. Neither literal closing-tag presence nor normal teardown asserts semantic
 answer quality. The new profile has narrow portable fake-boundary functional,
-source/shipping and inspected Windows compile/link/package evidence. Its signed
-preserving update and console generation remain pending. It does not implement
-a larger expert cache, GPU execution or automatic continuation beyond the sample
-cap.
+source/shipping and inspected Windows compile/link/package evidence. A later
+signed preserving update and bounded console run produced an actual generated
+thinking close and final text, native termination and normal teardown. This
+one turn is not assistant-quality, long-context or sustained-performance
+acceptance. This profile retains its two-slot cache and does not implement GPU
+execution or automatic continuation beyond the sample cap.
+
+### Cache A/B source candidate
+
+Two additional patches preserve the eight earlier patches and add separate
+two-slot and 512-slot developer profiles. Both retain the finished-answer
+prompt, template, sampler, CPU thread, context and sample allowance, and share
+identical tracing and timing code. Only cache capacity and its admitted owned
+allocation differ. The large cache ceiling is a bound, not proof that it fits.
+Actual cache metadata, padded payload arena, staging, trace object and buffer
+are charged by the native plan before payload allocation; the existing reserve,
+probe allowance and fresh quota guards remain.
+
+The existing route callback records every acquisition before lookup, including
+hits, in actual expert and graph execution order. The bounded binary trace
+contains role byte lengths and per-decode boundaries. Request hits and byte
+hits have different denominators for mixed quantization. Reader and acquire
+timers include their respective call overhead; neither measures physical SSD
+traffic or pure device wait. Ordered LRU replay is accounting on that trace,
+not a measurement of another run's speed. Matching token IDs or text does not
+replace full-row resident numerical parity.
+
+After integrity and final monitor checks, the owner drains and closes backing
+resources before the trace is sealed and written. A complete trace must be
+committed before the main normal output; missing, partial, failed, overflowed or
+clock-invalid traces cannot pass the complete-pair gate. A normal, terminally
+closed two-slot run and complete validated pair are prerequisites for the
+512-slot run's fresh admission. New namespaces preserve all earlier claims and
+outputs. There is no automatic retry or guard reduction.
+
+Narrow source/shipping, actual small cache-byte tests and synthetic trace/replay
+checks have passed. The current ten-patch candidate requires its own Windows
+build, signed update and actual console measurements. Cache hit rates, speed
+advantage, physical I/O reduction and large-cache fit are not established.
 
 ## Evidence and limits
 
@@ -193,23 +228,27 @@ selected source files verified. Its unsigned package is 21,072,488 bytes,
 SHA-256 `808e50ba90d42b09c745eeb67221719afa4e50e80a04817ceb3724d7fe6be89f`,
 also version `1.7.0.0`. That profile subsequently produced bounded console
 reasoning after a signed preserving update, as qualified above. The separate
-384-sample successor still requires its own build, update and output acceptance.
+384-sample successor has since completed its own build, signed preserving
+update and one bounded genuine final-output acceptance, as qualified below.
 Build warnings are retained; this is not a warning-free build or proof of runtime
 correctness.
 
 The distinct [eight-patch finished-answer build](https://github.com/vetax-by/xllama/actions/runs/43645815389)
 compiled, linked and produced an inspected unsigned x64 package, with all 47
-selected source files verified under the current patch lock. The package is
+selected source files verified under its historical eight-patch lock. The package is
 21,075,228 bytes, SHA-256
 `3bfc3b28cd4006c8913329f27a6fd598611e7761da7bbf87269da6e50ad8b615`,
-version `1.7.0.0`. Its signed preserving update and actual new-profile console
-output remain separate acceptance stages.
+version `1.7.0.0` as the unsigned artifact. Its later signed preserving update
+and one bounded console result have been accepted: actual generated thinking
+close and final text, native termination and normal teardown. Private text,
+token IDs and telemetry are not included. This does not establish semantic
+quality, resident-reference parity, a usable chat UI or sustained performance.
 
 | Area                          | What has been checked                                                                                                                         | What it does not establish                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Native CPU integration        | Actual LFM2MoE factory/context/decode on generated GGUF fixtures, resident/cache logits, routes, mixed-quant slice ledgers and fault handling | Real checkpoint parity, useful assistant quality or Xbox performance                                                 |
 | Real 8B checkpoint            | One successful native prompt and next-token step using streamed experts                                                                       | Two-session reproducibility, resident-reference parity, sustained speed or context quality                           |
-| Real 24B checkpoint           | Bounded CPU smoke and generated reasoning with source-qualified held-file integrity and normal teardown                              | Completed final assistant answer, real resident-reference parity, sustained speed, long context or assistant quality              |
+| Real 24B checkpoint           | Bounded CPU smoke, generated reasoning and one genuine final section with source-qualified held-file integrity and normal teardown                              | Real resident-reference parity, sustained speed, long context or assistant quality              |
 | Portable reader core          | Nine fake-backend test groups                                                                                                                 | Windows API behavior or real device cancellation                                                                     |
 | Session hub and adapter/owner | Actual hub tests and five functional adapter/owner groups with ASan/UBSan; named native/platform boundaries are fakes                         | Native math, production Windows I/O or BCrypt execution                                                              |
 | Shipping preparation          | Exact patch order, selected postimages, registration and source-admission checks                                                              | Actual installation or runtime behavior on the console                                                               |
@@ -248,11 +287,11 @@ gitlink remains upstream-pinned; its modifications are carried as checked
 patches, not committed inside the submodule. Use the preparation recipe below
 instead of treating the raw fork checkout as an already prepared build tree.
 
-[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for eight
+[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for ten
 ordered patches. The route on a separate clean base tree is: stock AppContainer
 guard once, runtime root patch, runtime llama patch, application root patch,
 application llama patch, CPU pilot root patch, CPU pilot llama patch, the
-first-answer root patch and finally one finished-answer root patch. Do not additionally apply
+first-answer root patch, finished-answer root patch, cache A/B root patch and finally cache A/B llama patch. Do not additionally apply
 intermediate development patches or apply a cumulative patch twice.
 
 The two new `.inc` files are shipping include dependencies of `session.cpp`,

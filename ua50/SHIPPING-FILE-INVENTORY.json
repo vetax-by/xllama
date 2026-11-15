@@ -14,8 +14,8 @@
       "file": "postimage/include/xllama/cpu_expert_session.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_expert_session.h",
-      "bytes": 4231,
-      "sha256": "b4525d1e6f6301e307c72a8040bc69d2037083cd44cbbd009abd35156995b034",
+      "bytes": 4510,
+      "sha256": "bd9c5ed0505004bb2fac8d8ada2b94046c069f5102a24064a917a8d43f0dad94",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -39,6 +39,26 @@
       "bytes": 1864,
       "sha256": "910bc2bfb4f314ad6e3e06af89b20ad7170b8210907db7f948c8ba6682e73f11",
       "changed_or_added": true
+    },
+    {
+      "file": "postimage/include/xllama/first_answer_record.h",
+      "target": "xllama",
+      "target_path": "include/xllama/first_answer_record.h",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true,
+      "bytes": 9433,
+      "sha256": "0f3bdfae8230d59366f03f25b8ac53f8cf73636434b12aaad16483b6c1bf837d"
+    },
+    {
+      "file": "postimage/include/xllama/first_answer_template.h",
+      "target": "xllama",
+      "target_path": "include/xllama/first_answer_template.h",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true,
+      "bytes": 6348,
+      "sha256": "6c6ea6a1eecab29a83ed604a9bdfac2a234dc5bfecf55ca0b7434aa58cdb3bde"
     },
     {
       "file": "postimage/include/xllama/session.h",
@@ -201,11 +221,21 @@
       "changed_or_added": true
     },
     {
+      "file": "postimage/llama.cpp/src/ua50/cache_trace.h",
+      "target": "llama",
+      "target_path": "src/ua50/cache_trace.h",
+      "stock_preimage_sha256": null,
+      "stock_git_blob": null,
+      "changed_or_added": true,
+      "bytes": 8674,
+      "sha256": "d3a10fb7e6f5e4f0fac9fcc6f8359020517c6e96e0fdd78e1349bb4f54ca5c3f"
+    },
+    {
       "file": "postimage/llama.cpp/src/ua50/expert_cache.h",
       "target": "llama",
       "target_path": "src/ua50/expert_cache.h",
-      "bytes": 8362,
-      "sha256": "c3e895e62af119eec4242d7789ea22818d9d4e7a736231bff5fe98b15974101e",
+      "bytes": 9896,
+      "sha256": "a5187e1e42a2f135e67702f6f2c50472f1f327bb0fcde4d3cd04339c85236daf",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -224,8 +254,8 @@
       "file": "postimage/llama.cpp/src/ua50/native_provider.cpp",
       "target": "llama",
       "target_path": "src/ua50/native_provider.cpp",
-      "bytes": 8004,
-      "sha256": "3182bce4ef932f1a5ea3334ec072ec4044f01b94702ae27590ccccdc5bc1119e",
+      "bytes": 8139,
+      "sha256": "e7ceb9d5b6b101540fa473d22adbb0de77759508d6fe0c67f7c9687891b48e7d",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -234,8 +264,8 @@
       "file": "postimage/llama.cpp/src/ua50/native_provider.h",
       "target": "llama",
       "target_path": "src/ua50/native_provider.h",
-      "bytes": 2321,
-      "sha256": "2ffedc546bdc3f2366f0c695ee55620f54430a295332e1bf9e881640b1331c91",
+      "bytes": 2430,
+      "sha256": "d90d9f00b62a27ec6c06eafa483af607305284e0da7d6c5dc76991d02ad6f90e",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -294,8 +324,8 @@
       "file": "postimage/src/bridge/cpu_expert_session.cpp",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_session.cpp",
-      "bytes": 13100,
-      "sha256": "a679db88a6cd243bef9064a7f2752b181698c9139e1f30bfad2fe9add33c31e5",
+      "bytes": 14114,
+      "sha256": "55817de80b8712e99ab4068b5746d762a36ab8a20a1a7034540c41bb05d7e24a",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
       "changed_or_added": true
@@ -366,8 +396,8 @@
       "target_path": "uwp/App.cpp",
       "stock_preimage_sha256": "0ad5044e9e072fe9501bad3ef0d29c384e6b25c47012e5dd1b48c23cfde0b94c",
       "stock_git_blob": "ce40fbce37965da85548382f5dc3c8cb2b159c51",
-      "bytes": 29101,
-      "sha256": "4ad925687df642f8b62bdef33767db7626721fe39ae3fffd3e30eaf40cdc12e9",
+      "bytes": 30115,
+      "sha256": "f5090817b4d5311c673edc0eb090931eec2db641a9d85ed844f14b29f528855a",
       "changed_or_added": true
     },
     {
@@ -386,8 +416,8 @@
       "target_path": "uwp/cpu-expert-pilot.cpp",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
-      "bytes": 19618,
-      "sha256": "3e1c10d253ef45951ad2fedebeffce15fd8157c48d021deddfaf4044dbfc54a7",
+      "bytes": 23293,
+      "sha256": "a5aad5f4ca1099028fdc63e863482344f82e6e54e977bcc63a3e1fa400ae762d",
       "changed_or_added": true
     },
     {
@@ -406,8 +436,8 @@
       "target_path": "uwp/inference-bridge.h",
       "stock_preimage_sha256": "3aaf59fad43d544ba451ff3a201a2f76b5ff9da4275cd7075ec9b0bc5e88c621",
       "stock_git_blob": "66e05db464c95116ca6829a34d42d9ed17d7411d",
-      "bytes": 5685,
-      "sha256": "6234b65c558af423dc5152b1c28a188850a7f9c093524ec58c27393d4b975538",
+      "bytes": 5751,
+      "sha256": "b6f97d445bf2473d3efff2268109942c72ce8ec6302c60b7c8956ffbf02737d9",
       "changed_or_added": true
     },
     {
@@ -449,26 +479,6 @@
       "stock_preimage_sha256": "636bc39c51709c702c5a2f989aa305320f90a7f2b8808b31116fe9a7bc8dd30e",
       "stock_git_blob": "739e867e4175b9f2a7b404a9a9859ff4c9ad56b7",
       "changed_or_added": true
-    },
-    {
-      "file": "postimage/include/xllama/first_answer_record.h",
-      "target": "xllama",
-      "target_path": "include/xllama/first_answer_record.h",
-      "stock_preimage_sha256": null,
-      "stock_git_blob": null,
-      "changed_or_added": true,
-      "bytes": 8860,
-      "sha256": "94157600fbce2f815ee786c99d6e14931ea509e4e0d541c0730a8a35549ea151"
-    },
-    {
-      "file": "postimage/include/xllama/first_answer_template.h",
-      "target": "xllama",
-      "target_path": "include/xllama/first_answer_template.h",
-      "stock_preimage_sha256": null,
-      "stock_git_blob": null,
-      "changed_or_added": true,
-      "bytes": 6348,
-      "sha256": "6c6ea6a1eecab29a83ed604a9bdfac2a234dc5bfecf55ca0b7434aa58cdb3bde"
     }
   ],
   "scope": "selected exact source postimages, not full SDK/import closure"

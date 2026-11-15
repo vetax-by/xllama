@@ -49,6 +49,18 @@
       "target": "xllama",
       "bytes": 22845,
       "sha256": "6e4f94bc5bb0b4d49eacd2e0b1f0638e40b6231ccbfff4924f57eeff4af2ed1b"
+    },
+    {
+      "file": "patch/cache-ab-root.patch",
+      "target": "xllama",
+      "bytes": 27577,
+      "sha256": "62f2763ef86e4e73eca544d3549b6e2f0d6a39bd72256f99c5ef99a255d00c8f"
+    },
+    {
+      "file": "patch/cache-ab-llama.patch",
+      "target": "llama",
+      "bytes": 14487,
+      "sha256": "d76a5e9eb1c3b27df7b11106f7a4bf6ecd0ff5f453dd37d1c8bbfa10710e565c"
     }
   ]
 }

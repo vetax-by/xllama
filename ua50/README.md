@@ -8,15 +8,16 @@ The patch rationale, implementation and evidence limits have one home:
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
 - Patch lock SHA-256:
-  `25b96683858ec2fbfbcb171cd6e93927d6c9fbe315f8e5ffe919cae65f784b44`.
+  `2d691ec97b54c554fdd096b454f6e1410e90768d9641d02900af4914a291ba9b`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
 The first four patches retain the accepted application/runtime bytes. Two
 additional patches carry the explicit console CPU smoke pilot. The seventh root
 patch retains the bounded first-answer mode. An eighth root patch adds a separate
-384-sample finished-answer candidate; the current lock and source/import
-inventories bind all eight. The two generation profiles keep the same context,
-CPU-thread count and expert-cache configuration. The unsigned build and
+384-sample finished-answer profile. Two further patches add cache A/B developer
+profiles and their shared instrumentation; the current lock and inventories bind
+all ten patches and 48 selected files. The cache profiles keep the same generation
+settings and differ only in admitted cache capacity. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -42,8 +43,10 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The signing recipe pins this eight-patch unsigned artifact and the reusable
-stock baseline, together with the current source-receipt validators. It verifies
+The existing signing recipe remains tied to the historical eight-patch
+finished-answer artifact and reusable stock baseline. It does not sign the new
+ten-patch cache candidate: a future signing lane must bind the actual new
+unsigned artifact and both independently checked source-receipt validators. It verifies
 the source lock independently in both the Python preflight and PowerShell copy
 helper. A signing attempt needs its own exact artifact/version-bound selection. Manual
 signing also requires a fresh installed version and an explicitly selected higher
@@ -60,16 +63,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch 25b96683858ec2fbfbcb171cd6e93927d6c9fbe315f8e5ffe919cae65f784b44
+python operator/ua50/prepare_sources.py product operator/ua50 patch 2d691ec97b54c554fdd096b454f6e1410e90768d9641d02900af4914a291ba9b
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, eight ordered patch files and source/import inventories. Old
+exact lock, ten ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 47 selected shipping postimages,
+the pinned route once and checks all 48 selected shipping postimages,
 including both `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 
@@ -101,9 +104,12 @@ bounded console generation and normal teardown; its sample cap ended inside
 thinking, so it did not provide a completed final answer. The distinct
 [eight-patch finished-answer Windows build](https://github.com/vetax-by/xllama/actions/runs/43645815389)
 has now compiled, linked and produced an inspected unsigned package with all
-47 selected source files verified. Its signed preserving update and actual
-console-result acceptance remain pending. No private response or telemetry is
-included here.
+47 selected source files verified. That profile subsequently completed a
+signed preserving update and one bounded console generation with a genuine
+final section, native termination and normal teardown. This is a single-turn
+milestone, not assistant-quality, long-context or sustained-performance
+acceptance. The new cache candidate still needs its own Windows build, update
+and console A/B measurements. No private response or telemetry is included here.
 
 ## Bounded first-answer developer mode
 
@@ -148,3 +154,24 @@ aggregate-text and JSON byte caps remain strict; oversized serialization refuses
 before writing rather than clipping output. Normal runtime completion alone is
 not assistant-quality acceptance, and 384 samples do not guarantee a final
 answer. Old claims, outputs and ordinary application behavior remain intact.
+
+## Cache A/B developer candidate
+
+The ninth root and tenth native patches preserve all previous modes and add
+separate `ua50-cpu-lfm24-cache-a2-v1` and `ua50-cpu-lfm24-cache-b512-v1`
+LocalFolder prefixes. Each has its own flag, persistent claim, cooperative stop,
+private JSON output and binary trace. Both use the same checkpoint, prompt,
+template, sampler, CPU-only thread, context and sample cap. They use respectively
+two and 512 global expert-matrix slots; the larger capacity remains conditional
+on actual native sizing, the unchanged memory reserve and fresh quota admission.
+
+Both profiles record every cache acquisition, including hits, in a bounded
+ordered trace with decode boundaries, actual role lengths and separate request
+and byte counters. Cache-acquire and Reader-call elapsed times are nested
+measurements, not physical SSD traffic or pure OS wait. Trace memory is included
+in the joint plan. Complete trace write/flush/close precedes the main output;
+partial, failed or overflowed records cannot establish a complete comparison.
+A normal, closed A run with a complete validated pair must precede fresh B
+admission. No automatic retry, claim reset or cache-performance benefit is
+asserted. Source and synthetic checks do not prove the new Windows build or
+console behavior.

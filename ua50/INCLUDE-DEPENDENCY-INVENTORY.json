@@ -1,6 +1,5 @@
 {
-  "scope": "direct declarations only, not SDK/transitive resolution",
-  "count": 468,
+  "status": "DIRECT_INCLUDES_NOT_TRANSITIVE_SDK_IMPORT_PROOF",
   "includes": [
     {
       "from": "include/xllama/cpu_expert_session.h",
@@ -107,6 +106,66 @@
     {
       "from": "include/xllama/cpu_pilot_policy.h",
       "line": 7,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 2,
+      "style": "\"",
+      "include": "first_answer_template.h"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 3,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 4,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 6,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 7,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 8,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/first_answer_record.h",
+      "line": 9,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/first_answer_template.h",
+      "line": 2,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/first_answer_template.h",
+      "line": 3,
       "style": "<",
       "include": "string"
     },
@@ -1701,6 +1760,42 @@
       "include": "vector"
     },
     {
+      "from": "llama.cpp/src/ua50/cache_trace.h",
+      "line": 2,
+      "style": "\"",
+      "include": "expert_cache.h"
+    },
+    {
+      "from": "llama.cpp/src/ua50/cache_trace.h",
+      "line": 3,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "llama.cpp/src/ua50/cache_trace.h",
+      "line": 4,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "llama.cpp/src/ua50/cache_trace.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "llama.cpp/src/ua50/cache_trace.h",
+      "line": 6,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "llama.cpp/src/ua50/cache_trace.h",
+      "line": 7,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
       "from": "llama.cpp/src/ua50/expert_cache.h",
       "line": 2,
       "style": "<",
@@ -1744,7 +1839,19 @@
     },
     {
       "from": "llama.cpp/src/ua50/expert_cache.h",
-      "line": 12,
+      "line": 9,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 10,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "llama.cpp/src/ua50/expert_cache.h",
+      "line": 14,
       "style": "\"",
       "include": "ggml-common.h"
     },
@@ -2727,6 +2834,12 @@
       "include": "xllama/first_answer_record.h"
     },
     {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 20,
+      "style": "\"",
+      "include": "ua50/cache_trace.h"
+    },
+    {
       "from": "uwp/inference-bridge.h",
       "line": 6,
       "style": "\"",
@@ -2749,66 +2862,6 @@
       "line": 9,
       "style": "\"",
       "include": "xllama/training_params.h"
-    },
-    {
-      "from": "include/xllama/first_answer_record.h",
-      "line": 2,
-      "style": "\"",
-      "include": "first_answer_template.h"
-    },
-    {
-      "from": "include/xllama/first_answer_record.h",
-      "line": 3,
-      "style": "<",
-      "include": "algorithm"
-    },
-    {
-      "from": "include/xllama/first_answer_record.h",
-      "line": 4,
-      "style": "<",
-      "include": "chrono"
-    },
-    {
-      "from": "include/xllama/first_answer_record.h",
-      "line": 5,
-      "style": "<",
-      "include": "cstdint"
-    },
-    {
-      "from": "include/xllama/first_answer_record.h",
-      "line": 6,
-      "style": "<",
-      "include": "functional"
-    },
-    {
-      "from": "include/xllama/first_answer_record.h",
-      "line": 7,
-      "style": "<",
-      "include": "limits"
-    },
-    {
-      "from": "include/xllama/first_answer_record.h",
-      "line": 8,
-      "style": "<",
-      "include": "string"
-    },
-    {
-      "from": "include/xllama/first_answer_record.h",
-      "line": 9,
-      "style": "<",
-      "include": "vector"
-    },
-    {
-      "from": "include/xllama/first_answer_template.h",
-      "line": 2,
-      "style": "<",
-      "include": "stdexcept"
-    },
-    {
-      "from": "include/xllama/first_answer_template.h",
-      "line": 3,
-      "style": "<",
-      "include": "string"
     }
   ]
 }
