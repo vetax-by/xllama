@@ -204,8 +204,9 @@ closed two-slot run and complete validated pair are prerequisites for the
 outputs. There is no automatic retry or guard reduction.
 
 Narrow source/shipping, actual small cache-byte tests and synthetic trace/replay
-checks have passed. The current ten-patch candidate requires its own Windows
-build, signed update and actual console measurements. Cache hit rates, speed
+checks have passed. The [ten-patch cache Windows build](https://github.com/vetax-by/xllama/actions/runs/43658336759)
+compiled, linked and produced an inspected unsigned package. Its signed update
+and actual console cache measurements remain unperformed. Cache hit rates, speed
 advantage, physical I/O reduction and large-cache fit are not established.
 
 ## Evidence and limits
@@ -287,12 +288,12 @@ gitlink remains upstream-pinned; its modifications are carried as checked
 patches, not committed inside the submodule. Use the preparation recipe below
 instead of treating the raw fork checkout as an already prepared build tree.
 
-[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for ten
-ordered patches. The route on a separate clean base tree is: stock AppContainer
-guard once, runtime root patch, runtime llama patch, application root patch,
-application llama patch, CPU pilot root patch, CPU pilot llama patch, the
-first-answer root patch, finished-answer root patch, cache A/B root patch and finally cache A/B llama patch. Do not additionally apply
-intermediate development patches or apply a cumulative patch twice.
+[`ua50/PATCH-LOCK.json`](../ua50/PATCH-LOCK.json) is the authority for the
+ordered patch route. Apply the stock AppContainer guard once, then each listed
+patch in its exact order on a separate clean base tree. The configurable
+successor retains the ten historical entries and adds its root and native
+patches. Do not additionally apply intermediate development patches or apply a
+cumulative patch twice.
 
 The two new `.inc` files are shipping include dependencies of `session.cpp`,
 not additional translation units. The first-answer record/template add two
@@ -314,3 +315,19 @@ The fork's additions use the same MIT license. This is an independent
 experimental fork, not an upstream xllama release or endorsement. Model weights
 and third-party binary dependencies have their own licenses; no weights,
 private signing keys or local device credentials are added by this publication.
+
+## Configurable developer runner
+
+The configurable successor uses one CPU engine with typed, immutable per-run settings. Named cache presets resolve to complete configs; changing a supported setting does not require another application build. This is a developer interface. Unsupported settings refuse explicitly and cannot enable an unimplemented backend or lifecycle capability.
+
+The first capability envelope is one user message, greedy sampling, one CPU worker, a context of 512 tokens, up to 128 rendered prompt tokens and 1–384 new samples. The whole prompt and generation allowance must fit. Global expert-cache slots range from 2 to 512 within an explicit owned-memory ceiling; the actual native sizing and fresh application quota must still admit the complete plan. The fixed reserve, probe, integrity, template/BOS and owner-drain protections are outside the config surface. GPU fields initially admit only the neutral CPU tuple. GPU execution, history, UI streaming, repeated-session recipes and larger contexts require their own implementation and acceptance.
+
+Raw UTF-8 config bytes are bounded to 16 KiB and parsed with a closed typed schema. Unknown or duplicate keys, nonfinite values, coercions, unsupported combinations and unsafe identities refuse. An unused run ID derives fixed local leaves. A separate bounded, expiring one-use ticket binds that ID, the exact raw config hash, a selection ID and the compiled capability-contract digest. Native code creates an exclusive persistent claim and consumes the exact held ticket before opening the model. A failed or uncertain launch does not reset the claim, renew the original expiry or permit another launch. Completion cannot delete a newer ticket by its pathname.
+
+The capability digest identifies a reproducible compiled descriptor; it is not a self-referential binary hash or an execution permission. The operator separately binds the inspected package. Results retain the exact consumed config and ticket hashes, native package identity, immutable requested settings and values from the actual constructed engine and memory plan. Invalid pre-claim input can produce only a refusal log; missing output never means success.
+
+The explicit successor result and binary-trace versions preserve the historical validators and records. Every cache acquisition, including hits, remains ordered and paired with decode boundaries and actual matrix lengths. Trace completeness, normal generation, a genuine final section and storage-observation coverage are independent facts. The Research validator is the single decoder and replay implementation; the controller also requires the selected package, fresh process identity, commit markers and actual owner/caller closure.
+
+Storage aggregates distinguish covered provider Reader operations, held-file SHA reads and unobserved loader/metadata I/O. Reader and cache elapsed times are nested application measurements; terminal read bytes are logical completion bytes. SHA read time excludes hash computation and can affect the OS file cache. These values do not measure physical SSD traffic, service latency or saturation. Optional system metrics remain unavailable until explicitly supported and observed. Detail collection cannot silently exceed the charged trace, collector or JSON limits.
+
+Developer release acceptance covers reviewed source, inspected Windows artifacts, signing evidence and a preserving update. Native CPU configuration qualification follows as a separate task; the GPU direction stays blocked until independent CPU acceptance. A successful historical fixed-profile answer is not evidence that arbitrary configs, cache capacities or acceleration settings have been qualified.

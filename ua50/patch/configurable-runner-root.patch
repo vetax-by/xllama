@@ -1,0 +1,737 @@
+diff --git a/include/xllama/cpu_expert_session.h b/include/xllama/cpu_expert_session.h
+--- a/include/xllama/cpu_expert_session.h
++++ b/include/xllama/cpu_expert_session.h
+@@ -11,6 +11,7 @@
+ #include <stdexcept>
+ namespace xllama {
+ // INTERNAL source candidate only. No UI/LAN/C ABI setting or automatic provider activation.
++struct CpuExpertEffective {uint32_t context,threads,threads_batch;size_t slots,ceiling,owned,arena,metadata;};
+ struct CpuExpertOptIn {
+  enum class PlanProfile { Smoke64, FirstAnswer512, FinishedAnswer512 };
+  PlanProfile plan_profile=PlanProfile::Smoke64;
+@@ -31,6 +32,7 @@
+  // Only the named cache comparison installs this instrumentation.
+  std::function<void(const char*,const ua50::Counters&)> cache_events;
+  size_t instrumentation_owned_bytes=0;
++ std::function<void(const CpuExpertEffective&)> effective_observer;
+ };
+ class CpuExpertSession final:public std::enable_shared_from_this<CpuExpertSession> {
+ public:
+@@ -47,6 +49,8 @@
+  const llama_model* model_view() const; // template/sampler vocabulary only, never context
+  uint32_t context_length() const;
+  uint32_t batch_length() const;
++ using Effective=CpuExpertEffective;
++ Effective effective() const;
+  void invalidate(const char*) noexcept;
+  void log_drained_counters() const;
+  State state() const noexcept{return state_.load(std::memory_order_acquire);}
+@@ -65,19 +69,21 @@
+  std::function<void(const char*)> phase_check_;
+  std::function<void(const char*,const ua50::Counters&)> cache_events_;
+  void cache_event(const char*);
++ size_t applied_cache_ceiling_=0;
+  char first_failure_[256]{};
+  static bool should_abort(void*) noexcept;
+  void latch_failure(const char*) noexcept;
+ };
+ // Metadata/no-payload native plan; caller must hold the admitted FILE and exclude writers.
+ cpu_pilot::MemoryPlan plan_cpu_expert_memory(FILE*,const CpuExpertOptIn&,const ua50::ExpertLoadPlan&);
++using HashReadObserver=std::function<void(size_t,size_t,int64_t)>;
+ // Mandatory full-held-file SHA callback implementation, Windows BCrypt system API.
+ // Expected bytes/SHA must come from trusted app catalogue, not a LAN supplied claim.
+ std::function<ua50::uwp::WindowsInputCandidate()> make_windows_expert_source(
+  const std::wstring& trusted_local_path,const ua50::uwp::ExpectedFile& trusted_expected,
+  std::shared_ptr<std::atomic<bool>> stop,ua50::uwp::Clock::time_point absolute_deadline,
+- size_t stage_ceiling=4u*1024u*1024u);
++ size_t stage_ceiling=4u*1024u*1024u,HashReadObserver observer={});
+ ua50::uwp::ValidateHeldFile make_held_sha256_validator(
+  const ua50::uwp::ExpectedFile&,std::function<bool()> stop,
+- ua50::uwp::Clock::time_point absolute_deadline);
++ ua50::uwp::Clock::time_point absolute_deadline,HashReadObserver observer={});
+ }
+diff --git a/include/xllama/cpu_pilot_policy.h b/include/xllama/cpu_pilot_policy.h
+--- a/include/xllama/cpu_pilot_policy.h
++++ b/include/xllama/cpu_pilot_policy.h
+@@ -34,6 +34,14 @@
+         return n;
+     }
+ };
++struct AppliedCache {size_t slots,ceiling,owned,arena,metadata;};
++// The provider reserves its computed owned bytes; policy ceiling is a separate
++// enforced admission limit. Never mistake equality to the ceiling for application.
++inline AppliedCache applied_cache(size_t slots,size_t policy_ceiling,size_t provider_budget,size_t owned,size_t arena,size_t metadata){
++ if(!slots||slots>1024||!policy_ceiling||!owned||provider_budget<owned||provider_budget>policy_ceiling||add(arena,metadata)>owned)
++  throw std::invalid_argument("constructed cache budget/policy mismatch");
++ return {slots,policy_ceiling,owned,arena,metadata};
++}
+ inline void exact_profile(uint64_t size,uint32_t layers,uint32_t experts,size_t roles,size_t matrix) {
+     if(size!=bytes || layers!=40 || experts!=64 || roles!=114 || matrix!=2580480)
+         throw std::invalid_argument("pilot exact LFM24 metadata mismatch");
+diff --git a/include/xllama/dev_run_config.h b/include/xllama/dev_run_config.h
+new file mode 100644
+--- /dev/null
++++ b/include/xllama/dev_run_config.h
+@@ -0,0 +1,75 @@
++#pragma once
++#include "first_answer_record.h"
++#include <vector>
++#include <utility>
++#include <cstdint>
++#include <stdexcept>
++#include <string>
++#include <algorithm>
++namespace xllama::dev_run {
++inline constexpr char engine_digest[]="6baa8156f7f07e9974e3ee32280d2367811026df427fcad13074c359a992b366";
++inline constexpr char capabilities[]=R"CAP({"cache_owned_ceiling_max":1342177280,"cache_slots_max":512,"cache_slots_min":2,"collector_charge_bytes":2097152,"config_max_bytes":16384,"config_schema":"xllama-dev-run-config-v1","context":512,"contract":"xllama-cpu-dev-engine-contract-v1","json_max_depth":8,"json_max_nodes":256,"main_cap_bytes":262144,"model_bytes":14526258464,"model_id":"lfm25-24b-a2b-q4-k-m","model_sha256":"d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d","native_wall_seconds":1200,"new_tokens_max":384,"output_schema":"xllama-dev-run-output-v1","probe_bytes":268435456,"prompt_tokens_max":128,"prompt_utf8_bytes_max":4096,"reader":"windows_buffered_overlapped/exact_tensor_extent/normal/one_inflight/no_prefetch","reserve_bytes":536870912,"scenario":"cpu_single_turn/plain_greedy_trace_v1","stage_ceiling_bytes":4194304,"storage_observability":"phase_decode_aggregate/slow_samples_disabled","template_sha256":"ea663864491de7ade391839479860ca95541f892f72665c73251fbd4643b1bef","threads":1,"ticket_future_ms_max":1800000,"ticket_max_bytes":4096,"ticket_schema":"xllama-dev-run-ticket-v1","trace_capacity_bytes":524288,"trace_file_bytes":500032,"trace_schema":"UA50TRC2","unsupported":["gpu","fused","threads_not_1","nongreedy","history","tools","lifecycle_sequence","ui","context_not_512","prefetch","alternate_io_hints","slow_read_samples","plugins"],"watchdog_seconds":180}
++)CAP";
++inline constexpr size_t config_cap=16384,ticket_cap=4096;
++inline void need(bool v,const char* cause){if(!v)throw std::invalid_argument(cause);}
++inline bool hex(const std::string&s,size_t n){return s.size()==n&&std::all_of(s.begin(),s.end(),[](char x){return (x>='0'&&x<='9')||(x>='a'&&x<='f');});}
++inline bool run_id(const std::string&s){return hex(s,32)&&s!=std::string(32,'0');}
++// Small closed-schema parser. No lenient escape repair, numeric coercion or map overwrite.
++struct Json {
++ enum class Type{object,array,string,integer,boolean,null};Type type=Type::null;
++ std::string text;int64_t number=0;bool flag=false;
++ std::vector<std::pair<std::string,Json>> object;std::vector<Json> array;
++ size_t owned()const{size_t n=sizeof(Json)+text.capacity()+object.capacity()*sizeof(std::pair<std::string,Json>)+array.capacity()*sizeof(Json);for(const auto&p:object)n+=p.first.capacity()+p.second.owned();for(const auto&p:array)n+=p.owned();return n;}
++ const Json& at(const char*k)const{need(type==Type::object,"object required");for(const auto&p:object)if(p.first==k)return p.second;throw std::invalid_argument("missing field");}
++ void keys(std::initializer_list<const char*> names)const{need(type==Type::object&&object.size()==names.size(),"unknown/missing field");for(auto name:names)(void)at(name);}
++ void eq(const char*s)const{need(type==Type::string&&text==s,"unsupported string capability");}
++ void eq(int64_t n)const{need(type==Type::integer&&number==n,"unsupported integer capability");}
++ void eq(bool b)const{need(type==Type::boolean&&flag==b,"unsupported boolean capability");}
++ uint64_t range(uint64_t lo,uint64_t hi)const{need(type==Type::integer&&number>=0&&uint64_t(number)>=lo&&uint64_t(number)<=hi,"integer bound/type");return uint64_t(number);}
++};
++class Parser {
++ const std::string&s;size_t p=0,nodes=0;
++ void ws(){while(p<s.size()&&(s[p]==' '||s[p]=='\n'||s[p]=='\r'||s[p]=='\t'))++p;}
++ char take(){need(p<s.size(),"truncated JSON");return s[p++];}
++ void expect(char c){need(take()==c,"JSON syntax");}
++ unsigned hex4(){unsigned v=0;for(int i=0;i<4;++i){char c=take();unsigned d=c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:c>='A'&&c<='F'?c-'A'+10:99;need(d<16,"unicode escape");v=v*16+d;}return v;}
++ void codepoint(std::string&out,unsigned cp){if(cp<128)out+=char(cp);else if(cp<2048){out+=char(0xc0|(cp>>6));out+=char(0x80|(cp&63));}else if(cp<65536){out+=char(0xe0|(cp>>12));out+=char(0x80|((cp>>6)&63));out+=char(0x80|(cp&63));}else{out+=char(0xf0|(cp>>18));out+=char(0x80|((cp>>12)&63));out+=char(0x80|((cp>>6)&63));out+=char(0x80|(cp&63));}}
++ std::string string(){expect('"');std::string o;for(;;){char c=take();if(c=='"')break;need(static_cast<unsigned char>(c)>=32,"raw string control");if(c!='\\'){o+=c;continue;}char e=take();switch(e){case'"':case'\\':case'/':o+=e;break;case'b':o+='\b';break;case'f':o+='\f';break;case'n':o+='\n';break;case'r':o+='\r';break;case't':o+='\t';break;case'u':{unsigned v=hex4();if(v>=0xd800&&v<=0xdbff){expect('\\');expect('u');unsigned low=hex4();need(low>=0xdc00&&low<=0xdfff,"lone high surrogate");v=65536+((v-0xd800)<<10)+(low-0xdc00);}else need(v<0xdc00||v>0xdfff,"lone low surrogate");codepoint(o,v);break;}default:throw std::invalid_argument("unknown JSON escape");}}need(first_answer::utf8(o),"decoded UTF8");return o;}
++ Json value(size_t depth){need(depth<=8&&++nodes<=256,"JSON depth/nodes");ws();Json v;need(p<s.size(),"missing value");char ch=s[p];
++  if(ch=='{'){++p;v.type=Json::Type::object;ws();if(p<s.size()&&s[p]=='}'){++p;return v;}for(;;){ws();std::string key=string();for(const auto&q:v.object)need(q.first!=key,"duplicate JSON key");ws();expect(':');auto child=value(depth+1);v.object.emplace_back(std::move(key),std::move(child));ws();char c=take();if(c=='}')break;need(c==',',"object separator");}return v;}
++  if(ch=='['){++p;v.type=Json::Type::array;ws();if(p<s.size()&&s[p]==']'){++p;return v;}for(;;){v.array.push_back(value(depth+1));ws();char c=take();if(c==']')break;need(c==',',"array separator");}return v;}
++  if(ch=='"'){v.type=Json::Type::string;v.text=string();return v;}
++  if(ch=='t'||ch=='f'||ch=='n'){const char*lit=ch=='t'?"true":ch=='f'?"false":"null";while(*lit)expect(*lit++);v.type=ch=='n'?Json::Type::null:Json::Type::boolean;v.flag=ch=='t';return v;}
++  v.type=Json::Type::integer;bool negative=ch=='-';if(negative)++p;need(p<s.size()&&s[p]>='0'&&s[p]<='9',"integer required; float/nonfinite unsupported");bool zero=s[p]=='0';uint64_t n=0;size_t digits=0;while(p<s.size()&&s[p]>='0'&&s[p]<='9'){unsigned d=s[p++]-'0';need(n<=(uint64_t(INT64_MAX)-d)/10,"integer overflow");n=n*10+d;++digits;}need(!zero||digits==1,"leading integer zero");need(!(negative&&n==0),"negative zero");v.number=negative?-int64_t(n):int64_t(n);return v;
++ }
++public:
++ explicit Parser(const std::string& raw):s(raw){}
++ Json parse(size_t cap){need(!s.empty()&&s.size()<=cap&&first_answer::utf8(s),"raw JSON size/UTF8");auto v=value(1);ws();need(p==s.size(),"trailing JSON/numeric suffix");return v;}
++};
++struct Config {
++ std::string raw,id,prompt;uint32_t prompt_cap=128,max_new=384,slots=2;uint64_t cache_ceiling=16777216;size_t parser_charge=0;
++ size_t owned_bytes()const{return sizeof(*this)+raw.capacity()+id.capacity()+prompt.capacity()+parser_charge;}
++ std::string leaf(const char*suffix)const{need(run_id(id),"unsafe run identity");return "ua50-dev-run-v1."+id+"."+suffix;}
++};
++inline Config parse_config(std::string raw){
++ auto j=Parser(raw).parse(config_cap);j.keys({"schema","engine_contract_sha256","run_id","scenario","model","input","context","generation","execution","cache","storage","diagnostics"});
++ j.at("schema").eq("xllama-dev-run-config-v1");j.at("engine_contract_sha256").eq(engine_digest);Config c;c.raw=std::move(raw);c.parser_charge=j.owned();need(j.at("run_id").type==Json::Type::string&&run_id(j.at("run_id").text),"run_id");c.id=j.at("run_id").text;
++ const auto&scenario=j.at("scenario");scenario.keys({"kind","recipe"});scenario.at("kind").eq("cpu_single_turn");scenario.at("recipe").eq("plain_greedy_trace_v1");
++ const auto&m=j.at("model");m.keys({"id","content_sha256"});m.at("id").eq("lfm25-24b-a2b-q4-k-m");m.at("content_sha256").eq("d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d");
++ const auto&input=j.at("input");input.keys({"messages"});const auto&messages=input.at("messages");need(messages.type==Json::Type::array&&messages.array.size()==1,"single user message");const auto&msg=messages.array[0];msg.keys({"role","content"});msg.at("role").eq("user");need(msg.at("content").type==Json::Type::string,"prompt string");c.prompt=msg.at("content").text;need(!c.prompt.empty()&&c.prompt.size()<=4096&&c.prompt.find("<|im_start|>")==std::string::npos&&c.prompt.find("<|im_end|>")==std::string::npos,"prompt boundary");for(unsigned char x:c.prompt)need(x>=32||x=='\n'||x=='\t',"prompt control");
++ const auto&ctx=j.at("context");ctx.keys({"requested_tokens","max_prompt_tokens"});ctx.at("requested_tokens").eq(int64_t(512));c.prompt_cap=uint32_t(ctx.at("max_prompt_tokens").range(1,128));
++ const auto&g=j.at("generation");g.keys({"max_new_tokens","sampler"});c.max_new=uint32_t(g.at("max_new_tokens").range(1,384));g.at("sampler").keys({"kind"});g.at("sampler").at("kind").eq("greedy");
++ const auto&e=j.at("execution");e.keys({"backend_id","device_mode","adapter_id","cpu","gpu","experts","compute_mode"});e.at("backend_id").eq("cpu_expert_streaming");e.at("device_mode").eq("cpu");need(e.at("adapter_id").type==Json::Type::null,"no adapter");e.at("cpu").keys({"threads","threads_batch"});e.at("cpu").at("threads").eq(int64_t(1));e.at("cpu").at("threads_batch").eq(int64_t(1));e.at("gpu").keys({"main_gpu","gpu_layers","offload_kqv","op_offload"});e.at("gpu").at("main_gpu").eq(int64_t(-1));e.at("gpu").at("gpu_layers").eq(int64_t(0));e.at("gpu").at("offload_kqv").eq(false);e.at("gpu").at("op_offload").eq(false);e.at("experts").keys({"placement"});e.at("experts").at("placement").eq("cpu_streamed");e.at("compute_mode").eq("nonfused");
++ const auto&cache=j.at("cache");cache.keys({"policy","slots","owned_ceiling_bytes"});cache.at("policy").eq("global_lru");c.slots=uint32_t(cache.at("slots").range(2,512));c.cache_ceiling=cache.at("owned_ceiling_bytes").range(1,1342177280);
++ const auto&storage=j.at("storage");storage.keys({"reader","observability"});const auto&rd=storage.at("reader");rd.keys({"mode","inflight_limit","request_policy","access_hint","prefetch"});rd.at("mode").eq("windows_buffered_overlapped");rd.at("inflight_limit").eq(int64_t(1));rd.at("request_policy").eq("exact_tensor_extent");rd.at("access_hint").eq("normal");rd.at("prefetch").eq("none");const auto&o=storage.at("observability");o.keys({"mode","slow_read_samples"});o.at("mode").eq("phase_decode_aggregate");o.at("slow_read_samples").keys({"enabled","max_events"});o.at("slow_read_samples").at("enabled").eq(false);o.at("slow_read_samples").at("max_events").eq(int64_t(0));j.at("diagnostics").keys({"trace"});j.at("diagnostics").at("trace").eq("ordered_expert_keys");return c;
++}
++struct Ticket {std::string raw,selection,id,config_sha;uint64_t expires=0;};
++inline Ticket parse_ticket(std::string raw,uint64_t now){auto j=Parser(raw).parse(ticket_cap);j.keys({"schema","selection_id","run_id","config_sha256","engine_contract_sha256","expires_at_epoch_ms"});j.at("schema").eq("xllama-dev-run-ticket-v1");j.at("engine_contract_sha256").eq(engine_digest);Ticket t;t.raw=std::move(raw);need(j.at("run_id").type==Json::Type::string&&run_id(j.at("run_id").text),"ticket run_id");t.id=j.at("run_id").text;need(j.at("config_sha256").type==Json::Type::string&&hex(j.at("config_sha256").text,64),"ticket configSHA");t.config_sha=j.at("config_sha256").text;need(j.at("selection_id").type==Json::Type::string,"ticket selection");t.selection=j.at("selection_id").text;need(!t.selection.empty()&&t.selection.size()<=64&&std::all_of(t.selection.begin(),t.selection.end(),[](char x){return (x>='a'&&x<='z')||(x>='0'&&x<='9')||x=='-';}),"selection characters");t.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);need(t.expires>now&&t.expires-now<=1800000,"expired/future ticket");return t;}
++// Actual Windows calls are supplied by the source-owned held-handle adapter.
++// No pathname cleanup/retry can be added by this state machine after consumption.
++struct OneUse {
++ enum class State{validated,claim_attempted,claimed,consume_attempted,consumed};State state=State::validated;
++ template<class CreateClaim,class ConsumeHeld>void spend(CreateClaim claim,ConsumeHeld consume){need(state==State::validated,"ticket already spent");state=State::claim_attempted;claim();state=State::claimed;state=State::consume_attempted;consume();state=State::consumed;}
++ bool may_start_model()const{return state==State::consumed;}
++};
++}
+diff --git a/include/xllama/first_answer_record.h b/include/xllama/first_answer_record.h
+--- a/include/xllama/first_answer_record.h
++++ b/include/xllama/first_answer_record.h
+@@ -32,18 +32,20 @@
+  static constexpr char h[]="0123456789abcdef";std::string o="\"";
+  for(unsigned char c:s){if(c=='"'||c=='\\'){o+='\\';o+=char(c);}else if(c<32){o+="\\u00";o+=h[c>>4];o+=h[c&15];}else o+=char(c);}return o+'"';
+ }
+-enum class Profile { First128, Finished384, CacheA2, CacheB512 };
+-inline bool cache_profile(Profile p){return p==Profile::CacheA2||p==Profile::CacheB512;}
++enum class Profile { First128, Finished384, CacheA2, CacheB512, Configured };
++inline bool cache_profile(Profile p){return p==Profile::CacheA2||p==Profile::CacheB512||p==Profile::Configured;}
+ struct Limits {size_t max_new;const char* scope;};
+ inline Limits limits(Profile p) {
+- switch(p){case Profile::First128:return {128,"xbox-cpu24b-first-answer-v1"};case Profile::Finished384:return {384,"xbox-cpu24b-finished-answer-v2"};case Profile::CacheA2:return {384,"xbox-cpu24b-cache-a2-v1"};case Profile::CacheB512:return {384,"xbox-cpu24b-cache-b512-v1"};}
++ switch(p){case Profile::First128:return {128,"xbox-cpu24b-first-answer-v1"};case Profile::Finished384:return {384,"xbox-cpu24b-finished-answer-v2"};case Profile::Configured:return {384,"xbox-cpu24b-configured-run-v1"};case Profile::CacheA2:return {384,"xbox-cpu24b-cache-a2-v1"};case Profile::CacheB512:return {384,"xbox-cpu24b-cache-b512-v1"};}
+  throw std::invalid_argument("unsupported generation profile");
+ }
+ struct Sample {int32_t id;std::string bytes;bool terminator;int64_t begin_ns,end_ns,decode_begin_ns=-1,decode_end_ns=-1;};
+ struct Record {
+  using Now=std::function<int64_t()>;
+  const Profile profile;
+- size_t max_new() const{return limits(profile).max_new;}
++ size_t configured_new=384,prompt_cap=128;
++ size_t max_new() const{return profile==Profile::Configured?configured_new:limits(profile).max_new;}
++ void configure(size_t count,size_t prompt_limit){if(profile!=Profile::Configured||start_ns!=-1||!count||count>384||!prompt_limit||prompt_limit>128)throw std::invalid_argument("record config limits");configured_new=count;prompt_cap=prompt_limit;}
+  Now now;
+  std::string prompt,emitted,error,stop_reason="not_started",native_stop_reason="not_started";
+  std::vector<int32_t> prompt_ids;
+@@ -55,14 +57,15 @@
+  bool complete=false,pre_sha=false,post_sha=false,owner_closed=false;
+  uint64_t route_requests=0,route_logical_bytes=0,usage_max_sampled=0,quota_limit=0;
+  uint32_t pid=0;
+- std::string cache_ab_json;
++ std::string cache_ab_json,runner_json;
++ bool runner_complete=false;
+  bool trace_complete_committed=false;
+  static int64_t monotonic_now(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
+  explicit Record(Now clock=monotonic_now):Record(Profile::First128,std::move(clock)){}
+  explicit Record(Profile p,Now clock=monotonic_now):profile(p),now(std::move(clock)) {samples.reserve(max_new());prompt_ids.reserve(128);}
+  int64_t tick(){const auto t=now();if(t<0||t<last_ns)throw std::runtime_error("invalid monotonic clock");last_ns=t;return t;}
+  void begin(const std::string& p,const std::vector<int32_t>& ids,int ctx) {
+-  if(start_ns!=-1||p!=prompt||ids.empty()||ids.size()>128||ids.front()!=bos||std::count(ids.begin(),ids.end(),bos)!=1||ctx<=0||ctx>512||ids.size()+max_new()>size_t(ctx))throw std::runtime_error("first-answer prompt/BOS/context admission");
++  if(start_ns!=-1||p!=prompt||ids.empty()||ids.size()>prompt_cap||ids.front()!=bos||std::count(ids.begin(),ids.end(),bos)!=1||ctx<=0||ctx>512||ids.size()+max_new()>size_t(ctx))throw std::runtime_error("first-answer prompt/BOS/context admission");
+   prompt_ids=ids;context=ctx;start_ns=tick();stop_reason="running";
+  }
+  void prefilled(){prefilled_ns=tick();}
+@@ -85,11 +88,11 @@
+   const auto close=emitted.find("</think>");const bool final=close!=std::string::npos&&close+8<emitted.size();
+   auto nullable=[](int64_t v){return v<0?std::string("null"):std::to_string(v);};
+   auto b=[](bool v){return v?"true":"false";};
+-  std::string o="{\"schema\":"+quote(cache_profile(profile)?"xllama-cache-ab-output-v1":"xllama-first-answer-v1")+",\"scope\":"+quote(limits(profile).scope)+",\"pid\":"+std::to_string(pid)+",\"template_sha256\":"+quote(template_sha)+",\"rendered_prompt\":"+quote(prompt)+",\"seeded_assistant_prefix\":\"<|im_start|>assistant\\n<think>\",\"prefix_is_generated\":false,\"tokenizer_add_bos\":"+b(template_verified)+",\"template_verified\":"+b(template_verified)+",\"bos_id\":"+std::to_string(bos)+",\"prompt_ids\":[";
++  std::string o="{\"schema\":"+quote(profile==Profile::Configured?"xllama-dev-run-output-v1":cache_profile(profile)?"xllama-cache-ab-output-v1":"xllama-first-answer-v1")+",\"scope\":"+quote(limits(profile).scope)+",\"pid\":"+std::to_string(pid)+",\"template_sha256\":"+quote(template_sha)+",\"rendered_prompt\":"+quote(prompt)+",\"seeded_assistant_prefix\":\"<|im_start|>assistant\\n<think>\",\"prefix_is_generated\":false,\"tokenizer_add_bos\":"+b(template_verified)+",\"template_verified\":"+b(template_verified)+",\"bos_id\":"+std::to_string(bos)+",\"prompt_ids\":[";
+   for(size_t i=0;i<prompt_ids.size();++i){if(i)o+=',';o+=std::to_string(prompt_ids[i]);}
+   o+="],\"generated_samples\":[";
+   for(size_t i=0;i<samples.size();++i){const auto&s=samples[i];if(i)o+=',';o+="{\"id\":"+std::to_string(s.id)+",\"piece_hex\":"+quote(hex(s.bytes))+",\"piece_utf8_valid\":"+b(utf8(s.bytes))+",\"terminator\":"+b(s.terminator)+",\"sample_begin_ns\":"+nullable(s.begin_ns)+",\"sample_end_ns\":"+nullable(s.end_ns)+",\"decode_begin_ns\":"+nullable(s.decode_begin_ns)+",\"decode_end_ns\":"+nullable(s.decode_end_ns)+"}";}
+-  o+="],\"sampled_count\":"+std::to_string(samples.size())+",\"emitted_count\":"+std::to_string(n)+",\"generated_hex\":"+quote(hex(emitted))+",\"generated_utf8_valid\":"+b(valid)+",\"generated_text\":"+(valid?quote(emitted):"null")+",\"thinking_close_observed\":"+b(close!=std::string::npos)+",\"final_text_after_close_present\":"+b(final)+",\"truncated_open_thinking\":"+b(native_stop_reason=="length"&&close==std::string::npos)+",\"stop_reason\":"+quote(stop_reason)+",\"native_generation_stop_reason\":"+quote(native_stop_reason)+",\"generation_complete\":"+b(complete)+",\"normal\":"+b(complete&&pre_sha&&post_sha&&owner_closed&&(!cache_profile(profile)||trace_complete_committed))+",\"error_hex\":"+quote(hex(error))+
++  o+="],\"sampled_count\":"+std::to_string(samples.size())+",\"emitted_count\":"+std::to_string(n)+",\"generated_hex\":"+quote(hex(emitted))+",\"generated_utf8_valid\":"+b(valid)+",\"generated_text\":"+(valid?quote(emitted):"null")+",\"thinking_close_observed\":"+b(close!=std::string::npos)+",\"final_text_after_close_present\":"+b(final)+",\"truncated_open_thinking\":"+b(native_stop_reason=="length"&&close==std::string::npos)+",\"stop_reason\":"+quote(stop_reason)+",\"native_generation_stop_reason\":"+quote(native_stop_reason)+",\"generation_complete\":"+b(complete)+",\"normal\":"+b(complete&&pre_sha&&post_sha&&owner_closed&&(!cache_profile(profile)||trace_complete_committed)&&(profile!=Profile::Configured||runner_complete))+",\"error_hex\":"+quote(hex(error))+
+   ",\"context_requested\":512,\"context_resolved\":"+std::to_string(context)+",\"threads\":1,\"max_new\":"+std::to_string(max_new())+",\"main_gpu\":-1,\"nonfused\":true,\"start_ns\":"+nullable(start_ns)+",\"prefilled_ns\":"+nullable(prefilled_ns)+",\"end_ns\":"+nullable(end_ns)+",\"prefill_ns\":"+nullable(start_ns>=0&&prefilled_ns>=start_ns?prefilled_ns-start_ns:-1)+",\"ttft_first_sample_ns\":"+nullable(start_ns>=0&&!samples.empty()?samples.front().end_ns-start_ns:-1);
+   // N emitted samples span N-1 inter-sample intervals. Terminator excluded. No rate for <=1 or invalid denominator.
+   std::vector<int64_t> times;for(const auto&s:samples)if(!s.terminator)times.push_back(s.end_ns);
+@@ -97,6 +100,7 @@
+   if(times.size()>1&&times.back()>times.front())o+=std::to_string(double(times.size()-1)*1e9/double(times.back()-times.front()));else o+="null";
+   o+=",\"opening_including_pre_sha_begin_ns\":"+nullable(opening_begin_ns)+",\"opening_including_pre_sha_end_ns\":"+nullable(opening_end_ns)+",\"pre_sha_begin_ns\":"+nullable(pre_sha_begin_ns)+",\"pre_sha_end_ns\":"+nullable(pre_sha_end_ns)+",\"post_sha_begin_ns\":"+nullable(post_sha_begin_ns)+",\"post_sha_end_ns\":"+nullable(post_sha_end_ns)+",\"rate_interval_count\":"+std::to_string(times.empty()?0:times.size()-1)+",\"timing_includes_reader_wait\":true,\"hash_load_excluded_from_generation_timing\":true,\"pre_sha_verified\":"+b(pre_sha)+",\"post_sha_verified\":"+b(post_sha)+",\"owner_file_writer_closed\":"+b(owner_closed)+",\"route_requests\":"+std::to_string(route_requests)+",\"route_logical_bytes\":"+std::to_string(route_logical_bytes)+",\"usage_max_sampled_not_peak\":"+std::to_string(usage_max_sampled)+",\"quota_limit\":"+std::to_string(quota_limit);
+   if(cache_profile(profile)){if(cache_ab_json.empty())throw std::runtime_error("cache output interface unavailable");o+=",\"cache_ab\":"+cache_ab_json;}
++  if(profile==Profile::Configured){if(runner_json.empty())throw std::runtime_error("runner result unavailable");o+=",\"runner\":"+runner_json;}
+   o+="}\n";
+   if(o.size()>output_cap)throw std::runtime_error("private output cap exceeded");
+   return o;
+diff --git a/include/xllama/first_answer_template.h b/include/xllama/first_answer_template.h
+--- a/include/xllama/first_answer_template.h
++++ b/include/xllama/first_answer_template.h
+@@ -130,6 +130,10 @@
+ {%- endif -%}
+ )LFM24";
+ inline constexpr char greeting[]=u8"Привет! Представься в одном-двух предложениях и скажи, чем ты можешь помочь. Ответь кратко на русском.";
++inline std::string render_user(const char* actual_template,bool add_bos,int bos,const std::string& user) {
++ if(!actual_template || std::string(actual_template)!=embedded_template || !add_bos || bos<0)throw std::runtime_error("configured exact template/BOS mismatch");
++ return std::string("<|im_start|>user\n")+user+"<|im_end|>\n<|im_start|>assistant\n<think>";
++}
+ inline std::string render(const char* actual_template,bool add_bos,int bos) {
+  if(!actual_template || std::string(actual_template)!=embedded_template || !add_bos || bos<0)throw std::runtime_error("first-answer exact template/BOS mismatch");
+  // Exact one-user/no-system/no-tools subset of the pinned Jinja. BOS is tokenizer-owned.
+diff --git a/src/bridge/cpu_expert_session.cpp b/src/bridge/cpu_expert_session.cpp
+--- a/src/bridge/cpu_expert_session.cpp
++++ b/src/bridge/cpu_expert_session.cpp
+@@ -25,14 +25,17 @@
+   if(!candidate.file || !candidate.file_anchor || !candidate.admission_anchor || !candidate.validate_binding || !candidate.control || !candidate.make_reader || !candidate.admission.bytes || candidate.admission.sha256.size()!=64 || candidate.admission.identity.empty())throw std::invalid_argument("incomplete Windows admission");
+   out->input_=std::make_shared<ua50::uwp::WindowsInputCandidate>(std::move(candidate));
+   auto input=out->input_;input->validate_binding(input->file);
++  if(out->phase_check_)out->phase_check_("before-metadata");
+   auto plan=ua50::inspect_expert_input(input->file,opt->slots);
+   if(!plan.full_payload || plan.available_file_bytes!=input->admission.bytes || plan.cache_owned_bytes>opt->cache_ceiling || plan.stage_bytes>opt->stage_ceiling)throw std::invalid_argument("expert full payload/component budget refused");
++  out->applied_cache_ceiling_=opt->cache_ceiling;
+   opt->admit_budget(plan,opt->context); // mandatory BEFORE model/context allocation
+   ua50::OwnedExpertLoad owned;owned.slots=opt->slots;owned.cache_ceiling=opt->cache_ceiling;owned.stage_ceiling=opt->stage_ceiling;
+   owned.input.file=input->file;owned.input.file_anchor=input->file_anchor;
+   owned.input.contract=ua50::InputContract::windows_held_verified;
+   owned.input.admission_anchor=input->admission_anchor;owned.input.validate_binding=input->validate_binding;
+   owned.input.make_reader=[input](size_t stage)->std::shared_ptr<ua50::Reader>{return input->make_reader(stage);};
++  if(out->phase_check_)out->phase_check_("before-model-load");
+   out->model_.reset(ua50::load_owned_experts(owned,opt->model)); // common factory installs BEFORE load_tensors
+   if(!out->model_)throw std::runtime_error("owned common model load refused");
+   if(out->phase_check_)out->phase_check_("after-weights-before-context");
+@@ -49,7 +52,7 @@
+   ggml_backend_cpu_set_use_ref(ggml_backend_sched_get_backend(sched,0),true); // nonfused, not all-scalar
+   llama_set_abort_callback(out->context_.get(),&CpuExpertSession::should_abort,out.get());
+   if(out->phase_check_)out->phase_check_("context-ready");
+-  out->state_.store(State::Ready,std::memory_order_release);return out;
++  out->state_.store(State::Ready,std::memory_order_release);if(opt->effective_observer)opt->effective_observer(out->effective());return out;
+  }catch(...){out->latch_failure("expert opening refused");out->state_.store(State::Invalid);out->close();throw;}
+ }
+ CpuExpertSession::~CpuExpertSession(){(void)close();}
+@@ -109,6 +112,12 @@
+ }
+ uint32_t CpuExpertSession::context_length() const{model_view();return llama_n_ctx(context_.get());}
+ uint32_t CpuExpertSession::batch_length() const{model_view();return llama_n_batch(context_.get());}
++CpuExpertSession::Effective CpuExpertSession::effective() const {
++ model_view();auto*m=dynamic_cast<llama_model_base*>(model_.get());auto p=m?m->expert_provider():nullptr;
++ if(!p||p->active_leases())throw std::runtime_error("effective state before native drain");const auto&c=p->counters();
++ const auto applied=cpu_pilot::applied_cache(p->slot_count(),applied_cache_ceiling_,p->reserved_budget(),p->requested_owned_bytes(),c.arena_bytes,c.metadata_bytes);
++ return {llama_n_ctx(context_.get()),uint32_t(llama_n_threads(context_.get())),uint32_t(llama_n_threads_batch(context_.get())),applied.slots,applied.ceiling,applied.owned,applied.arena,applied.metadata};
++}
+ std::vector<llama_token> CpuExpertSession::tokenize(const std::string&s) const{
+  const auto*v=llama_model_get_vocab(model_view());
+  if(s.size()>INT32_MAX)throw std::length_error("prompt bytes overflow");
+diff --git a/src/bridge/held_file_sha256_win.cpp b/src/bridge/held_file_sha256_win.cpp
+--- a/src/bridge/held_file_sha256_win.cpp
++++ b/src/bridge/held_file_sha256_win.cpp
+@@ -22,9 +22,9 @@
+ struct Position{FILE*f;fpos_t pos;explicit Position(FILE*v):f(v){if(!f || fgetpos(f,&pos))throw std::runtime_error("held SHA position");}~Position(){fsetpos(f,&pos);}};
+ }
+ ua50::uwp::ValidateHeldFile make_held_sha256_validator(
+- const ua50::uwp::ExpectedFile& expected,std::function<bool()> stop,ua50::uwp::Clock::time_point deadline){
++ const ua50::uwp::ExpectedFile& expected,std::function<bool()> stop,ua50::uwp::Clock::time_point deadline,HashReadObserver observer){
+  if(!expected.bytes || expected.bytes>uint64_t(INT64_MAX) || expected.sha256.size()!=64 || !stop || deadline<=ua50::uwp::Clock::now() || !std::all_of(expected.sha256.begin(),expected.sha256.end(),[](char c){return(c>='0'&&c<='9')||(c>='a'&&c<='f');}))throw std::invalid_argument("trusted exact bytes/SHA/deadline/stop required");
+- return [expected,stop,deadline](FILE*file,uint64_t admitted_bytes)->ua50::uwp::ValidationResult{
++ return [expected,stop,deadline,observer](FILE*file,uint64_t admitted_bytes)->ua50::uwp::ValidationResult{
+   if(admitted_bytes!=expected.bytes)throw std::invalid_argument("held SHA expected byte mismatch");
+   auto gate=[&]{if(stop() || ua50::uwp::Clock::now()>=deadline)throw std::runtime_error("held SHA stopped/deadline");};
+   gate();Position saved(file);if(_fseeki64(file,0,SEEK_SET))throw std::runtime_error("held SHA rewind");
+@@ -36,13 +36,14 @@
+   if(got!=sizeof(hash_bytes) || hash_bytes!=32)throw std::runtime_error("SHA256 length refused");
+   Hash hash;hash.object.resize(object_bytes);checked(BCryptCreateHash(algorithm.p,&hash.p,hash.object.data(),object_bytes,nullptr,0,0));
+   std::array<unsigned char,65536> chunk{};uint64_t count=0;
++  auto read=[&](unsigned char* destination,size_t want){const auto before=ua50::uwp::Clock::now();size_t n=fread(destination,1,want,file);const auto after=ua50::uwp::Clock::now();if(observer)observer(want,n,std::chrono::duration_cast<std::chrono::nanoseconds>(after-before).count());return n;};
+   while(count<expected.bytes){
+    gate();const size_t want=size_t(std::min<uint64_t>(chunk.size(),expected.bytes-count));
+-   const size_t n=fread(chunk.data(),1,want,file);
++   const size_t n=read(chunk.data(),want);
+    if(n!=want || ferror(file))throw std::runtime_error("held SHA short/error read");
+    checked(BCryptHashData(hash.p,chunk.data(),ULONG(n),0));count+=n;
+   }
+-  gate();unsigned char extra=0;if(fread(&extra,1,1,file)!=0 || ferror(file))throw std::runtime_error("held SHA trailing bytes/error");
++  gate();unsigned char extra=0;if(read(&extra,1)!=0 || ferror(file))throw std::runtime_error("held SHA trailing bytes/error");
+   std::array<unsigned char,32> sum{};checked(BCryptFinishHash(hash.p,sum.data(),ULONG(sum.size()),0));
+   static constexpr char digits[]="0123456789abcdef";std::string hex;hex.reserve(64);
+   for(auto v:sum){hex.push_back(digits[v>>4]);hex.push_back(digits[v&15]);}
+@@ -53,10 +54,10 @@
+ }
+ std::function<ua50::uwp::WindowsInputCandidate()> make_windows_expert_source(
+  const std::wstring& path,const ua50::uwp::ExpectedFile& expected,
+- std::shared_ptr<std::atomic<bool>> stop,ua50::uwp::Clock::time_point deadline,size_t stage_ceiling){
++ std::shared_ptr<std::atomic<bool>> stop,ua50::uwp::Clock::time_point deadline,size_t stage_ceiling,HashReadObserver observer){
+  if(path.empty() || !stop || !stage_ceiling || stage_ceiling>4u*1024u*1024u)throw std::invalid_argument("trusted local source/control/stage required");
+  // This binds the implemented full-held SHA callback, not a caller's receipt claim.
+- auto validate=make_held_sha256_validator(expected,[stop]{return stop->load(std::memory_order_acquire);},deadline);
++ auto validate=make_held_sha256_validator(expected,[stop]{return stop->load(std::memory_order_acquire);},deadline,std::move(observer));
+  return [path,expected,stop,deadline,stage_ceiling,validate]{
+   if(stop->load(std::memory_order_acquire))throw std::runtime_error("source stopped before open");
+   return ua50::uwp::open_windows_input_candidate(path,expected,validate,deadline,stage_ceiling);
+diff --git a/src/platform/ua50/dev_run_io.h b/src/platform/ua50/dev_run_io.h
+new file mode 100644
+--- /dev/null
++++ b/src/platform/ua50/dev_run_io.h
+@@ -0,0 +1,64 @@
++#pragma once
++#include "windows_held_reader.h"
++#include <array>
++#include <functional>
++namespace ua50::uwp {
++struct RunIo {
++ using Row=std::array<uint64_t,15>;
++ std::array<Row,8> phases{};std::array<Row,511> decodes{};
++ std::array<uint64_t,8> phase_ns{};
++ size_t phase=7,decode_count=0;int current=-1;uint64_t clock_errors=0;uint32_t first_native_error=0;
++ bool closed=false,drain_seen=false;int64_t changed=-1,last=-1;
++ std::function<int64_t()> clock=[] {return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();};
++ std::weak_ptr<WindowsReader> observed;
++ Ledger previous{};uint64_t expected_reads=0,expected_read_bytes=0;
++ int64_t tick(){int64_t t=-1;try{t=clock();}catch(...){++clock_errors;throw;}if(t<0||t<last){++clock_errors;throw std::runtime_error("IO telemetry monotonic clock");}last=t;return t;}
++ static uint64_t plus(uint64_t a,uint64_t b){if(a>UINT64_MAX-b)throw std::overflow_error("IO counter overflow");return a+b;}
++ void add(size_t col,uint64_t n,bool frame=true){phases[phase][col]=plus(phases[phase][col],n);if(frame&&current>=0)decodes[size_t(current)][col]=plus(decodes[size_t(current)][col],n);}
++ void set_phase(size_t p){if(p>=8)throw std::invalid_argument("IO phase");const auto t=tick();if(changed>=0)phase_ns[phase]=plus(phase_ns[phase],uint64_t(t-changed));phase=p;changed=t;}
++ void begin_frame(bool prefill){if(current>=0||decode_count>=511)throw std::runtime_error("IO frame bound/state");set_phase(prefill?3:4);current=int(decode_count++);}
++ void end_frame(){if(current<0)throw std::runtime_error("IO frame missing");current=-1;}
++ void ledger(const Ledger& now){
++  const uint64_t a[]={now.submissions,now.terminal_operations,now.terminal_bytes,now.polls,now.cancellations,now.commits};
++  const uint64_t b[]={previous.submissions,previous.terminal_operations,previous.terminal_bytes,previous.polls,previous.cancellations,previous.commits};
++  for(size_t i=0;i<6;++i){if(a[i]<b[i])throw std::runtime_error("IO ledger reset");add(4+i,a[i]-b[i]);}
++  if(!first_native_error)first_native_error=now.first_native_error;previous=now;
++ }
++ void after_drain(uint64_t reads,uint64_t bytes){auto r=observed.lock();if(!r)throw std::runtime_error("Reader missing at actual drain");ledger(r->ledger_after_drain());expected_reads=reads;expected_read_bytes=bytes;current=-1;drain_seen=true;}
++ void finish(){current=-1;const auto t=tick();if(changed>=0)phase_ns[phase]=plus(phase_ns[phase],uint64_t(t-changed));changed=t;closed=true;}
++ void sha(size_t requested,size_t returned,int64_t elapsed){add(11,1,false);add(12,requested,false);add(13,returned,false);if(elapsed<0){++clock_errors;throw std::runtime_error("SHA read monotonic clock");}add(14,uint64_t(elapsed),false);}
++ size_t owned_bytes()const{return sizeof(*this);}
++ bool healthy(uint64_t sha_bytes=0)const{
++  if(!closed||!drain_seen||clock_errors||first_native_error)return false;
++  Row totals{},frames{};for(const auto&r:phases)for(size_t i=0;i<15;++i)totals[i]=plus(totals[i],r[i]);for(size_t n=0;n<decode_count;++n)for(size_t i=0;i<11;++i)frames[i]=plus(frames[i],decodes[n][i]);
++  for(size_t i=0;i<11;++i)if(frames[i]!=plus(phases[3][i],phases[4][i]))return false;
++  if(totals[0]!=expected_reads||totals[4]!=expected_reads||totals[5]!=expected_reads||totals[9]!=expected_reads||totals[1]!=expected_read_bytes||totals[2]!=expected_read_bytes||totals[6]!=expected_read_bytes||totals[8]||totals[10])return false;
++  for(size_t i=0;i<11;++i)if(totals[i]!=frames[i])return false;
++  if(sha_bytes){const auto calls=(sha_bytes+65535)/65536+1;for(size_t phase:{size_t(0),size_t(5)})if(phases[phase][11]!=calls||phases[phase][12]!=sha_bytes+1||phases[phase][13]!=sha_bytes)return false;}
++  return true;
++ }
++ std::string json()const{
++  auto row=[](const Row&r){std::string s="[";for(size_t i=0;i<r.size();++i){if(i)s+=',';s+=std::to_string(r[i]);}return s+"]";};
++  Row total{};for(const auto&r:phases)for(size_t i=0;i<15;++i)total[i]=plus(total[i],r[i]);
++  std::string s="{\"schema\":\"xllama-reader-aggregates-v1\",\"coverage\":{\"reader_calls\":\"complete_for_wrapped_provider_reader\",\"sha_calls\":\"complete_for_instrumented_held_SHA_fread_including_failures\",\"unobserved_model_file_io_phases\":[\"metadata_plan\",\"load\"],\"all_model_file_io_complete\":false,\"io_detail\":\"disabled_not_collected\",\"physical_ssd_metrics\":\"unavailable\",\"covered_reader_complete\":"+std::string(closed&&drain_seen?"true":"false")+",\"io_clock_errors\":"+std::to_string(clock_errors)+",\"first_native_error\":"+std::to_string(first_native_error)+"},\"phases\":[";
++  for(size_t i=0;i<8;++i){if(i)s+=',';s+=row(phases[i]);}s+="],\"decode\":[";for(size_t i=0;i<decode_count;++i){if(i)s+=',';s+=row(decodes[i]);}s+="],\"totals\":"+row(total)+",\"phase_elapsed_ns\":[";for(size_t i=0;i<8;++i){if(i)s+=',';s+=std::to_string(phase_ns[i]);}return s+"],\"optional_system_metrics\":null}";
++ }
++};
++// Delegates actual native I/O/lifetime. No polling from memory monitor.
++class ObservedWindowsReader final:public WindowsReader {
++ std::shared_ptr<WindowsReader> reader_;std::shared_ptr<RunIo> io_;
++public:
++ ObservedWindowsReader(std::shared_ptr<WindowsReader> r,std::shared_ptr<RunIo> io):reader_(std::move(r)),io_(std::move(io)){if(!reader_||!io_)throw std::invalid_argument("observed Reader ownership");}
++ size_t read(uint64_t offset,unsigned char* dst,size_t n)override{
++  const auto start=io_->tick();io_->add(0,1);io_->add(1,n);
++  size_t got=0;try{got=reader_->read(offset,dst,n);}catch(...){
++   io_->ledger(reader_->ledger_after_drain());io_->add(10,1);const auto end=io_->tick();io_->add(3,uint64_t(end-start));throw;
++  }
++  io_->ledger(reader_->ledger_after_drain());io_->add(2,got);const auto end=io_->tick();io_->add(3,uint64_t(end-start));return got;
++ }
++ void request_stop()noexcept override{reader_->request_stop();}
++ void drain_to_terminal()noexcept override{reader_->drain_to_terminal();}
++ Ledger ledger_after_drain()const override{return reader_->ledger_after_drain();}
++ Cause cause_after_drain()const override{return reader_->cause_after_drain();}
++};
++}
+diff --git a/uwp/App.cpp b/uwp/App.cpp
+--- a/uwp/App.cpp
++++ b/uwp/App.cpp
+@@ -359,6 +359,18 @@
+     return {};
+ }
+ 
++// New developer ticket ingress fails closed on query errors; absent ticket alone
++// preserves the ordinary path. No pathname deletion or parser side effects here.
++static int dev_ticket_presence(const wchar_t* leaf) {
++    try {
++        const auto folder=winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
++        const std::wstring path=std::wstring(folder.Path().c_str())+L"\\"+leaf;
++        const DWORD attrs=GetFileAttributesW(path.c_str());
++        if(attrs==INVALID_FILE_ATTRIBUTES)return GetLastError()==ERROR_FILE_NOT_FOUND?0:-1;
++        return (attrs&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT))?-1:1;
++    }catch(...){return -1;}
++}
++
+ // Minimal IFrameworkView: activates the CoreWindow (satisfies the PLM
+ // activation watchdog, dismisses the splash) without a swapchain/compositor,
+ // so no D3D12 device exists in-process. Same pattern as the UWP DX12 template.
+@@ -417,6 +429,15 @@
+         // Consume the flag BEFORE the run:
+         // a later start without the flag goes back to interactive.
+ #if defined(XLLAMA_USE_LLAMA)
++        const int ticket_presence=dev_ticket_presence(L"ua50-dev-run-v1.ticket.json");
++        if(ticket_presence<0)return 1;
++        if(ticket_presence>0) {
++            for(const auto* old:{L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag"})
++                if(dev_ticket_presence(old)!=0)return 1;
++            // Runner owns the held ticket; App never deletes it by pathname.
++            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
++                winrt::make<HeadlessView>(&::xllama::bridge::run_cpu_expert_configured,"cpu-dev-run-v1"));return 0;
++        }
+         std::wstring cache_a_flag=flag_path_if_present(L"ua50-cpu-lfm24-cache-a2-v1.flag");
+         std::wstring cache_b_flag=flag_path_if_present(L"ua50-cpu-lfm24-cache-b512-v1.flag");
+         if(!cache_a_flag.empty() || !cache_b_flag.empty()) {
+diff --git a/uwp/cpu-expert-pilot.cpp b/uwp/cpu-expert-pilot.cpp
+--- a/uwp/cpu-expert-pilot.cpp
++++ b/uwp/cpu-expert-pilot.cpp
+@@ -18,12 +18,15 @@
+ #include <cstdio>
+ #include "xllama/first_answer_record.h"
+ #include "ua50/cache_trace.h"
++#include "ua50/dev_run_io.h"
++#include "dev-run-input.h"
++#include <winrt/Windows.ApplicationModel.h>
+ 
+ namespace xllama::bridge {
+ namespace {
+ using namespace cpu_pilot;
+ struct Pilot {
+-    uint64_t initial_limit=0;
++    uint64_t initial_limit=0,ticket_expiry=0;
+     std::atomic<uint64_t> max_sampled_usage{0};
+     std::shared_ptr<std::atomic<bool>> abort=std::make_shared<std::atomic<bool>>(false);
+     std::mutex mutex;
+@@ -54,7 +57,7 @@
+         return q;
+     }
+     void phase(const char* name,uint64_t pending=0) {
+-        if(abort->load() || ua50::uwp::Clock::now()>=deadline)throw std::runtime_error("pilot stop/deadline");
++        if(abort->load() || ua50::uwp::Clock::now()>=deadline || (ticket_expiry&&dev_utc_ms()>=ticket_expiry))throw std::runtime_error("pilot stop/deadline");
+         check(snapshot(name),initial_limit,pending);
+     }
+     void request_stop() noexcept {
+@@ -102,24 +105,29 @@
+ } // namespace
+ 
+ // Shared admitted lifecycle; old smoke namespace and behavior remain unchanged.
+-static void run_cpu_expert_stage(bool answer_stage,bool finished=false,unsigned cache_profile=0) {
+-    if(cache_profile>2 || (cache_profile && (!answer_stage||!finished)))throw std::invalid_argument("cache profile");
++static void run_cpu_expert_stage(bool answer_stage,bool finished=false,unsigned cache_profile=0,std::shared_ptr<DevRunInput> configured={}) {
++    if(cache_profile>3 || (cache_profile && (!answer_stage||!finished)))throw std::invalid_argument("cache profile");
+     auto compute=try_acquire_compute_job();
+-    if(!compute){log_output("[cpu-pilot] NOT_ADMITTED compute busy\n");return;}
++    if(!compute){log_output(configured?"[dev-run-v1] REFUSED: compute busy\n":"[cpu-pilot] NOT_ADMITTED compute busy\n");return;}
+     auto& hub=session_hub();std::unique_lock<std::mutex> hub_lock(hub.mtx,std::try_to_lock);
+     if(!hub_lock || hub.session || hub.failed_expert_load) {
+-        log_output("[cpu-pilot] NOT_ADMITTED existing hub owner\n");return;
++        log_output(configured?"[dev-run-v1] REFUSED: existing hub owner\n":"[cpu-pilot] NOT_ADMITTED existing hub owner\n");return;
+     }
+     auto state=std::make_shared<Pilot>();
+     bool success=false;
+-    auto record=answer_stage?std::make_shared<first_answer::Record>(cache_profile==1?first_answer::Profile::CacheA2:cache_profile==2?first_answer::Profile::CacheB512:finished?first_answer::Profile::Finished384:first_answer::Profile::First128):nullptr;
++    auto record=answer_stage?std::make_shared<first_answer::Record>(configured?first_answer::Profile::Configured:cache_profile==1?first_answer::Profile::CacheA2:cache_profile==2?first_answer::Profile::CacheB512:finished?first_answer::Profile::Finished384:first_answer::Profile::First128):nullptr;
++    if(configured)record->configure(configured->config.max_new,configured->config.prompt_cap);
+     const std::wstring cache_prefix=cache_profile==1?L"ua50-cpu-lfm24-cache-a2-v1.":L"ua50-cpu-lfm24-cache-b512-v1.";
+     std::shared_ptr<ua50::CacheTrace> trace;
+     HANDLE trace_file=INVALID_HANDLE_VALUE;
+-    const std::string marker=cache_profile==1?"[cache-a2-v1]":cache_profile==2?"[cache-b512-v1]":finished?"[finished-answer-v2]":"[first-answer-v1]";
++    auto io=configured?std::make_shared<ua50::uwp::RunIo>():nullptr;
++    std::shared_ptr<CpuExpertEffective> native_effective;
++    uint64_t planned_stage=0,charged_instrumentation=0;
++    if(io)io->set_phase(7);
++    const std::string marker=configured?"[dev-run-v1]":cache_profile==1?"[cache-a2-v1]":cache_profile==2?"[cache-b512-v1]":finished?"[finished-answer-v2]":"[first-answer-v1]";
+     const size_t max_new=record?record->max_new():2;
+     // Batch1 evaluates prompt tokens and all sampled nonterminal tokens except the last.
+-    const uint64_t route_bound=ua50::mul(ua50::add(128u,max_new)-1u,456u);
++    const uint64_t route_bound=ua50::mul(ua50::add(configured?configured->config.prompt_cap:128u,max_new)-1u,456u);
+     HANDLE output=INVALID_HANDLE_VALUE;
+     if(record)record->pid=GetCurrentProcessId();
+     try {
+@@ -130,17 +138,21 @@
+         if(!GetDiskFreeSpaceExW(base.c_str(),&free_caller,&total,&free_total))throw std::runtime_error("pilot LocalFolder disk space unknown");
+         char disk[256];std::snprintf(disk,sizeof(disk),"[cpu-pilot] LocalFolder caller_free=%llu total=%llu total_free=%llu\n",static_cast<unsigned long long>(free_caller.QuadPart),static_cast<unsigned long long>(total.QuadPart),static_cast<unsigned long long>(free_total.QuadPart));log_output(disk);
+         if(free_caller.QuadPart<64ull*1024*1024)throw std::runtime_error("pilot telemetry disk reserve refused");
+-        state->stop_path=(base/(cache_profile?cache_prefix+L"stop":finished?L"ua50-cpu-lfm24-finished-answer-v2.stop":answer_stage?L"ua50-cpu-lfm24-first-answer-v1.stop":L"ua50-cpu-lfm24-pilot.stop")).wstring();
++        state->stop_path=configured?configured->path("stop").wstring():(base/(cache_profile?cache_prefix+L"stop":finished?L"ua50-cpu-lfm24-finished-answer-v2.stop":answer_stage?L"ua50-cpu-lfm24-first-answer-v1.stop":L"ua50-cpu-lfm24-pilot.stop")).wstring();
+         state->deadline=ua50::uwp::Clock::now()+std::chrono::minutes(20);
++        if(configured){state->ticket_expiry=configured->ticket.expires;const auto ticket_now=dev_utc_ms();dev_run::need(state->ticket_expiry>ticket_now,"ticket expired at admission");
++         state->deadline=std::min(state->deadline,ua50::uwp::Clock::now()+std::chrono::milliseconds(state->ticket_expiry-ticket_now));}
+         // Persistent O_EXCL equivalent: restarting the app/flag cannot silently retry.
++        if(configured)configured->spend();else {
+         HANDLE claim=CreateFile2((base/(cache_profile?cache_prefix+L"claim":finished?L"ua50-cpu-lfm24-finished-answer-v2.claim":answer_stage?L"ua50-cpu-lfm24-first-answer-v1.claim":L"ua50-cpu-lfm24-pilot.claim")).c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr);
+         if(claim==INVALID_HANDLE_VALUE)throw std::runtime_error("pilot claim exists/unavailable");
+         CloseHandle(claim);
++        }
+         if(answer_stage) {
+             log_output((marker+" claimed new stage; old pilot claim untouched\n"));
+-            output=CreateFile2((base/(cache_profile?cache_prefix+L"output.json":finished?L"ua50-cpu-lfm24-finished-answer-v2.output.json":L"ua50-cpu-lfm24-first-answer-v1.output.json")).c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr);
++            output=CreateFile2((configured?configured->path("output.json"):base/(cache_profile?cache_prefix+L"output.json":finished?L"ua50-cpu-lfm24-finished-answer-v2.output.json":L"ua50-cpu-lfm24-first-answer-v1.output.json")).c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr);
+             if(output==INVALID_HANDLE_VALUE)throw std::runtime_error("first-answer output exists/unavailable");
+-            if(cache_profile){trace_file=CreateFile2((base/(cache_prefix+L"trace.bin")).c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr);
++            if(cache_profile){trace_file=CreateFile2((configured?configured->path("trace.bin"):base/(cache_prefix+L"trace.bin")).c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr);
+              if(trace_file==INVALID_HANDLE_VALUE)throw std::runtime_error("cache trace exists/unavailable");}
+         }
+         require_matching_catalogue();
+@@ -154,17 +166,21 @@
+                 }
+             });
+         state->phase("after-quota-subscription",probe_allowance);
+-        if(cache_profile){trace=std::make_shared<ua50::CacheTrace>(cache_profile,GetCurrentProcessId());
++        if(cache_profile){
++         if(configured)trace=std::make_shared<ua50::CacheTrace>(GetCurrentProcessId(),configured->config.slots,configured->config.cache_ceiling,configured->config.max_new,configured->config.prompt_cap,configured->config_sha,dev_run::engine_digest,configured->config.id,configured->ticket_sha);
++         else trace=std::make_shared<ua50::CacheTrace>(cache_profile,GetCurrentProcessId());
+          state->phase("trace-buffer-allocated",probe_allowance);}
+         state->start_monitor();
+         llama_backend_init();state->phase("backend-initialized",probe_allowance);
+         auto opt=std::make_shared<CpuExpertOptIn>();opt->enabled=true;
+-        if(cache_profile){opt->slots=cache_profile==1?2:512;opt->cache_ceiling=cache_profile==1?16777216ull:1342177280ull;
++        if(cache_profile){opt->slots=configured?configured->config.slots:cache_profile==1?2:512;opt->cache_ceiling=configured?configured->config.cache_ceiling:cache_profile==1?16777216ull:1342177280ull;
+          opt->instrumentation_owned_bytes=trace->required_owned_bytes();
+-         opt->cache_events=[trace](const char* event,const ua50::Counters& counters){
+-          if(std::strcmp(event,"begin")==0)trace->begin(counters);
+-          else if(std::strcmp(event,"end")==0)trace->end(counters);
+-          else if(std::strcmp(event,"terminal")==0)trace->terminal(counters);
++         if(configured){opt->instrumentation_owned_bytes=ua50::add(opt->instrumentation_owned_bytes,ua50::add(configured->owned_bytes(),ua50::add(io->owned_bytes(),sizeof(ua50::uwp::ObservedWindowsReader)+4096)));charged_instrumentation=opt->instrumentation_owned_bytes;
++          native_effective=std::make_shared<CpuExpertEffective>();opt->effective_observer=[native_effective,configured](const CpuExpertEffective&e){if(e.context!=512||e.threads!=1||e.threads_batch!=1||e.slots!=configured->config.slots||e.ceiling!=configured->config.cache_ceiling||e.owned>e.ceiling)throw std::runtime_error("constructed native effective mismatch");*native_effective=e;};}
++         opt->cache_events=[trace,io,record](const char* event,const ua50::Counters& counters){
++          if(std::strcmp(event,"begin")==0){trace->begin(counters);if(io)io->begin_frame(record->samples.empty());}
++          else if(std::strcmp(event,"end")==0){trace->end(counters);if(io)io->end_frame();}
++          else if(std::strcmp(event,"terminal")==0){trace->terminal(counters);if(io)io->after_drain(counters.read_calls,counters.read_bytes);}
+           else throw std::runtime_error("unknown cache event");};}
+         opt->plan_profile=finished?CpuExpertOptIn::PlanProfile::FinishedAnswer512:answer_stage?CpuExpertOptIn::PlanProfile::FirstAnswer512:CpuExpertOptIn::PlanProfile::Smoke64;
+         opt->context.n_ctx=answer_stage?512:64;opt->context.n_batch=1;opt->context.n_ubatch=1;opt->context.n_seq_max=1;
+@@ -178,8 +194,9 @@
+         opt->model.progress_callback=[](float,void* user)->bool {return !static_cast<Pilot*>(user)->abort->load();};
+         opt->model.progress_callback_user_data=state.get();
+         ua50::uwp::ExpectedFile expected{bytes,sha};
+-        auto source=make_windows_expert_source(path.wstring(),expected,state->abort,state->deadline,opt->stage_ceiling);
+-        opt->admitted_source=[state,source,base,record]() {
++        HashReadObserver sha_observer;if(io)sha_observer=[io](size_t want,size_t got,int64_t ns){io->sha(want,got,ns);};
++        auto source=make_windows_expert_source(path.wstring(),expected,state->abort,state->deadline,opt->stage_ceiling,sha_observer);
++        opt->admitted_source=[state,source,base,record,io]() {
+             state->phase("before-held-SHA",probe_allowance);
+             auto writer=ModelDownloader::WriterGate().try_acquire();
+             if(!writer.owns_lock())throw std::runtime_error("model writer busy");
+@@ -194,7 +211,10 @@
+         }
+ 
+             if(record)record->pre_sha_begin_ns=record->tick();
++            if(io)io->set_phase(0);
+             auto c=bind_writer(std::move(writer),source);
++            if(io){auto make=c.make_reader;c.make_reader=[make,io](size_t stage){
++             auto r=std::make_shared<ua50::uwp::ObservedWindowsReader>(make(stage),io);io->observed=r;return r;};}
+             if(record)record->pre_sha_end_ns=record->tick();
+             {std::lock_guard<std::mutex> lock(state->mutex);state->control=c.control;}
+             state->held=c.file;
+@@ -203,16 +223,16 @@
+             return c;
+         };
+         std::weak_ptr<CpuExpertOptIn> weak_opt=opt;
+-        opt->admit_budget=[state,weak_opt,trace](const ua50::ExpertLoadPlan& input,const llama_context_params&) {
++        opt->admit_budget=[state,weak_opt,trace,&planned_stage](const ua50::ExpertLoadPlan& input,const llama_context_params&) {
+             auto o=weak_opt.lock();if(!o)throw std::runtime_error("pilot config expired");
+             state->phase("before-native-sizing",probe_allowance);
+             auto p=plan_cpu_expert_memory(state->held,*o,input);
+-            if(trace)trace->plan(input.cache_owned_bytes,input.stage_bytes);
++            if(trace)trace->plan(input.cache_owned_bytes,input.stage_bytes);planned_stage=input.stage_bytes;
+             char line[512];std::snprintf(line,sizeof(line),"[cpu-pilot] joint-plan resident=%llu kv_recurrent=%llu scheduler=%llu cpu_workspace=%llu output=%llu cache=%llu stage=%llu extra_reserve=%llu\n",
+                 static_cast<unsigned long long>(p.resident),static_cast<unsigned long long>(p.kv_recurrent),static_cast<unsigned long long>(p.compute),static_cast<unsigned long long>(p.cpu_workspace),static_cast<unsigned long long>(p.output),static_cast<unsigned long long>(p.cache),static_cast<unsigned long long>(p.stage),static_cast<unsigned long long>(reserve));
+             log_output(line);state->phase("before-payload-allocation",p.total());
+         };
+-        opt->phase_check=[state](const char* phase){state->phase(phase);};
++        opt->phase_check=[state,io](const char* phase){if(io){if(std::strcmp(phase,"before-sample")==0)io->set_phase(4);else if(std::strcmp(phase,"before-metadata")==0)io->set_phase(1);else if(std::strcmp(phase,"before-model-load")==0)io->set_phase(2);}state->phase(phase);};
+         opt->route_trace=[record,finished,route_bound,trace,count=size_t(0)](uint32_t role,uint64_t expert,uint64_t offset,uint64_t length) mutable {
+             if(record){
+                 if(trace)trace->key(role,expert,length);
+@@ -234,10 +254,10 @@
+             if(!model)throw std::runtime_error("first-answer native model unavailable");
+             const auto* vocab=llama_model_get_vocab(model);
+             record->bos=llama_vocab_bos(vocab);
+-            record->prompt=first_answer::render(llama_model_chat_template(model,nullptr),llama_vocab_get_add_bos(vocab),record->bos);
++            record->prompt=configured?first_answer::render_user(llama_model_chat_template(model,nullptr),llama_vocab_get_add_bos(vocab),record->bos,configured->config.prompt):first_answer::render(llama_model_chat_template(model,nullptr),llama_vocab_get_add_bos(vocab),record->bos);
+             record->template_verified=true;
+             gp.prompt=record->prompt;gp.n_predict=static_cast<int>(max_new);gp.expert_answer=record;
+-            if((cache_profile&&session->context_length()!=512) || session->context_length()>512 || session->count_tokens(gp.prompt)>128)throw std::runtime_error("first-answer context/prompt refused");
++            if((cache_profile&&session->context_length()!=512) || session->context_length()>512 || session->count_tokens(gp.prompt)>(configured?configured->config.prompt_cap:128))throw std::runtime_error("first-answer context/prompt refused");
+             log_output(marker+" generate begin CPU1 ctx512 maxnew"+std::to_string(max_new)+" template ea663864 tokenizer-owned BOS\n");
+         } else if(session->context_length()>256 || session->count_tokens("Hi")>4)throw std::runtime_error("pilot resolved context/prompt refused");
+         gp.stall_timeout_s=180;
+@@ -245,10 +265,11 @@
+         auto result=session->generate(gp);
+         if(!result.success)throw std::runtime_error("pilot generate: "+result.error_msg);
+         if(!record && (result.n_eval!=2 || result.n_prompt<=0 || result.n_prompt>4))throw std::runtime_error("pilot ended before bounded two-sample/one-step contract");
+-        if(record && (!record->complete || result.n_prompt<=0 || result.n_prompt>128 || result.n_eval>static_cast<int>(max_new)))throw std::runtime_error("first-answer native result mismatch");
++        if(record && (!record->complete || result.n_prompt<=0 || result.n_prompt>static_cast<int>(configured?configured->config.prompt_cap:128) || result.n_eval>static_cast<int>(max_new)))throw std::runtime_error("first-answer native result mismatch");
+         state->phase("after-prompt-step");
+         // Same held FILE post-check, before owner/WriterGate release; no path reopen.
+-        auto post=make_held_sha256_validator(expected,[state]{return state->abort->load();},state->deadline);
++        if(io)io->set_phase(5);
++        auto post=make_held_sha256_validator(expected,[state]{return state->abort->load();},state->deadline,sha_observer);
+         if(record)record->post_sha_begin_ns=record->tick();
+         (void)post(state->held,bytes);
+         if(record)record->post_sha_end_ns=record->tick();
+@@ -266,9 +287,11 @@
+         success=record->after_monitor_join(success,state->abort->load());
+         if(was_success && !success)log_output(marker+" STOP final monitor outcome; partial diagnostics retained\n");
+     }
++    if(io){try{io->set_phase(6);}catch(const std::exception&e){success=false;if(record->error.empty())record->fail(e.what());}}
+     hub.reset_locked();state->held=nullptr;state->limit_changed.revoke();
+     if(record) {
+         record->owner_closed=true;record->quota_limit=state->initial_limit;record->usage_max_sampled=state->max_sampled_usage.load();
++        if(io){try{io->finish();if(success&&!io->healthy(bytes)){success=false;record->fail("IO coverage/clock/native error");}}catch(const std::exception&e){success=false;if(record->error.empty())record->fail(e.what());}}
+         if(cache_profile) {
+             try {
+                 if(!trace)throw std::runtime_error("trace allocation unavailable");
+@@ -277,18 +300,30 @@
+                 if(success && !trace->complete()){success=false;record->fail("trace is not complete replayable");}
+                 if(trace_file==INVALID_HANDLE_VALUE)throw std::runtime_error("trace output unavailable");
+                 DWORD written=0;
+-                if(!WriteFile(trace_file,trace->bytes(),static_cast<DWORD>(ua50::CacheTrace::file_bytes),&written,nullptr) || written!=ua50::CacheTrace::file_bytes || !FlushFileBuffers(trace_file))throw std::runtime_error("trace write/flush failed");
++                if(!WriteFile(trace_file,trace->bytes(),static_cast<DWORD>(trace->file_size()),&written,nullptr) || written!=trace->file_size() || !FlushFileBuffers(trace_file))throw std::runtime_error("trace write/flush failed");
+                 if(!CloseHandle(trace_file)){trace_file=INVALID_HANDLE_VALUE;throw std::runtime_error("trace close failed");}trace_file=INVALID_HANDLE_VALUE;
+                 record->cache_ab_json=trace->json(true);record->trace_complete_committed=trace->complete();
+                 log_output(marker+(trace->complete()?" TRACE_COMMITTED complete replayable\n":" TRACE_COMMITTED partial not replayable\n"));
+             }catch(const std::exception& e){success=false;
+                 if(record->error.empty())record->fail(e.what());else record->complete=false;
+-                record->cache_ab_json=trace?trace->json(false):ua50::CacheTrace::unavailable(cache_profile);
++                record->cache_ab_json=trace?trace->json(false):ua50::CacheTrace::unavailable(cache_profile,configured?configured->config.slots:0,configured?configured->config.cache_ceiling:0);
+                 log_output(marker+" TRACE_FAILED: "+e.what()+"\n");}
+             if(trace_file!=INVALID_HANDLE_VALUE){CloseHandle(trace_file);trace_file=INVALID_HANDLE_VALUE;}
+         }
+ 
+         try {
++            if(configured){
++             const auto quote=first_answer::quote;const auto e=native_effective?*native_effective:CpuExpertEffective{};
++             std::string effective="null";
++             if(native_effective&&e.context){
++              if(e.context!=512||e.threads!=1||e.threads_batch!=1||e.slots!=configured->config.slots||e.ceiling!=configured->config.cache_ceiling||e.owned>e.ceiling)throw std::runtime_error("native effective mismatch");
++              effective="{\"model_id\":\"lfm25-24b-a2b-q4-k-m\",\"model_sha256\":"+quote(sha)+",\"context_tokens\":"+std::to_string(e.context)+",\"prompt_tokens\":"+std::to_string(record->prompt_ids.size())+",\"max_new_tokens\":"+std::to_string(record->max_new())+",\"threads\":"+std::to_string(e.threads)+",\"threads_batch\":"+std::to_string(e.threads_batch)+",\"backend_id\":\"cpu_expert_streaming\",\"device_mode\":\"cpu\",\"main_gpu\":-1,\"gpu_layers\":0,\"offload_kqv\":false,\"op_offload\":false,\"expert_placement\":\"cpu_streamed\",\"compute_mode\":\"nonfused\",\"sampler_kind\":\"greedy\",\"cache_policy\":\"global_lru\",\"cache_slots\":"+std::to_string(e.slots)+",\"cache_owned_ceiling_bytes\":"+std::to_string(e.ceiling)+",\"cache_required_owned_bytes\":"+std::to_string(e.owned)+",\"cache_arena_bytes\":"+std::to_string(e.arena)+",\"cache_metadata_bytes\":"+std::to_string(e.metadata)+",\"stage_required_bytes\":"+std::to_string(planned_stage)+",\"instrumentation_owned_bytes\":"+std::to_string(charged_instrumentation)+"}";
++             }
++             const auto package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
++             record->runner_complete=success&&io->healthy(bytes)&&effective!="null";
++             if(success&&!record->runner_complete){success=false;record->fail("runner effective/IO completion unavailable");}
++             record->runner_json="{\"run_id\":"+quote(configured->config.id)+",\"selection_id\":"+quote(configured->ticket.selection)+",\"config_sha256\":"+quote(configured->config_sha)+",\"ticket_sha256\":"+quote(configured->ticket_sha)+",\"engine_contract_sha256\":"+quote(dev_run::engine_digest)+",\"native_package_full_name\":"+quote(package)+",\"requested\":"+configured->config.raw+",\"effective\":"+effective+",\"storage\":"+io->json()+"}";
++            }
+             if(output==INVALID_HANDLE_VALUE)throw std::runtime_error("private output was not created");
+             first_answer::commit_record(*record,[&](const std::string& json){DWORD written=0;
+             if(!WriteFile(output,json.data(),static_cast<DWORD>(json.size()),&written,nullptr) || written!=json.size() || !FlushFileBuffers(output))throw std::runtime_error("private output write/flush failure");
+@@ -304,6 +339,14 @@
+ void run_cpu_expert_pilot(){run_cpu_expert_stage(false);}
+ void run_cpu_expert_first_answer(){run_cpu_expert_stage(true);}
+ void run_cpu_expert_finished_answer(){run_cpu_expert_stage(true,true);}
++void run_cpu_expert_configured(){
++ try{Pilot input_probe;input_probe.deadline=ua50::uwp::Clock::now()+std::chrono::minutes(20);
++  const auto quota=input_probe.snapshot("before-config-parse");check(quota,quota.limit,probe_allowance);
++  const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());
++  auto input=std::make_shared<DevRunInput>(root);run_cpu_expert_stage(true,true,3,std::move(input));
++ }catch(const std::exception&e){log_output(std::string("[dev-run-v1] REFUSED: ")+e.what()+"\n");}
++ catch(...){log_output("[dev-run-v1] REFUSED: unknown input failure\n");}
++}
+ void run_cpu_expert_cache_a2(){run_cpu_expert_stage(true,true,1);}
+ void run_cpu_expert_cache_b512(){run_cpu_expert_stage(true,true,2);}
+ } // namespace xllama::bridge
+diff --git a/uwp/dev-run-input.h b/uwp/dev-run-input.h
+new file mode 100644
+--- /dev/null
++++ b/uwp/dev-run-input.h
+@@ -0,0 +1,45 @@
++#pragma once
++#include "xllama/dev_run_config.h"
++#include <windows.h>
++#include <bcrypt.h>
++#include <array>
++#include <filesystem>
++#include <cstring>
++namespace xllama::bridge {
++struct DevHandle {
++ HANDLE value=INVALID_HANDLE_VALUE;
++ DevHandle()=default;explicit DevHandle(HANDLE v):value(v){}
++ DevHandle(const DevHandle&)=delete;DevHandle&operator=(const DevHandle&)=delete;
++ ~DevHandle(){if(value!=INVALID_HANDLE_VALUE)CloseHandle(value);}
++ void close(){HANDLE v=value;value=INVALID_HANDLE_VALUE;if(v!=INVALID_HANDLE_VALUE&&!CloseHandle(v))throw std::runtime_error("native handle close failure");}
++};
++inline uint64_t dev_utc_ms(){FILETIME f{};GetSystemTimeAsFileTime(&f);ULARGE_INTEGER v{};v.LowPart=f.dwLowDateTime;v.HighPart=f.dwHighDateTime;return (v.QuadPart-116444736000000000ull)/10000;}
++inline std::string dev_sha(const std::string& bytes){
++ BCRYPT_ALG_HANDLE alg=nullptr;BCRYPT_HASH_HANDLE hash=nullptr;std::vector<unsigned char> object;std::array<unsigned char,32> sum{};
++ auto check=[](NTSTATUS s){if(s<0)throw std::runtime_error("config BCrypt SHA");};
++ try{check(BCryptOpenAlgorithmProvider(&alg,BCRYPT_SHA256_ALGORITHM,nullptr,0));DWORD size=0,got=0;check(BCryptGetProperty(alg,BCRYPT_OBJECT_LENGTH,reinterpret_cast<PUCHAR>(&size),sizeof(size),&got,0));if(got!=sizeof(size)||!size||size>65536)throw std::runtime_error("config SHA object bound");object.resize(size);check(BCryptCreateHash(alg,&hash,object.data(),size,nullptr,0,0));check(BCryptHashData(hash,reinterpret_cast<PUCHAR>(const_cast<char*>(bytes.data())),ULONG(bytes.size()),0));check(BCryptFinishHash(hash,sum.data(),ULONG(sum.size()),0));BCryptDestroyHash(hash);hash=nullptr;BCryptCloseAlgorithmProvider(alg,0);alg=nullptr;
++ }catch(...){if(hash)BCryptDestroyHash(hash);if(alg)BCryptCloseAlgorithmProvider(alg,0);throw;}
++ const char*d="0123456789abcdef";std::string out;out.reserve(64);for(auto x:sum){out+=d[x>>4];out+=d[x&15];}return out;
++}
++inline void open_dev_file(DevHandle& h,const std::filesystem::path& path,bool ticket){CREATEFILE2_EXTENDED_PARAMETERS p{};p.dwSize=sizeof(p);p.dwFileFlags=FILE_FLAG_OPEN_REPARSE_POINT;h.value=CreateFile2(path.c_str(),GENERIC_READ|(ticket?DELETE:0),ticket?0:FILE_SHARE_READ,OPEN_EXISTING,&p);if(h.value==INVALID_HANDLE_VALUE)throw std::runtime_error("config/ticket held open refused");}
++inline std::string read_dev_file(DevHandle& h,size_t cap){
++ FILE_STANDARD_INFO before{};FILE_ATTRIBUTE_TAG_INFO attr{};FILE_ID_INFO id{},postid{};
++ if(GetFileType(h.value)!=FILE_TYPE_DISK||!GetFileInformationByHandleEx(h.value,FileStandardInfo,&before,sizeof(before))||!GetFileInformationByHandleEx(h.value,FileAttributeTagInfo,&attr,sizeof(attr))||!GetFileInformationByHandleEx(h.value,FileIdInfo,&id,sizeof(id))||before.NumberOfLinks!=1||before.Directory||before.DeletePending||(attr.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)||before.EndOfFile.QuadPart<=0||uint64_t(before.EndOfFile.QuadPart)>cap)throw std::runtime_error("config/ticket file shape/bound");
++ std::string raw(size_t(before.EndOfFile.QuadPart),'\0');DWORD got=0;if(!ReadFile(h.value,raw.data(),DWORD(raw.size()),&got,nullptr)||got!=raw.size())throw std::runtime_error("config/ticket short read");unsigned char extra=0;DWORD trailing=0;if(!ReadFile(h.value,&extra,1,&trailing,nullptr)||trailing)throw std::runtime_error("config/ticket trailing read");FILE_STANDARD_INFO after{};if(!GetFileInformationByHandleEx(h.value,FileStandardInfo,&after,sizeof(after))||!GetFileInformationByHandleEx(h.value,FileIdInfo,&postid,sizeof(postid))||after.EndOfFile.QuadPart!=before.EndOfFile.QuadPart||memcmp(&id,&postid,sizeof(id)))throw std::runtime_error("config/ticket held identity changed");return raw;
++}
++struct DevRunInput {
++ DevHandle held_ticket;dev_run::Ticket ticket;dev_run::Config config;dev_run::OneUse use;std::string config_sha,ticket_sha;std::filesystem::path root;
++ explicit DevRunInput(std::filesystem::path base):root(std::move(base)){
++  open_dev_file(held_ticket,root/L"ua50-dev-run-v1.ticket.json",true);auto ticket_bytes=read_dev_file(held_ticket,dev_run::ticket_cap);ticket_sha=dev_sha(ticket_bytes);ticket=dev_run::parse_ticket(std::move(ticket_bytes),dev_utc_ms());
++  DevHandle cfg;const std::string leaf="ua50-dev-run-v1."+ticket.id+".config.json";open_dev_file(cfg,root/std::wstring(leaf.begin(),leaf.end()),false);auto bytes=read_dev_file(cfg,dev_run::config_cap);config_sha=dev_sha(bytes);config=dev_run::parse_config(std::move(bytes));cfg.close();dev_run::need(ticket.id==config.id&&ticket.config_sha==config_sha,"ticket/config binding");
++ }
++ size_t owned_bytes()const{return sizeof(*this)+config.owned_bytes()+ticket.raw.capacity()+ticket.selection.capacity()+ticket.id.capacity()+ticket.config_sha.capacity()+config_sha.capacity()+ticket_sha.capacity()+4096;}
++ std::filesystem::path path(const char*suffix)const{auto leaf=config.leaf(suffix);return root/std::wstring(leaf.begin(),leaf.end());}
++ void spend(){dev_run::need(ticket.expires>dev_utc_ms(),"ticket expired before claim");use.spend([&]{
++   DevHandle claim(CreateFile2(path("claim").c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(claim.value==INVALID_HANDLE_VALUE)throw std::runtime_error("run identity already used/claim unavailable");
++   const auto bytes=ticket_sha+"\n";DWORD n=0;if(!WriteFile(claim.value,bytes.data(),DWORD(bytes.size()),&n,nullptr)||n!=bytes.size()||!FlushFileBuffers(claim.value))throw std::runtime_error("claim durable write refused");claim.close();
++  },[&]{dev_run::need(ticket.expires>dev_utc_ms(),"ticket expired before consumption");FILE_DISPOSITION_INFO disposition{};disposition.DeleteFile=TRUE;if(!SetFileInformationByHandle(held_ticket.value,FileDispositionInfo,&disposition,sizeof(disposition)))throw std::runtime_error("held ticket consumption failed");held_ticket.close();
++  });dev_run::need(use.may_start_model(),"ticket not consumed");
++ }
++};
++}
+diff --git a/uwp/inference-bridge.h b/uwp/inference-bridge.h
+--- a/uwp/inference-bridge.h
++++ b/uwp/inference-bridge.h
+@@ -24,6 +24,7 @@
+ void run_cpu_expert_first_answer();
+ void run_cpu_expert_finished_answer();
+ void run_cpu_expert_cache_a2();
++void run_cpu_expert_configured();
+ void run_cpu_expert_cache_b512();
+ #endif
+ 

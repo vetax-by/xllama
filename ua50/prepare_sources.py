@@ -45,11 +45,11 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = '2d691ec97b54c554fdd096b454f6e1410e90768d9641d02900af4914a291ba9b'
+CURRENT_PATCH_LOCK = 'bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current cacheAB/2d69 lock admitted; old25b9/5dab/B803/760e/a199/e781 refused')
+        raise ValueError('only current configurable/bd37 lock admitted; old2d69/25b9/5dab/B803/760e/a199/e781 refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
@@ -61,15 +61,16 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/app-xllama.patch', 'xllama'), ('patch/app-llama.patch', 'llama'),
             ('patch/cpu-pilot-root.patch', 'xllama'), ('patch/cpu-pilot-llama.patch', 'llama'),
             ('patch/first-answer-root.patch', 'xllama'), ('patch/finished-answer-root.patch', 'xllama'),
-            ('patch/cache-ab-root.patch', 'xllama'), ('patch/cache-ab-llama.patch', 'llama')]:
-        raise ValueError('exact accepted eight plus cache-ab root and native tenth order required')
+            ('patch/cache-ab-root.patch', 'xllama'), ('patch/cache-ab-llama.patch', 'llama'),
+            ('patch/configurable-runner-root.patch', 'xllama'), ('patch/configurable-runner-llama.patch', 'llama')]:
+        raise ValueError('exact accepted ten plus configurable root and native twelfth order required')
     for entry in lock['patches']:
         patch = checked_patch(operator, entry)
         if patch.stat().st_size != entry['bytes']:
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = '23eb43b81a5269f8568cc05ccbaf4a1649b9357d2b2c036dc8d867099a1663d7'
+SHIPPING_INVENTORY_SHA = '8343a0979cb2a69fea9b8db33677c500e33e295263d35321d333bf572644aaa2'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):
@@ -80,8 +81,8 @@ def admitted_shipping_inventory(operator):
     if hashlib.sha256(imports).hexdigest() != COMPILER_INVENTORY_SHA:
         raise ValueError('compiler/import declarations changed')
     entries = json.loads(raw)['selected_materialized_files']
-    if len(entries) != 48:
-        raise ValueError('exact forty-eight selected shipping files required')
+    if len(entries) != 51:
+        raise ValueError('exact fifty-one selected shipping files required')
     seen = set()
     for entry in entries:
         target, path = entry['target'], entry['target_path']

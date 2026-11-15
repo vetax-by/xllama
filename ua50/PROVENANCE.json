@@ -3,20 +3,21 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "2d691ec97b54c554fdd096b454f6e1410e90768d9641d02900af4914a291ba9b",
-  "source_bundle_sha256": "a013ffb4ef1a8b81bb04846f45e8a1552bb2a53f8160309cd35deec6e35f6de3",
+  "patch_lock_sha256": "bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca",
+  "source_bundle_sha256": "9a84c724e6e5153be42d97a36cc6910587da5e673b366ec45d3102fa1398f666",
   "source_reviews": {
-    "composition": "66076be883d5136560d116862564700bf7d28c921f38b500a86aab441c0af108",
+    "composition": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151",
     "cpu_pilot": "efe7dbb8a350c1ca99c07386b207570580d7d13457f2ad247518da9d380f66dd",
     "base_composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
-    "current_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb",
     "first_answer_source_shipping": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
     "first_answer_operator_binding": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
     "finished_answer_source_shipping": "575e528a3dfe05358cc33e6f3dbc4dc6f277a9c4b17bfc837cb7742a4355d5fe",
-    "historical_finished_answer_operator_admission": "de555cb0fc005b34ce950704479923b55026ed84ae0bdf1faa79f23d0f7bf99f"
+    "historical_finished_answer_operator_admission": "de555cb0fc005b34ce950704479923b55026ed84ae0bdf1faa79f23d0f7bf99f",
+    "configurable_runner_source_shipping": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151",
+    "historical_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
   },
-  "qualification": "The historical finished-answer profile completed one bounded console run with a genuine generated final section, native termination and normal teardown. The current ten-patch cache A/B successor has reviewed source/shipping and synthetic analysis only; actual new Windows build, signed preserving update, console traces, performance and large-cache fit remain pending. Raw output and telemetry remain private.",
-  "public_metadata_adjustment": "Captured tool-installation-path excerpts remain omitted. Eight historical patches retain their bytes; one root and one native cache delta add separate cache A/B developer profiles and identical instrumentation. Runtime and operator inputs preserve their exact frozen source bytes; publication review is recorded separately.",
+  "qualification": "Historical fixed profiles have bounded console output evidence. The ten-patch cache successor has an inspected Windows artifact but no console cache comparison. The configurable successor has accepted source/shipping and synthetic analysis only; its own Windows artifact, signing, preserving update and separate CPU configuration qualification remain pending. Raw output and telemetry remain private.",
+  "public_metadata_adjustment": "The ten historical patches retain their exact bytes. One additional root and one native patch implement a typed CPU developer runner with explicit successor records and bounded I/O aggregates. Exact runtime/operator source publication excludes author tests, private verification copies and telemetry.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
     {
@@ -40,9 +41,9 @@
       "review_sha256": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
     }
   ],
-  "operator_admission_manifest_sha256": "cd9c74fd0b6ae2214322548a1dac1c666020d8b120b7bf7aa026ca83105a511a",
-  "operator_composition_manifest_sha256": "cd9c74fd0b6ae2214322548a1dac1c666020d8b120b7bf7aa026ca83105a511a",
-  "operator_sha256": "166208931f7d83949be006634537b42e36bc8c82f3864560d00bf9e5b2d72a10",
+  "operator_admission_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
+  "operator_composition_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
+  "operator_sha256": "aeda91aff7561f52dac4b6e5488efe6e7b6149fe421a1c6f90a9f79fb0e035a3",
   "build_receipt_hygiene": {
     "source_manifest_sha256": "d3fbfbba1ba02743601c0d77fc41400f9894756a19f8473894b177809420c3e8",
     "review_sha256": "a398cc06c8a5117ebd2010f47c41f544d470319b8f63251df2cc275281b815da",
@@ -134,11 +135,29 @@
     "patches": 10,
     "selected_shipping_inputs": 48,
     "direct_include_rows": 477,
-    "actual_Windows_build": false,
+    "actual_Windows_build": true,
     "actual_console_AB": false,
     "large_cache_fit_proven": false,
     "measured_speed_advantage": false,
     "operator_source_manifest_sha256": "cd9c74fd0b6ae2214322548a1dac1c666020d8b120b7bf7aa026ca83105a511a",
-    "operator_sha256": "166208931f7d83949be006634537b42e36bc8c82f3864560d00bf9e5b2d72a10"
+    "operator_sha256": "166208931f7d83949be006634537b42e36bc8c82f3864560d00bf9e5b2d72a10",
+    "actual_Windows_artifact_review": "53cc4114e487f1c403dcf435bb239546d7152251b3e9866c948522815900a5d1"
+  },
+  "configurable_runner_source": {
+    "status": "PASS_SOURCE_SHIPPING_AND_SYNTHETIC_ANALYSIS_ONLY",
+    "patch_lock_sha256": "bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca",
+    "patches": 12,
+    "selected_shipping_inputs": 51,
+    "direct_include_rows": 496,
+    "compiled_capability_digest": "6baa8156f7f07e9974e3ee32280d2367811026df427fcad13074c359a992b366",
+    "actual_Windows_build": false,
+    "actual_configurable_console_run": false,
+    "gpu_capability_implemented": false,
+    "source_sha256": "63136e6bf78c66890561e9c1451b8b1339ed1b1a8aefc373b6f37f5ae865310d",
+    "source_bundle_sha256": "9a84c724e6e5153be42d97a36cc6910587da5e673b366ec45d3102fa1398f666",
+    "source_review_sha256": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151",
+    "source_qa_manifest_sha256": "9771e666a7f40afac0189f7301b861c346bc1e5bc423296fcd50c07b5b88c1b3",
+    "operator_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
+    "operator_sha256": "aeda91aff7561f52dac4b6e5488efe6e7b6149fe421a1c6f90a9f79fb0e035a3"
   }
 }

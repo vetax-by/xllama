@@ -110,6 +110,48 @@
       "include": "string"
     },
     {
+      "from": "include/xllama/dev_run_config.h",
+      "line": 2,
+      "style": "\"",
+      "include": "first_answer_record.h"
+    },
+    {
+      "from": "include/xllama/dev_run_config.h",
+      "line": 3,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/dev_run_config.h",
+      "line": 4,
+      "style": "<",
+      "include": "utility"
+    },
+    {
+      "from": "include/xllama/dev_run_config.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/dev_run_config.h",
+      "line": 6,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/dev_run_config.h",
+      "line": 7,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/dev_run_config.h",
+      "line": 8,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
       "from": "include/xllama/first_answer_record.h",
       "line": 2,
       "style": "\"",
@@ -2282,6 +2324,24 @@
       "include": "session_factory.inc"
     },
     {
+      "from": "src/platform/ua50/dev_run_io.h",
+      "line": 2,
+      "style": "\"",
+      "include": "windows_held_reader.h"
+    },
+    {
+      "from": "src/platform/ua50/dev_run_io.h",
+      "line": 3,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "src/platform/ua50/dev_run_io.h",
+      "line": 4,
+      "style": "<",
+      "include": "functional"
+    },
+    {
       "from": "src/platform/ua50/staged_reader_core.h",
       "line": 2,
       "style": "<",
@@ -2838,6 +2898,60 @@
       "line": 20,
       "style": "\"",
       "include": "ua50/cache_trace.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 21,
+      "style": "\"",
+      "include": "ua50/dev_run_io.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 22,
+      "style": "\"",
+      "include": "dev-run-input.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 23,
+      "style": "<",
+      "include": "winrt/Windows.ApplicationModel.h"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 2,
+      "style": "\"",
+      "include": "xllama/dev_run_config.h"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 3,
+      "style": "<",
+      "include": "windows.h"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 4,
+      "style": "<",
+      "include": "bcrypt.h"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 5,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 6,
+      "style": "<",
+      "include": "filesystem"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 7,
+      "style": "<",
+      "include": "cstring"
     },
     {
       "from": "uwp/inference-bridge.h",

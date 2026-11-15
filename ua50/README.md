@@ -8,7 +8,7 @@ The patch rationale, implementation and evidence limits have one home:
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
 - Patch lock SHA-256:
-  `2d691ec97b54c554fdd096b454f6e1410e90768d9641d02900af4914a291ba9b`.
+  `bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
 The first four patches retain the accepted application/runtime bytes. Two
@@ -16,8 +16,10 @@ additional patches carry the explicit console CPU smoke pilot. The seventh root
 patch retains the bounded first-answer mode. An eighth root patch adds a separate
 384-sample finished-answer profile. Two further patches add cache A/B developer
 profiles and their shared instrumentation; the current lock and inventories bind
-all ten patches and 48 selected files. The cache profiles keep the same generation
-settings and differ only in admitted cache capacity. The unsigned build and
+the ten historical entries. Two further configurable-runner patches add a
+strict typed developer entrypoint, explicit successor records and bounded I/O
+aggregates; the current twelve-entry lock and inventories bind 51 selected
+files. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -63,16 +65,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch 2d691ec97b54c554fdd096b454f6e1410e90768d9641d02900af4914a291ba9b
+python operator/ua50/prepare_sources.py product operator/ua50 patch bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, ten ordered patch files and source/import inventories. Old
+exact lock, twelve ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 48 selected shipping postimages,
+the pinned route once and checks all 51 selected shipping postimages,
 including both `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 
@@ -108,8 +110,11 @@ has now compiled, linked and produced an inspected unsigned package with all
 signed preserving update and one bounded console generation with a genuine
 final section, native termination and normal teardown. This is a single-turn
 milestone, not assistant-quality, long-context or sustained-performance
-acceptance. The new cache candidate still needs its own Windows build, update
-and console A/B measurements. No private response or telemetry is included here.
+acceptance. The [ten-patch cache Windows build](https://github.com/vetax-by/xllama/actions/runs/43658336759)
+also produced an inspected unsigned package, without a cache-profile update or
+console A/B measurements. The configurable successor still needs its own
+Windows artifact, signing and preserving update; native CPU configuration
+qualification follows as a separate task. No private response or telemetry is included here.
 
 ## Bounded first-answer developer mode
 
@@ -175,3 +180,11 @@ A normal, closed A run with a complete validated pair must precede fresh B
 admission. No automatic retry, claim reset or cache-performance benefit is
 asserted. Source and synthetic checks do not prove the new Windows build or
 console behavior.
+
+## Configurable successor
+
+The developer config, one-use ticket, capabilities, requested/effective results
+and storage-measurement boundaries are described in the canonical
+[configurable runner section](../docs/ua50-ssd-moe.md#configurable-developer-runner).
+The historical flags remain separate. Only a supported typed config is
+accepted; no config can enable an unimplemented GPU, UI or history path.

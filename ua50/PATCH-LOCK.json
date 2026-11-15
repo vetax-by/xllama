@@ -61,6 +61,18 @@
       "target": "llama",
       "bytes": 14487,
       "sha256": "d76a5e9eb1c3b27df7b11106f7a4bf6ecd0ff5f453dd37d1c8bbfa10710e565c"
+    },
+    {
+      "file": "patch/configurable-runner-root.patch",
+      "target": "xllama",
+      "bytes": 73401,
+      "sha256": "f33f7f533d8ba35dc6f017e42eceaf0c8f14c6db48db1b1ffb7e58cac648d16f"
+    },
+    {
+      "file": "patch/configurable-runner-llama.patch",
+      "target": "llama",
+      "bytes": 13348,
+      "sha256": "91b7a694284fa3ac4745b6eedf799f5d86a5d7019255bbf43bc68827f3c7dd9c"
     }
   ]
 }
