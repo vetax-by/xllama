@@ -51,10 +51,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $pins = @{
             'package_copy.py' = 'f4ee7c692e7194f3ebc97ee38f8537e29ec6a618ccde74126a37e260710492ce'
-            'sign_copy.ps1' = '71a89f7e0e10dd6f8292663717579337a6e453794b6268788854ff1618943306'
+            'sign_copy.ps1' = '53e8bb9d1e3fafae3fbb18e7faa301b3527d88e51989aa8f6bff958139357bf8'
             'sign_ephemeral_pair.ps1' = '121ef0d2ea6d0ce7b2fc91926abc49f1274e19544951a2998c77cbda174334b1'
-            'validate_pair_inputs.py' = '12ef854293382b0113283a98748c22c2443204ac39dc1b5ca8d403a1e3ad8d80'
-            'input-template.json' = '72b8726291961b242aef3c36297500b5ef2a381a603bab5613b5f6cf05835a2f'
+            'validate_pair_inputs.py' = '8c90fc5e5f0190a026dd97998e5f78748a0a620ab97b8c16416fdb63e1fd1c86'
+            'input-template.json' = 'b7c238747d969f2657447b55273cca14ab170a7f59e8bf0aee90e2a20c724f23'
           }
           foreach ($name in $pins.Keys) {
             $path = Join-Path 'operator/ua50/signing' $name
@@ -74,7 +74,7 @@ jobs:
           $root = Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair'
           if (Test-Path -LiteralPath $root) { throw 'Exclusive artifact root required' }
           New-Item -ItemType Directory -Path $root | Out-Null
-          gh run download 43680931110 --repo vetax-by/xllama --name ua50-uwp-patch-43680931110 --dir (Join-Path $root 'patched')
+          gh run download 43718869460 --repo vetax-by/xllama --name ua50-uwp-patch-43718869460 --dir (Join-Path $root 'patched')
           if ($LASTEXITCODE -ne 0) { throw 'Exact patched artifact download failed; no retry' }
           gh run download 43592901046 --repo vetax-by/xllama --name ua50-uwp-baseline-43592901046 --dir (Join-Path $root 'stock')
           if ($LASTEXITCODE -ne 0) { throw 'Exact baseline artifact download failed; no retry' }

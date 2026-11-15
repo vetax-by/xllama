@@ -370,9 +370,17 @@ caller closure before local proof finalization. Partial, stopped, unknown or
 contradictory records cannot establish normal proof. Reader timing is not
 physical SSD timing; GPU compute time remains unavailable in this first slice.
 
-Source and saved portable author checks are accepted; actual Windows/D3D12
-kernels/shaders and console primitive/model correctness remain pending. This
+Source and saved portable author checks are accepted. A separately inspected
+Windows artifact compiled, linked and packaged this GPU-candidate revision.
+Compiled shader identity and actual D3D12 execution, console primitive/model
+correctness, signing and a preserving update remain pending. This
 candidate is not a general GPU chat runner or a configurable performance suite.
 Stability and practical model usability follow correctness; worker counts and
 memory profiles require separately implemented capabilities before later speed
 comparisons. Velocity/FSR research stays outside this implementation.
+
+The manual signing composition binds this inspected unsigned artifact and the
+unchanged stock baseline, with independent current source-receipt guards. Fresh
+installed-version facts and a separately selected higher update/recovery pair
+must precede actual signing. Signed copies are not console trust, installation,
+recovery or GPU correctness evidence.

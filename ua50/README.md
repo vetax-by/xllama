@@ -45,11 +45,12 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The existing signing workflow and helpers remain tied to their separately
-reviewed historical artifact. They are excluded from this compile-source change.
-A future signing lane must bind the actual new unsigned artifact and both
-independent current source-receipt validators before use. Signing and installation
-need separate selections; this preparation does not select them.
+The manual signing composition is being rebound to the inspected GPU-candidate
+artifact and reusable stock baseline. Its Python and PowerShell preflights admit
+the fourteen-patch lock and 65 shipping postimages independently. Exact helper
+and artifact-template pins, fresh installed-version facts and a separately
+selected higher update/recovery pair precede any signing attempt. Signatures
+and a recovery copy do not establish installation or recovery compatibility.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -110,7 +111,8 @@ also produced an inspected unsigned package, without a cache-profile update or
 console A/B measurements. The configurable CPU successor subsequently completed a separately reviewed
 Windows artifact, signed preserving update and bounded CPU configuration cases.
 Those outcomes belong to the historical CPU revision. The current GPU bridge
-still requires its own Windows artifact, signing, update and native correctness checks. No private response or telemetry is included here.
+subsequently produced its own inspected Windows artifact; signing, an update
+and native correctness checks remain separate. No private response or telemetry is included here.
 
 ## Bounded first-answer developer mode
 
@@ -209,8 +211,20 @@ UMA is not additional memory; reserve and probe protections remain unchanged.
 Unknown fences retain resources until a real terminal state. Unavailable GPU
 compute timestamps remain null.
 
-Source review and portable synthetic author checks passed. Windows/pilot/native
-quant kernels, shaders and console execution have not yet been accepted for
-this revision. There is no GPU correctness, fit, speed or model-quality claim.
+Source review and portable synthetic author checks passed. The separately
+inspected [GPU-candidate Windows build](https://github.com/vetax-by/xllama/actions/runs/43718869460)
+compiled, linked and packaged the current source. Native GPU quant execution,
+compiled shader identity and console execution remain unaccepted. There is no GPU correctness, fit, speed or model-quality claim.
 Correctness and lifecycle checks precede stability/usability and later performance
 work. No Velocity/DirectStorage or FSR integration is included.
+
+## Current GPU candidate signing composition
+
+The signing recipe is being rebound to the inspected GPU-candidate unsigned
+package and the unchanged stock baseline. Both independent source-receipt
+validators require the fourteen-patch lock and 65 shipping postimages. The
+workflow pins both helpers and its artifact template. An exact selected higher
+version pair and a fresh installed-version check remain required before a
+manual attempt. Ephemeral signing identity, owned trust/key cleanup, public-only
+exports and bounded manual execution remain unchanged. No signature or
+preserving update is claimed by this source preparation.
