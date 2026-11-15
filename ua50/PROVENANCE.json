@@ -3,36 +3,11 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83",
-  "source_bundle_sha256": "220a691fdd855abd8307fdfb4bb09fd3711acb46e9deab635cb387bada4aab0d",
-  "operator_sha256": "461b80f004c94217fd164d4e6ff7e79d1ac312a599ca7f15c039be910656baea",
-  "qualification": "Current GPU-candidate Windows compile/link/package is independently accepted. Actual GPU execution, shader identity, numerical correctness, fit and quality remain pending. Signing composition preparation does not claim signed copies or installation. Raw proof data remain private.",
-  "public_metadata_adjustment": "The twelve historical patches remain exact. One additional root and one native patch add a synchronous selected-expert GPU proof protocol. Only twenty Runtime source inputs and the current preparation helper are compile inputs; Root documentation adds three files. Private signing/observer/decoder/contracts/tests/evidence are excluded.",
-  "gpu_proof_source": {
-    "source_sha256": "169a214d80c4b6952386db538d89dab2cd4e149c35dc018d124458ade4acb2ab",
-    "source_bundle_sha256": "220a691fdd855abd8307fdfb4bb09fd3711acb46e9deab635cb387bada4aab0d",
-    "patch_lock_sha256": "5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83",
-    "patches": 14,
-    "selected_shipping_inputs": 65,
-    "source_review_sha256": "1d7d00b882ff182b7cf0bc510262939052438ad7a36b6159b4e88b600c1d4748",
-    "source_review_qualification": "PASS_SOURCE_AND_SAVED_PORTABLE_AUTHOR_EVIDENCE_ONLY",
-    "actual_Windows_artifact_accepted": true,
-    "actual_GPU_execution_accepted": false,
-    "current_operator_combined_QA": {
-      "status": "PASS_SOURCE_ONLY",
-      "review_sha256": "44aca8a0ffa66a86cb9f14fb273f96a40bffefc3de31a2f6016f751cfc8273fd",
-      "manifest_sha256": "49fcbe40484f823c2868ec293784225531dd410b1dbbb53170341e0bc2056328",
-      "result_sha256": "86b6f105501000dd11f8254295f19b6250209e51e47efa03e053810c06697d72"
-    },
-    "operator_source_manifest_sha256": "45c5dd8c15eedcf98e6fe87649d03395f5433da3e7c63ab5db169aa03817bd32",
-    "operator_binding_review_pending": false,
-    "actual_Windows_artifact_review": "4f542ea2c558d1ff1e5f598fa62aa090821771b1ee6d478e12d0b8218cb40c42",
-    "actual_Windows_artifact_QA_manifest": "2d80fc2fd063c934f7fe63c3447a7e35b345e4db6037c87c44af6322576666d5",
-    "actual_Windows_run": 43718869460,
-    "unsigned_package_sha256": "2eaf31dd49a630e9de298f89ac104d1ff52bfe8299b05c32b7daf85272f6cba8",
-    "unsigned_source_receipt_sha256": "442d289239892896ea986c91c30aacf2caebb0f413f5b00d09c799dad5202ea4",
-    "signing_composition_status": "SOURCE_REVIEWED_ACTUAL_SIGNING_NOT_CLAIMED"
-  },
+  "patch_lock_sha256": "d586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20",
+  "source_bundle_sha256": "cc24e65f03ffc3249206a77bab16266f5717dc11ec797e5a5d3acd44a0ebf1cb",
+  "operator_sha256": "065451efba99601e06037924e0142a2fe1b1681ebad920b233807af37bd492be",
+  "qualification": "Identity-only successor source candidate and successful saved Linux/portable author checks. Current successor Windows artifact/sign/update/native identity observation are pending. Earlier GPU proof package/update evidence does not establish GPU execution. No fit, numerical parity or performance acceptance.",
+  "public_metadata_adjustment": "Fourteen parent patches retain exact bytes. One identity-only root patch gives fifteen ordered patches and 69 shipping postimages. Runtime21+prepare are compile inputs; Root documentation adds3. No private operators, guards, validators, requests, observations, tests, contracts or author binaries.",
   "historical_cpu_provenance": {
     "repository": "vetax-by/xllama",
     "upstream": "gianlucamazza/xllama",
@@ -206,21 +181,63 @@
     "historical_operator_composition_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
     "operator_admission_candidate_sha256": "6fca43543467d88c64dba3f965b8985c7e5ea8591c61c456a0cce295663f5b24"
   },
-  "gpu_signing_source": {
+  "historical_gpu_proof_source": {
+    "source_sha256": "169a214d80c4b6952386db538d89dab2cd4e149c35dc018d124458ade4acb2ab",
+    "source_bundle_sha256": "220a691fdd855abd8307fdfb4bb09fd3711acb46e9deab635cb387bada4aab0d",
     "patch_lock_sha256": "5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83",
-    "shipping_postimages": 65,
-    "unsigned_package_sha256": "2eaf31dd49a630e9de298f89ac104d1ff52bfe8299b05c32b7daf85272f6cba8",
-    "unsigned_source_receipt_sha256": "442d289239892896ea986c91c30aacf2caebb0f413f5b00d09c799dad5202ea4",
-    "actual_unsigned_artifact_review": "4f542ea2c558d1ff1e5f598fa62aa090821771b1ee6d478e12d0b8218cb40c42",
-    "patched_version_input": "1.7.0.1504",
-    "stock_forward_version_input": "1.7.0.1505",
-    "InstalledVersion_template": "FRESH_ACTUAL_REQUIRED",
-    "composition_QA": {
+    "patches": 14,
+    "selected_shipping_inputs": 65,
+    "source_review_sha256": "1d7d00b882ff182b7cf0bc510262939052438ad7a36b6159b4e88b600c1d4748",
+    "source_review_qualification": "PASS_SOURCE_AND_SAVED_PORTABLE_AUTHOR_EVIDENCE_ONLY",
+    "actual_Windows_artifact_accepted": true,
+    "actual_GPU_execution_accepted": false,
+    "current_operator_combined_QA": {
       "status": "PASS_SOURCE_ONLY",
-      "review_sha256": "3348db8f5380722ccdad1760f82206bfa772af1bcb35781a65e2c8e3dd07e09f",
-      "manifest_sha256": "327bb221c9898309c8d1812024fb5b18c92b3cbe0401276d8fe50e8fd3d8012e",
-      "result_sha256": "bca709b50bd1a29de8c41e01d877cb00068bd3d0349d1fa13506fe65b5a7f225"
+      "review_sha256": "44aca8a0ffa66a86cb9f14fb273f96a40bffefc3de31a2f6016f751cfc8273fd",
+      "manifest_sha256": "49fcbe40484f823c2868ec293784225531dd410b1dbbb53170341e0bc2056328",
+      "result_sha256": "86b6f105501000dd11f8254295f19b6250209e51e47efa03e053810c06697d72"
     },
-    "actual_signing_or_installation_proven": false
+    "operator_source_manifest_sha256": "45c5dd8c15eedcf98e6fe87649d03395f5433da3e7c63ab5db169aa03817bd32",
+    "operator_binding_review_pending": false,
+    "accepted_historical_milestones_as_of_utc": "2026-11-15T15:26:58Z",
+    "accepted_historical_milestones": {
+      "unsigned_windows": {
+        "status": "PASS_ACTUAL_UNSIGNED_WINDOWS_ARTIFACT_ONLY",
+        "review_sha256": "4f542ea2c558d1ff1e5f598fa62aa090821771b1ee6d478e12d0b8218cb40c42",
+        "manifest_sha256": "2d80fc2fd063c934f7fe63c3447a7e35b345e4db6037c87c44af6322576666d5",
+        "result_sha256": "0e1b19e8842e91e6dfb239b576d02c23dba9348555de55d48f6d6df4b907074f"
+      },
+      "signed_pair": {
+        "status": "PASS_SAVED_SIGNED_PAIR_ARTIFACT_ONLY",
+        "review_sha256": "6cddbab8af230a60b5117436af2f7d5be10046ac09a7019da57cc79bab097816",
+        "manifest_sha256": "e0aa766f900fde79df5a1374afcbb370215df80aeedbf49eec3f247d7868feb5",
+        "result_sha256": "76a923a37cba0e38316b5651a50249cfadb54de2924f230f86e89a31a0813039"
+      },
+      "preserving_update": {
+        "status": "PASS_SAVED_PRESERVING_UPDATE_APP_STOPPED_ONLY",
+        "review_sha256": "b4d2f050ebf2ba2700d38d534d1cbe2d4341e9ac725d4dd1044bd0c3c45c02dc",
+        "manifest_sha256": "73284c218783d26b111cdaca2c9ac41afdbb6c2fc3327a4cbb1304fa66dd8d30",
+        "result_sha256": "08351ba38075fe4f242ca3705e3dced49315ffef397890af6a113f1256ea093f"
+      }
+    },
+    "accepted_historical_milestones_qualification": "These saved source/artifact/signing and stopped preserving-update acceptances apply to the earlier GPU proof revision. They establish neither GPU execution nor the new identity successor artifact or observation. Original compile watcher exit143/original finally unproven and source-qualified update file-query association remain qualified in the referenced reviews."
+  },
+  "identity_successor": {
+    "runtime_source_sha256": "43e9418713129bf1ccb2205a264eefa66cd509dbb416b4e3c57afd3159fb2238",
+    "patch_lock_sha256": "d586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20",
+    "shipping_lock_sha256": "cc24e65f03ffc3249206a77bab16266f5717dc11ec797e5a5d3acd44a0ebf1cb",
+    "ordered_patches": 15,
+    "selected_shipping_files": 69,
+    "portable_author_evidence_sha256": "7b15857afa406025ffc131a333f28819d822e77cd97a951429c7ba3cb086dab5",
+    "coherent_source_review": {
+      "status": "PASS_SOURCE_ONLY",
+      "review_sha256": "561a7a6e3934c73485db440f4c48fd7b64309b071ad70b54ddf32f496604c6e1",
+      "manifest_sha256": "ea33c4ce551166d8f9ee95a7a8ab995b07415336473fc8fcfd13e1206c3976ed",
+      "result_sha256": "af85189ed6cc70aa5da4ea78a1165a4affe2ca8d9e181fcf2ca5d2537f651b50"
+    },
+    "operator_source_manifest_sha256": "d232c8030fcdb64e93df6806ee91551b86103869dc6a8e91db77fe58d663a18f",
+    "actual_successor_Windows_artifact_accepted": false,
+    "actual_native_identity_observation_accepted": false,
+    "app_ingress_correction": "Both explicit identity/proof tickets preserve ordinary api.flag as inert; metadata/query/close errors or nonregular file refuse. Existing default/CPU routes and proof wire remain unchanged. Corrected Windows App code uncompiled; saved portable author evidence applies only to unchanged tested code."
   }
 }

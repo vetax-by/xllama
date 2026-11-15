@@ -293,7 +293,8 @@ ordered patch route. Apply the stock AppContainer guard once, then each listed
 patch in its exact order on a separate clean base tree. The configurable
 CPU successor retains the ten historical entries and adds its root and native
 patches. The GPU proof successor adds one root and one native patch after those
-twelve entries, for fourteen ordered patches and 65 shipping postimages. Do not additionally apply intermediate development patches or apply a
+twelve entries. The identity-only successor appends one root patch after the GPU
+root/native pair: fifteen ordered patches and 69 shipping postimages. Do not additionally apply intermediate development patches or apply a
 cumulative patch twice.
 
 The historical session `.inc` files and the additional GPU `.inc` files are
@@ -370,17 +371,43 @@ caller closure before local proof finalization. Partial, stopped, unknown or
 contradictory records cannot establish normal proof. Reader timing is not
 physical SSD timing; GPU compute time remains unavailable in this first slice.
 
-Source and saved portable author checks are accepted. A separately inspected
-Windows artifact compiled, linked and packaged this GPU-candidate revision.
-Compiled shader identity and actual D3D12 execution, console primitive/model
-correctness, signing and a preserving update remain pending. This
+Source and saved portable author checks are accepted; actual Windows/D3D12
+kernels/shaders and console primitive/model correctness remain pending. This
 candidate is not a general GPU chat runner or a configurable performance suite.
 Stability and practical model usability follow correctness; worker counts and
 memory profiles require separately implemented capabilities before later speed
 comparisons. Velocity/FSR research stays outside this implementation.
 
-The manual signing composition binds this inspected unsigned artifact and the
-unchanged stock baseline, with independent current source-receipt guards. Fresh
-installed-version facts and a separately selected higher update/recovery pair
-must precede actual signing. Signed copies are not console trust, installation,
-recovery or GPU correctness evidence.
+
+## Identity-only GPU observation successor
+
+The fifteenth patch adds a distinct one-use headless request before model and
+proof ingress. A strict request of at most 4 KiB selects a run and original expiry.
+A durable exclusive claim consumes only the held request. The native route creates
+a temporary device using the same adapter selection as the proof bridge, records
+actual adapter LUID, architecture, memory snapshots and the digest of the compiled
+Q4_K/Q6_K shader bytes, then closes its temporary resources. It creates no command
+queue, PSO, staging buffers or model Reader and submits no GPU math. The output is
+exclusive, bounded to 16 KiB and written, flushed and closed before normal terminal.
+
+This is a source candidate with successful Linux syntax and portable Request/OneUse
+author checks. Windows ingress, COM, BCrypt and native query execution remain
+unverified for this successor. Boundary checks enforce the original expiry and a
+30-second native window; blocking platform calls are not hard-cancellable. Refusal
+or uncertain closure cannot establish a normal observation.
+
+The observed compiled-bytecode digest is not driver-JIT machine code or a numerical
+correctness, fit or performance result. External operator evidence must bind the
+same actual signed successor artifact, package, request, process and returned caller
+closure. A successor observation cannot attest an earlier installed artifact.
+Actual identity acceptance must precede the separately selected primitive proof;
+an accepted primitive proof must precede the model proof. No current source review
+or public recipe dispatches these stages. Existing CPU/proof protocols and claims
+remain separate; private requests, receipts and observations are excluded here.
+
+Both explicit identity and GPU proof ticket branches preserve an ordinary historical
+`api.flag` as inert. They reject metadata/query/close errors and nonregular files,
+then return through their selected headless route before UI/LAN/legacy dispatch.
+Other conflicting developer flags still refuse. No flag is deleted or reset.
+This App ingress correction has source-only checks; its Windows code remains
+uncompiled and does not establish native identity or GPU execution.

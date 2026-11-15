@@ -1,0 +1,305 @@
+diff --git a/include/xllama/gpu_identity.h b/include/xllama/gpu_identity.h
+new file mode 100644
+--- /dev/null
++++ b/include/xllama/gpu_identity.h
+@@ -0,0 +1,23 @@
++#pragma once
++#include "dev_run_config.h"
++#include <array>
++#include <functional>
++namespace xllama::gpu_identity {
++inline constexpr char contract_sha[]="155a1a305cddb3e925cf2b52fd1f5bc9b8132b20c85a8fca325e2ceadd768f0a";
++inline constexpr size_t request_cap=4096,result_cap=16384,serialization_capacity_cap=65536;
++inline constexpr uint64_t reserve=512ull<<20,probe=256ull<<20;
++struct Request {std::string raw,id,selection;uint64_t expires=0;size_t parser_owned=0;
++ size_t owned_bytes()const{return sizeof(*this)+raw.capacity()+id.capacity()+selection.capacity()+parser_owned;}
++ std::string leaf(const char*s)const{dev_run::need(dev_run::run_id(id),"identity run id");return "ua68-gpu-identity-v1."+id+"."+s;}
++};
++inline Request parse(std::string raw,uint64_t now){auto j=dev_run::Parser(raw).parse(request_cap);j.keys({"schema","contract_sha256","run_id","selection_id","expires_at_epoch_ms"});j.at("schema").eq("ua68-gpu-identity-request-v1");j.at("contract_sha256").eq(contract_sha);Request r;r.parser_owned=j.owned();r.raw=std::move(raw);
++ dev_run::need(j.at("run_id").type==dev_run::Json::Type::string&&dev_run::run_id(j.at("run_id").text),"identity run id");r.id=j.at("run_id").text;
++ dev_run::need(j.at("selection_id").type==dev_run::Json::Type::string,"identity selection type");r.selection=j.at("selection_id").text;dev_run::need(!r.selection.empty()&&r.selection.size()<=64&&std::all_of(r.selection.begin(),r.selection.end(),[](char c){return(c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-';}),"identity selection characters");r.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);dev_run::need(r.expires>now&&r.expires-now<=300000,"identity strict expiry");return r;}
++struct Quota {uint64_t limit=0,usage=0;uint32_t level=0;}; // level0Low1Medium2High3OverLimit; other refuses
++struct Observation {std::string luid,shader;uint32_t vendor=0,device=0,subsystem=0,revision=0,flags=0,nodes=0;bool uma=false,coherent=false;uint64_t budget=0,usage=0,reservation=0,available_reservation=0,observed_init_delta=0;Quota before{},after_device{},after_close{};
++ size_t owned_bytes()const{return sizeof(*this)+luid.capacity()+shader.capacity();}
++};
++// Query returns only after temporary COM/hash owners have actually released.
++// callback checks stop/original deadline/native quota; absence refuses.
++Observation query(const std::function<void()>& check,uint64_t metadata_charge);
++}
+diff --git a/src/bridge/d3d12_compute.cpp b/src/bridge/d3d12_compute.cpp
+--- a/src/bridge/d3d12_compute.cpp
++++ b/src/bridge/d3d12_compute.cpp
+@@ -34,9 +34,20 @@
+     }
+     ComPtr<IDXGIAdapter1> adapter;
+     ComPtr<ID3D12Device> device;
+-    for (UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
++    for (UINT i = 0;; ++i) {
++        hr = factory->EnumAdapters1(i, &adapter);
++        if (hr == DXGI_ERROR_NOT_FOUND)
++            break;
++        if (FAILED(hr) || !adapter) {
++            if (err) *err = hr_message("EnumAdapters1", hr);
++            return {};
++        }
+         DXGI_ADAPTER_DESC1 ad = {};
+-        adapter->GetDesc1(&ad);
++        hr = adapter->GetDesc1(&ad);
++        if (FAILED(hr)) {
++            if (err) *err = hr_message("GetDesc1", hr);
++            return {};
++        }
+         if (ad.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+             continue;
+         hr = create(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device));
+diff --git a/src/bridge/expert_gpu_d3d12.inc b/src/bridge/expert_gpu_d3d12.inc
+--- a/src/bridge/expert_gpu_d3d12.inc
++++ b/src/bridge/expert_gpu_d3d12.inc
+@@ -2,17 +2,6 @@
+ namespace {
+ using ExpertClock=std::chrono::steady_clock;
+ uint64_t expert_ns(ExpertClock::time_point a){auto n=std::chrono::duration_cast<std::chrono::nanoseconds>(ExpertClock::now()-a).count();if(n<0)throw std::runtime_error("GPU monotonic clock");return uint64_t(n);}
+-std::string expert_shader_sha(){
+- BCRYPT_ALG_HANDLE a=nullptr;BCRYPT_HASH_HANDLE h=nullptr;DWORD len=0,got=0;std::vector<unsigned char> obj;unsigned char out[32]{};
+- auto ck=[](NTSTATUS x){if(x<0)throw std::runtime_error("GPU shader BCrypt identity failed");};
+- try{ck(BCryptOpenAlgorithmProvider(&a,BCRYPT_SHA256_ALGORITHM,nullptr,0));ck(BCryptGetProperty(a,BCRYPT_OBJECT_LENGTH,reinterpret_cast<PUCHAR>(&len),sizeof(len),&got,0));if(got!=sizeof(len)||!len||len>65536)throw std::runtime_error("GPU hash object bound");obj.resize(len);ck(BCryptCreateHash(a,&h,obj.data(),len,nullptr,0,0));
+-  // Domain + explicit byte lengths + ACTUAL compiled-in DXIL, not requested digest.
+-  const unsigned char domain[]="ua68-q4k-q6k-t64-dxil-v1";ck(BCryptHashData(h,const_cast<PUCHAR>(domain),sizeof(domain),0));
+-  for(auto b:{std::pair<const unsigned char*,size_t>{kGgmlD3d12MmvQ4KT64Dxil,kGgmlD3d12MmvQ4KT64DxilSize},std::pair<const unsigned char*,size_t>{kGgmlD3d12MmvQ6KT64Dxil,kGgmlD3d12MmvQ6KT64DxilSize}}){unsigned char size[8]{};for(unsigned i=0;i<8;++i)size[i]=static_cast<unsigned char>(uint64_t(b.second)>>(8*i));ck(BCryptHashData(h,size,8,0));ck(BCryptHashData(h,const_cast<PUCHAR>(b.first),ULONG(b.second),0));}
+-  ck(BCryptFinishHash(h,out,sizeof(out),0));BCryptDestroyHash(h);h=nullptr;BCryptCloseAlgorithmProvider(a,0);a=nullptr;
+- }catch(...){if(h)BCryptDestroyHash(h);if(a)BCryptCloseAlgorithmProvider(a,0);throw;}
+- const char*hex="0123456789abcdef";std::string s;for(auto x:out){s+=hex[x>>4];s+=hex[x&15];}return s;
+-}
+ class ExpertD3DQueue final:public ua50::ExpertQueue {
+  Gpu& g_;ExpertGpuAdmission admission_;ua50::GpuSnapshot info_;ua50::GpuCounts counts_;
+  ComPtr<ID3D12Resource> weight_,q8_,out_;ComPtr<ID3D12Fence> fence_;d3d12c::FenceEvent event_;
+diff --git a/src/bridge/ggml_d3d12.cpp b/src/bridge/ggml_d3d12.cpp
+--- a/src/bridge/ggml_d3d12.cpp
++++ b/src/bridge/ggml_d3d12.cpp
+@@ -7,6 +7,7 @@
+ 
+     #include "xllama/ggml_d3d12.h"
+     #include "xllama/expert_gpu_d3d12.h"
++    #include "xllama/gpu_identity.h"
+ 
+     #include "ggml-cpu.h"
+ 
+@@ -302,6 +303,7 @@
+ namespace xllama {
+ 
+ std::shared_ptr<ua50::ExpertGpu> make_expert_gpu_d3d12(const ExpertGpuAdmission&){throw std::runtime_error("UA68 D3D12 unavailable; no fallback");}
++namespace gpu_identity {Observation query(const std::function<void()>&,uint64_t){throw std::runtime_error("identity D3D12 unavailable; no fallback");}}
+ bool ggml_d3d12_register() {
+     return false;
+ }
+@@ -1247,6 +1249,7 @@
+ 
+ } // namespace
+ 
++#include "gpu_identity_d3d12.inc"
+ #include "expert_gpu_d3d12.inc"
+ 
+ bool ggml_d3d12_register() {
+diff --git a/src/bridge/gpu_identity_d3d12.inc b/src/bridge/gpu_identity_d3d12.inc
+new file mode 100644
+--- /dev/null
++++ b/src/bridge/gpu_identity_d3d12.inc
+@@ -0,0 +1,42 @@
++// Included by existing Windows D3D bridge TU. No global gpu() use.
++namespace {
++std::string expert_shader_sha(){
++ BCRYPT_ALG_HANDLE a=nullptr;BCRYPT_HASH_HANDLE h=nullptr;DWORD len=0,got=0;std::vector<unsigned char> obj;unsigned char out[32]{};
++ auto ck=[](NTSTATUS x){if(x<0)throw std::runtime_error("GPU shader BCrypt identity failed");};
++ try{ck(BCryptOpenAlgorithmProvider(&a,BCRYPT_SHA256_ALGORITHM,nullptr,0));ck(BCryptGetProperty(a,BCRYPT_OBJECT_LENGTH,reinterpret_cast<PUCHAR>(&len),sizeof(len),&got,0));if(got!=sizeof(len)||!len||len>65536)throw std::runtime_error("GPU hash object bound");obj.resize(len);ck(BCryptCreateHash(a,&h,obj.data(),len,nullptr,0,0));
++  // Domain + explicit byte lengths + ACTUAL compiled-in DXIL, not requested digest.
++  const unsigned char domain[]="ua68-q4k-q6k-t64-dxil-v1";ck(BCryptHashData(h,const_cast<PUCHAR>(domain),sizeof(domain),0));
++  for(auto b:{std::pair<const unsigned char*,size_t>{kGgmlD3d12MmvQ4KT64Dxil,kGgmlD3d12MmvQ4KT64DxilSize},std::pair<const unsigned char*,size_t>{kGgmlD3d12MmvQ6KT64Dxil,kGgmlD3d12MmvQ6KT64DxilSize}}){unsigned char size[8]{};for(unsigned i=0;i<8;++i)size[i]=static_cast<unsigned char>(uint64_t(b.second)>>(8*i));ck(BCryptHashData(h,size,8,0));ck(BCryptHashData(h,const_cast<PUCHAR>(b.first),ULONG(b.second),0));}
++  ck(BCryptFinishHash(h,out,sizeof(out),0));NTSTATUS dh=BCryptDestroyHash(h);h=nullptr;ck(dh);NTSTATUS da=BCryptCloseAlgorithmProvider(a,0);a=nullptr;ck(da);
++ }catch(...){if(h)BCryptDestroyHash(h);if(a)BCryptCloseAlgorithmProvider(a,0);throw;}
++ const char*hex="0123456789abcdef";std::string s;for(auto x:out){s+=hex[x>>4];s+=hex[x&15];}return s;
++}
++
++gpu_identity::Quota identity_quota(){
++ using M=winrt::Windows::System::MemoryManager;auto limit=M::AppMemoryUsageLimit();auto usage=M::AppMemoryUsage();auto level=M::AppMemoryUsageLevel();
++ uint32_t code=level==winrt::Windows::System::AppMemoryUsageLevel::Low?0:level==winrt::Windows::System::AppMemoryUsageLevel::Medium?1:level==winrt::Windows::System::AppMemoryUsageLevel::High?2:level==winrt::Windows::System::AppMemoryUsageLevel::OverLimit?3:99;
++ if(!limit||limit!=M::AppMemoryUsageLimit()||usage>limit||code>1)throw std::runtime_error("identity unknown/changing/pressured quota");return {limit,usage,code};
++}
++void identity_admit(const gpu_identity::Quota&q,uint64_t initial,uint64_t metadata){
++ if(q.limit!=initial||metadata>UINT64_MAX-gpu_identity::probe-gpu_identity::reserve||q.limit-q.usage<metadata+gpu_identity::probe+gpu_identity::reserve)throw std::runtime_error("identity reserve/probe/metadata admission refused");
++}
++}
++namespace gpu_identity {
++Observation query(const std::function<void()>&check,uint64_t metadata){
++ if(!check)throw std::invalid_argument("identity check callback required");check();Observation o;o.before=identity_quota();identity_admit(o.before,o.before.limit,metadata);
++ {
++  // EXACT same selection helper as init_gpu; no queue/PSO/resource/submit.
++  std::string error;auto device=d3d12c::create_device(&error);if(!device)throw std::runtime_error("identity temporary device: "+error);check();
++  auto luid=device->GetAdapterLuid();char text[18];std::snprintf(text,sizeof(text),"%08x:%08x",unsigned(luid.HighPart),unsigned(luid.LowPart));o.luid=text;
++  D3D12_FEATURE_DATA_ARCHITECTURE1 arch{};if(FAILED(device->CheckFeatureSupport(D3D12_FEATURE_ARCHITECTURE1,&arch,sizeof(arch))))throw std::runtime_error("identity architecture query failed");o.uma=arch.UMA!=FALSE;o.coherent=arch.CacheCoherentUMA!=FALSE;o.nodes=device->GetNodeCount();if(!o.nodes)throw std::runtime_error("identity node count unknown");
++  ComPtr<IDXGIFactory4> factory;ComPtr<IDXGIAdapter3> adapter;
++  if(FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))||FAILED(factory->EnumAdapterByLuid(luid,IID_PPV_ARGS(&adapter))))throw std::runtime_error("identity actual adapter query failed");
++  DXGI_ADAPTER_DESC1 desc{};if(FAILED(adapter->GetDesc1(&desc))||(desc.Flags&DXGI_ADAPTER_FLAG_SOFTWARE))throw std::runtime_error("identity actual hardware required");o.vendor=desc.VendorId;o.device=desc.DeviceId;o.subsystem=desc.SubSysId;o.revision=desc.Revision;o.flags=desc.Flags;
++  DXGI_QUERY_VIDEO_MEMORY_INFO mem{};if(FAILED(adapter->QueryVideoMemoryInfo(0,DXGI_MEMORY_SEGMENT_GROUP_LOCAL,&mem))||!mem.Budget||mem.CurrentUsage>mem.Budget)throw std::runtime_error("identity DXGI memory snapshot unknown");o.budget=mem.Budget;o.usage=mem.CurrentUsage;o.reservation=mem.CurrentReservation;o.available_reservation=mem.AvailableForReservation;
++  check();o.shader=expert_shader_sha();check(); // same helper/actual compiled DXIL bytes as proof
++  o.after_device=identity_quota();identity_admit(o.after_device,o.before.limit,metadata);o.observed_init_delta=o.after_device.usage>o.before.usage?o.after_device.usage-o.before.usage:0;if(o.observed_init_delta>probe)throw std::runtime_error("identity observed initialization exceeds probe");
++  adapter.Reset();factory.Reset();device.Reset(); // temporary COM release before native result return
++ }
++ o.after_close=identity_quota();identity_admit(o.after_close,o.before.limit,metadata);check();return o;
++}
++}
+diff --git a/uwp/App.cpp b/uwp/App.cpp
+--- a/uwp/App.cpp
++++ b/uwp/App.cpp
+@@ -371,6 +371,29 @@
+     }catch(...){return -1;}
+ }
+ 
++// Metadata only: preserved REGULAR api.flag is inert under the explicit identity ticket.
++// No content read, deletion/reset, API server, UI or model fallback. All query/close errors refuse.
++static bool identity_api_marker_safe() {
++    try {
++        const auto root=winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
++        const std::wstring path=std::wstring(root.Path().c_str())+L"\\api.flag";
++        const DWORD attrs=GetFileAttributesW(path.c_str());
++        if(attrs==INVALID_FILE_ATTRIBUTES)return GetLastError()==ERROR_FILE_NOT_FOUND;
++        if(attrs&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DEVICE))return false;
++        CREATEFILE2_EXTENDED_PARAMETERS p{};p.dwSize=sizeof(p);p.dwFileFlags=FILE_FLAG_OPEN_REPARSE_POINT;
++        HANDLE h=CreateFile2(path.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ,OPEN_EXISTING,&p);
++        if(h==INVALID_HANDLE_VALUE)return false;
++        FILE_STANDARD_INFO st{};FILE_ATTRIBUTE_TAG_INFO tag{};
++        const bool regular=GetFileType(h)==FILE_TYPE_DISK &&
++            GetFileInformationByHandleEx(h,FileStandardInfo,&st,sizeof(st)) &&
++            GetFileInformationByHandleEx(h,FileAttributeTagInfo,&tag,sizeof(tag)) &&
++            !st.Directory && !st.DeletePending && st.NumberOfLinks==1 &&
++            !(tag.FileAttributes&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DEVICE));
++        const bool closed=CloseHandle(h)!=FALSE;
++        return regular&&closed;
++    }catch(...){return false;}
++}
++
+ // Minimal IFrameworkView: activates the CoreWindow (satisfies the PLM
+ // activation watchdog, dismisses the splash) without a swapchain/compositor,
+ // so no D3D12 device exists in-process. Same pattern as the UWP DX12 template.
+@@ -429,10 +452,20 @@
+         // Consume the flag BEFORE the run:
+         // a later start without the flag goes back to interactive.
+ #if defined(XLLAMA_USE_LLAMA)
++        const int identity_ticket_presence=dev_ticket_presence(L"ua68-gpu-identity-v1.ticket.json");
++        if(identity_ticket_presence<0){::xllama::log_output("[gpu-identity-v1] REFUSED invalid ticket ingress; no fallback\n");return 1;}
++        if(identity_ticket_presence>0){
++            // api.flag remains preserved and inert ONLY when regular; metadata errors/nonregular refuse.
++            if(!identity_api_marker_safe())return 1;
++            for(const auto* old:{L"ua68-gpu-proof-v1.ticket.json",L"ua50-dev-run-v1.ticket.json",L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag",L"diffuse.flag",L"bench.flag",L"membw.flag",L"diskbw.flag",L"gpubw.flag",L"gpugemv.flag",L"d3d12be.flag",L"gpustep.flag",L"ramceil.flag",L"mic.flag",L"logits.flag",L"oprepro.flag",L"train.flag",L"native-capture.flag",L"diffuse-inproc.flag",L"gpustep-inproc.flag"})if(dev_ticket_presence(old)!=0)return 1;
++            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(winrt::make<HeadlessView>(&::xllama::bridge::run_gpu_capability_identity,"gpu-identity-v1"));return 0;
++        }
+         const int gpu_ticket_presence=dev_ticket_presence(L"ua68-gpu-proof-v1.ticket.json");
+         if(gpu_ticket_presence<0)return 1;
+         if(gpu_ticket_presence>0){
+-            for(const auto* old:{L"ua50-dev-run-v1.ticket.json",L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag",L"diffuse.flag",L"bench.flag",L"membw.flag",L"diskbw.flag",L"gpubw.flag",L"gpugemv.flag",L"d3d12be.flag",L"gpustep.flag",L"ramceil.flag",L"mic.flag",L"logits.flag",L"oprepro.flag",L"train.flag",L"api.flag",L"native-capture.flag",L"diffuse-inproc.flag",L"gpustep-inproc.flag"})if(dev_ticket_presence(old)!=0)return 1;
++            // Same preserved regular api.flag policy for the explicit proof headless ingress.
++            if(!identity_api_marker_safe())return 1;
++            for(const auto* old:{L"ua50-dev-run-v1.ticket.json",L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag",L"diffuse.flag",L"bench.flag",L"membw.flag",L"diskbw.flag",L"gpubw.flag",L"gpugemv.flag",L"d3d12be.flag",L"gpustep.flag",L"ramceil.flag",L"mic.flag",L"logits.flag",L"oprepro.flag",L"train.flag",L"native-capture.flag",L"diffuse-inproc.flag",L"gpustep-inproc.flag"})if(dev_ticket_presence(old)!=0)return 1;
+             // New held ticket/claim namespace only; no pathname deletion/rearm.
+             winrt::Windows::ApplicationModel::Core::CoreApplication::Run(winrt::make<HeadlessView>(&::xllama::bridge::run_expert_gpu_proof_configured,"gpu-expert-proof-v1"));return 0;
+         }
+diff --git a/uwp/cpu-expert-pilot.cpp b/uwp/cpu-expert-pilot.cpp
+--- a/uwp/cpu-expert-pilot.cpp
++++ b/uwp/cpu-expert-pilot.cpp
+@@ -23,6 +23,7 @@
+ #include "../src/platform/ua50/dev_run_io.h"
+ #include "dev-run-input.h"
+ #include "gpu-proof-input.h"
++#include "gpu-identity-input.h"
+ #include "xllama/expert_gpu_d3d12.h"
+ #include "xllama/gpu_proof_controller.h"
+ #include "xllama/gpu_proof_build_pins.h"
+@@ -361,4 +362,5 @@
+ void run_cpu_expert_cache_a2(){run_cpu_expert_stage(true,true,1);}
+ void run_cpu_expert_cache_b512(){run_cpu_expert_stage(true,true,2);}
+ #include "gpu-proof-pilot.inc"
++#include "gpu-identity-pilot.inc"
+ } // namespace xllama::bridge
+diff --git a/uwp/gpu-identity-input.h b/uwp/gpu-identity-input.h
+new file mode 100644
+--- /dev/null
++++ b/uwp/gpu-identity-input.h
+@@ -0,0 +1,21 @@
++#pragma once
++#include "dev-run-input.h"
++#include "xllama/gpu_identity.h"
++namespace xllama::bridge {
++inline std::string identity_request_sha(const std::string&raw){
++ BCRYPT_ALG_HANDLE a=nullptr;BCRYPT_HASH_HANDLE h=nullptr;std::vector<unsigned char> object;unsigned char sum[32]{};
++ auto check=[](NTSTATUS s){if(s<0)throw std::runtime_error("identity request SHA/close failed");};
++ try{check(BCryptOpenAlgorithmProvider(&a,BCRYPT_SHA256_ALGORITHM,nullptr,0));DWORD size=0,got=0;check(BCryptGetProperty(a,BCRYPT_OBJECT_LENGTH,reinterpret_cast<PUCHAR>(&size),sizeof(size),&got,0));if(got!=sizeof(size)||!size||size>65536)throw std::runtime_error("identity SHA object bound");object.resize(size);check(BCryptCreateHash(a,&h,object.data(),size,nullptr,0,0));check(BCryptHashData(h,reinterpret_cast<PUCHAR>(const_cast<char*>(raw.data())),ULONG(raw.size()),0));check(BCryptFinishHash(h,sum,sizeof(sum),0));auto dh=BCryptDestroyHash(h);h=nullptr;check(dh);auto da=BCryptCloseAlgorithmProvider(a,0);a=nullptr;check(da);
++ }catch(...){if(h)BCryptDestroyHash(h);if(a)BCryptCloseAlgorithmProvider(a,0);throw;}
++ std::string out;out.reserve(64);const char*hex="0123456789abcdef";for(auto b:sum){out+=hex[b>>4];out+=hex[b&15];}return out;
++}
++struct GpuIdentityInput {
++ DevHandle held;gpu_identity::Request request;std::string request_sha;std::filesystem::path root;dev_run::OneUse use;
++ explicit GpuIdentityInput(std::filesystem::path r):root(std::move(r)){
++  open_dev_file(held,root/L"ua68-gpu-identity-v1.ticket.json",true);auto raw=read_dev_file(held,gpu_identity::request_cap);request_sha=identity_request_sha(raw);request=gpu_identity::parse(std::move(raw),dev_utc_ms());
++ }
++ std::filesystem::path path(const char*s)const{auto x=request.leaf(s);return root/std::wstring(x.begin(),x.end());}
++ size_t owned_bytes()const{return sizeof(*this)+request.owned_bytes()+request_sha.capacity()+root.native().capacity()*sizeof(wchar_t)+4096;}
++ void spend(){dev_run::need(request.expires>dev_utc_ms(),"identity expired before claim");use.spend([&]{DevHandle c(CreateFile2(path("claim").c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(c.value==INVALID_HANDLE_VALUE)throw std::runtime_error("identity claim unavailable/already spent");const auto b=request_sha+"\n";DWORD n=0;if(!WriteFile(c.value,b.data(),DWORD(b.size()),&n,nullptr)||n!=b.size()||!FlushFileBuffers(c.value))throw std::runtime_error("identity claim durable write");c.close();},[&]{dev_run::need(request.expires>dev_utc_ms(),"identity expired before consume");FILE_DISPOSITION_INFO d{};d.DeleteFile=TRUE;if(!SetFileInformationByHandle(held.value,FileDispositionInfo,&d,sizeof(d)))throw std::runtime_error("identity held consumption failed");held.close();});dev_run::need(use.may_start_model(),"identity ticket not consumed");}
++};
++}
+diff --git a/uwp/gpu-identity-pilot.inc b/uwp/gpu-identity-pilot.inc
+new file mode 100644
+--- /dev/null
++++ b/uwp/gpu-identity-pilot.inc
+@@ -0,0 +1,44 @@
++// Identity only; included once by existing pilot TU. Never enters model/catalogue/Reader.
++void run_gpu_capability_identity(){
++ const std::string tag="[gpu-identity-v1]";char first[256]{};auto fail=[&](const char*s){if(!first[0])std::snprintf(first,sizeof(first),"%s",s?s:"unknown identity failure");};
++ bool normal=false,resources_closed=true;auto limit_changed=std::make_shared<std::atomic<bool>>(false);uint64_t metadata=0,initial_limit=0;std::optional<gpu_identity::Observation> observation;
++ std::shared_ptr<GpuIdentityInput> input;std::string package;auto wall=ua50::uwp::Clock::now()+std::chrono::seconds(30);
++ // RAII for parse/claim failure; no output path is trusted until strict parse returns.
++ try{
++  auto compute=try_acquire_compute_job();if(!compute)throw std::runtime_error("identity compute lane busy");
++  auto limit_event=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[limit_changed](const auto&,const auto&)noexcept{limit_changed->store(true);});
++  auto q=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();auto usage=winrt::Windows::System::MemoryManager::AppMemoryUsage();initial_limit=q;
++  if(!q||usage>q||q-usage<gpu_identity::reserve+gpu_identity::probe+(256u<<10))throw std::runtime_error("identity preparse quota refused");
++  const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());input=std::make_shared<GpuIdentityInput>(root);
++  auto check=[&]{
++   if(limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires)throw std::runtime_error("identity original deadline/expiry stop");
++   const auto stop=input->path("stop");DWORD a=GetFileAttributesW(stop.c_str());if(a!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("identity stop requested/query unknown");
++   using M=winrt::Windows::System::MemoryManager;const auto l=M::AppMemoryUsageLimit(),u=M::AppMemoryUsage();const auto level=M::AppMemoryUsageLevel();
++   if(l!=initial_limit||!l||u>l||(level!=winrt::Windows::System::AppMemoryUsageLevel::Low&&level!=winrt::Windows::System::AppMemoryUsageLevel::Medium)||l!=M::AppMemoryUsageLimit()||metadata>UINT64_MAX-gpu_identity::reserve-gpu_identity::probe||l-u<metadata+gpu_identity::reserve+gpu_identity::probe)throw std::runtime_error("identity limit/usage/pressure/metadata stop");
++  };
++  metadata=add(input->owned_bytes(),sizeof(gpu_identity::Observation)+gpu_identity::serialization_capacity_cap+65536+8192);check();
++  const auto output=input->path("output.json");DWORD old=GetFileAttributesW(output.c_str());if(old!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("identity old output/query unknown");
++  package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());if(package.empty()||package.size()>1024)throw std::runtime_error("identity package bound");
++  input->spend();check();resources_closed=false;
++  observation=gpu_identity::query(check,metadata);resources_closed=true;check();normal=true;
++ }catch(const std::exception&e){fail(e.what());}catch(...){fail("identity unknown failure");}
++ // All query temporaries unwind before this serializer. Refused query retains conservative closure uncertainty.
++ if(input){try{
++  auto q=[](const gpu_identity::Quota&a){return std::string("{\"limit\":")+std::to_string(a.limit)+",\"usage\":"+std::to_string(a.usage)+",\"level\":"+std::to_string(a.level)+"}";};
++  const auto quote=first_answer::quote;std::string body;body.reserve(gpu_identity::result_cap);
++  body="{\"schema\":\"ua68-gpu-identity-result-v1\",\"contract_sha256\":"+quote(gpu_identity::contract_sha)+",\"normal\":"+(normal?"true":"false")+",\"status\":"+quote(normal?"IDENTITY_OBSERVED":"REFUSED")+",\"run_id\":"+quote(input->request.id)+",\"selection_id\":"+quote(input->request.selection)+",\"request_sha256\":"+quote(input->request_sha)+",\"native_package_full_name\":"+(package.empty()?std::string("null"):quote(package))+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"request_expires_at_epoch_ms\":"+std::to_string(input->request.expires)+",\"error\":"+quote(first)+",\"native_resources_closed\":"+(resources_closed?"true":"false")+",\"observation\":";
++  if(normal&&observation){const auto&o=*observation;body+="{\"adapter_luid\":"+quote(o.luid)+",\"compiled_shader_sha256\":"+quote(o.shader);
++   for(auto kv:{std::pair<const char*,uint64_t>{"vendor_id",o.vendor},{"device_id",o.device},{"subsystem_id",o.subsystem},{"revision",o.revision},{"adapter_flags",o.flags},{"node_count",o.nodes},{"DXGI_budget",o.budget},{"DXGI_usage",o.usage},{"DXGI_current_reservation",o.reservation},{"DXGI_available_for_reservation",o.available_reservation},{"observed_initialization_app_usage_delta",o.observed_init_delta}})body+=",\""+std::string(kv.first)+"\":"+std::to_string(kv.second);
++   body+=",\"UMA\":"+std::string(o.uma?"true":"false")+",\"CacheCoherentUMA\":"+(o.coherent?"true":"false")+",\"quota_before\":"+q(o.before)+",\"quota_after_device\":"+q(o.after_device)+",\"quota_after_close\":"+q(o.after_close)+"}";
++  }else body+="null";
++  body+=",\"accounting\":{\"request_owned_bytes\":"+std::to_string(input->owned_bytes())+",\"metadata_charge_bytes\":"+std::to_string(metadata)+",\"serialization_capacity_cap\":65536,\"reserve_bytes\":536870912,\"probe_bytes\":268435456,\"sampled_not_peak\":true,\"UMA_extra_RAM\":false,\"model_plan_admitted\":false},\"model_opened\":false,\"model_bytes_read\":0,\"GPU_submits\":0,\"signed_artifact_authenticated_by_native\":false,\"driver_JIT_machinecode_identity_available\":false}";
++  if(body.size()>gpu_identity::result_cap||body.capacity()>gpu_identity::serialization_capacity_cap)throw std::length_error("identity serialized output bound");
++  // Even final serialization delay cannot publish normal after expiry/stop. Recheck without a new query.
++  if(normal){DWORD s=GetFileAttributesW(input->path("stop").c_str());if(s!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND||limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires||winrt::Windows::System::MemoryManager::AppMemoryUsageLimit()!=initial_limit)throw std::runtime_error("identity final publication stop");}
++  if(input->held.value!=INVALID_HANDLE_VALUE){input->held.close();if(normal)throw std::runtime_error("identity unconsumed ticket cannot be normal");}
++  DevHandle out(CreateFile2(input->path("output.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr));if(out.value==INVALID_HANDLE_VALUE)throw std::runtime_error("identity output CREATE_NEW failed");DWORD n=0;if(!WriteFile(out.value,body.data(),DWORD(body.size()),&n,nullptr)||n!=body.size()||!FlushFileBuffers(out.value))throw std::runtime_error("identity output write/flush failed");out.close();
++  log_output(tag+(normal?" OUTPUT_COMMITTED identity-only temporary resources closed\n":" OUTPUT_COMMITTED refused\n"));
++ }catch(const std::exception&e){fail(e.what());normal=false;log_output(tag+" OUTPUT_FAILED: "+first+"\n");}catch(...){fail("identity unknown output failure");normal=false;log_output(tag+" OUTPUT_FAILED: "+first+"\n");}}
++ else log_output(tag+" REFUSED: "+first+"\n");
++ log_output(tag+(normal?" terminal identity-only\n":" terminal refused; no retry\n"));
++}
+diff --git a/uwp/inference-bridge.h b/uwp/inference-bridge.h
+--- a/uwp/inference-bridge.h
++++ b/uwp/inference-bridge.h
+@@ -122,3 +122,5 @@
+ } // namespace xllama::bridge
+ 
+ namespace xllama::bridge {void run_expert_gpu_proof_configured();} // internal; no App/UI/LAN activation callsite
++
++namespace xllama::bridge {void run_gpu_capability_identity();} // identity-only developer headless entry

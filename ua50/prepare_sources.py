@@ -45,11 +45,11 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = '5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83'
+CURRENT_PATCH_LOCK = 'd586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current UA68/5e34 lock admitted; oldf11d/bd37/2d69/25b9/5dab/B803/760e/a199/e781 refused')
+        raise ValueError('only current UA68 identity/d586 lock admitted; old5e34/f11d/bd37/2d69/25b9/5dab/B803/760e/a199/e781 refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
@@ -63,15 +63,18 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/first-answer-root.patch', 'xllama'), ('patch/finished-answer-root.patch', 'xllama'),
             ('patch/cache-ab-root.patch', 'xllama'), ('patch/cache-ab-llama.patch', 'llama'),
             ('patch/configurable-runner-root.patch', 'xllama'), ('patch/configurable-runner-llama.patch', 'llama'),
-            ('patch/ua68-expert-gpu-root.patch', 'xllama'), ('patch/ua68-expert-gpu-native.patch', 'llama')]:
-        raise ValueError('exact accepted twelve plus UA68 root and native fourteenth order required')
+            ('patch/ua68-expert-gpu-root.patch', 'xllama'), ('patch/ua68-expert-gpu-native.patch', 'llama'),
+            ('patch/ua68-gpu-identity-root.patch', 'xllama')]:
+        raise ValueError('exact accepted fourteen plus identity root fifteenth order required')
+    if lock.get('parent14_reused_not_replayed') is not True:
+        raise ValueError('exact accepted parent14 required')
     for entry in lock['patches']:
         patch = checked_patch(operator, entry)
         if patch.stat().st_size != entry['bytes']:
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = '30aa6c5d918cbdd57bdf45e5631ed3cfb8cc4667f34db428065c66769cf8a2b9'
+SHIPPING_INVENTORY_SHA = '8ef1dcbe9609455acdd1ee233b8b1c75ac8bcf380833d643a4203cc98c00a525'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):
@@ -82,11 +85,11 @@ def admitted_shipping_inventory(operator):
     if hashlib.sha256(imports).hexdigest() != COMPILER_INVENTORY_SHA:
         raise ValueError('compiler/import declarations changed')
     includes = (operator / 'INCLUDE-DEPENDENCY-INVENTORY.json').read_bytes()
-    if hashlib.sha256(includes).hexdigest() != '1af686f389de54f5cf7fa128c980a880f55be92f77afd4f42a7d6a53568f9c82' or len(json.loads(includes)['direct_includes_only']) != 587:
-        raise ValueError('exact current 587 direct source includes required')
+    if hashlib.sha256(includes).hexdigest() != '6236e0d0e0d479b53f6bfca6d5a68c3729873fe6956b0917d0e19935c15fa557' or len(json.loads(includes)['direct_includes_only']) != 596:
+        raise ValueError('exact current 596 direct source includes required')
     entries = json.loads(raw)['selected_source_files']
-    if len(entries) != 65:
-        raise ValueError('exact sixty-five selected shipping files required')
+    if len(entries) != 69:
+        raise ValueError('exact sixty-nine selected shipping files required')
     seen = set()
     for entry in entries:
         target, path = entry['target'], entry['target_path']

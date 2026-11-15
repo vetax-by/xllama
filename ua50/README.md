@@ -8,7 +8,7 @@ The patch rationale, implementation and evidence limits have one home:
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
 - Patch lock SHA-256:
-  `5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83`.
+  `d586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
 The first four patches retain the accepted application/runtime bytes. Two
@@ -19,7 +19,8 @@ profiles and their shared instrumentation; the current lock and inventories bind
 the ten historical entries. Two further configurable-runner patches add a
 strict typed developer entrypoint, explicit successor records and bounded I/O
 aggregates; those twelve entries are retained. Two additional root/native GPU bridge patches
-bring the current route to fourteen entries and 65 selected shipping files. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
+bring the historical GPU route to fourteen entries. One further root identity patch
+brings the current route to fifteen entries and 69 selected shipping files. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -45,12 +46,11 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The manual signing composition is being rebound to the inspected GPU-candidate
-artifact and reusable stock baseline. Its Python and PowerShell preflights admit
-the fourteen-patch lock and 65 shipping postimages independently. Exact helper
-and artifact-template pins, fresh installed-version facts and a separately
-selected higher update/recovery pair precede any signing attempt. Signatures
-and a recovery copy do not establish installation or recovery compatibility.
+The existing signing workflow and helpers remain tied to their separately
+reviewed historical artifact. They are excluded from this compile-source change.
+A future signing lane must bind the actual new unsigned artifact and both
+independent current source-receipt validators before use. Signing and installation
+need separate selections; this preparation does not select them.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -61,16 +61,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch 5e34ac4349af5159e4071148ea18994670b73e72963aafab7a4c07e1f6605f83
+python operator/ua50/prepare_sources.py product operator/ua50 patch d586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, fourteen ordered patch files and source/import inventories. Old
+exact lock, fifteen ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 65 selected shipping postimages,
+the pinned route once and checks all 69 selected shipping postimages,
 including shipping `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 
@@ -110,9 +110,10 @@ acceptance. The [ten-patch cache Windows build](https://github.com/vetax-by/xlla
 also produced an inspected unsigned package, without a cache-profile update or
 console A/B measurements. The configurable CPU successor subsequently completed a separately reviewed
 Windows artifact, signed preserving update and bounded CPU configuration cases.
-Those outcomes belong to the historical CPU revision. The current GPU bridge
-subsequently produced its own inspected Windows artifact; signing, an update
-and native correctness checks remain separate. No private response or telemetry is included here.
+Those outcomes belong to the historical CPU revision. The historical GPU bridge
+subsequently completed compile, signing and a preserving update; no GPU execution
+was established. The identity successor requires its own Windows artifact,
+signing, preserving update and actual identity observation before native correctness checks. No private response or telemetry is included here.
 
 ## Bounded first-answer developer mode
 
@@ -211,20 +212,42 @@ UMA is not additional memory; reserve and probe protections remain unchanged.
 Unknown fences retain resources until a real terminal state. Unavailable GPU
 compute timestamps remain null.
 
-Source review and portable synthetic author checks passed. The separately
-inspected [GPU-candidate Windows build](https://github.com/vetax-by/xllama/actions/runs/43718869460)
-compiled, linked and packaged the current source. Native GPU quant execution,
-compiled shader identity and console execution remain unaccepted. There is no GPU correctness, fit, speed or model-quality claim.
+Source review and portable synthetic author checks passed. Windows/pilot/native
+quant kernels, shaders and console execution have not yet been accepted for
+this revision. There is no GPU correctness, fit, speed or model-quality claim.
 Correctness and lifecycle checks precede stability/usability and later performance
 work. No Velocity/DirectStorage or FSR integration is included.
 
-## Current GPU candidate signing composition
 
-The signing recipe is being rebound to the inspected GPU-candidate unsigned
-package and the unchanged stock baseline. Both independent source-receipt
-validators require the fourteen-patch lock and 65 shipping postimages. The
-workflow pins both helpers and its artifact template. An exact selected higher
-version pair and a fresh installed-version check remain required before a
-manual attempt. Ephemeral signing identity, owned trust/key cleanup, public-only
-exports and bounded manual execution remain unchanged. No signature or
-preserving update is claimed by this source preparation.
+## Identity-only GPU observation successor
+
+The fifteenth patch adds a distinct one-use headless request before model and
+proof ingress. A strict request of at most 4 KiB selects a run and original expiry.
+A durable exclusive claim consumes only the held request. The native route creates
+a temporary device using the same adapter selection as the proof bridge, records
+actual adapter LUID, architecture, memory snapshots and the digest of the compiled
+Q4_K/Q6_K shader bytes, then closes its temporary resources. It creates no command
+queue, PSO, staging buffers or model Reader and submits no GPU math. The output is
+exclusive, bounded to 16 KiB and written, flushed and closed before normal terminal.
+
+This is a source candidate with successful Linux syntax and portable Request/OneUse
+author checks. Windows ingress, COM, BCrypt and native query execution remain
+unverified for this successor. Boundary checks enforce the original expiry and a
+30-second native window; blocking platform calls are not hard-cancellable. Refusal
+or uncertain closure cannot establish a normal observation.
+
+The observed compiled-bytecode digest is not driver-JIT machine code or a numerical
+correctness, fit or performance result. External operator evidence must bind the
+same actual signed successor artifact, package, request, process and returned caller
+closure. A successor observation cannot attest an earlier installed artifact.
+Actual identity acceptance must precede the separately selected primitive proof;
+an accepted primitive proof must precede the model proof. No current source review
+or public recipe dispatches these stages. Existing CPU/proof protocols and claims
+remain separate; private requests, receipts and observations are excluded here.
+
+Both explicit identity and GPU proof ticket branches preserve an ordinary historical
+`api.flag` as inert. They reject metadata/query/close errors and nonregular files,
+then return through their selected headless route before UI/LAN/legacy dispatch.
+Other conflicting developer flags still refuse. No flag is deleted or reset.
+This App ingress correction has source-only checks; its Windows code remains
+uncompiled and does not establish native identity or GPU execution.

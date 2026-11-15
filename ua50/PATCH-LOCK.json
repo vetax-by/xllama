@@ -1,5 +1,5 @@
 {
-  "status": "PROSPECTIVE_SOURCE_DELTA_UNCOMPILED_NOT_RELEASE",
+  "status": "IDENTITY_SUCCESSOR_SOURCE_INPUTS_ONLY",
   "parent_patch_lock_sha256": "f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e",
   "parent12_reused_not_replayed": true,
   "patches": [
@@ -86,6 +86,13 @@
       "target": "llama",
       "bytes": 19805,
       "sha256": "bc191807b162b3848c628a3048a86ce9a20ff2753c2933e617770c75b66d88bc"
+    },
+    {
+      "file": "patch/ua68-gpu-identity-root.patch",
+      "target": "xllama",
+      "bytes": 28376,
+      "sha256": "e264109de43652aedc373d60deb10b03074df2c12f788bfe21687eed4ded7267"
     }
-  ]
+  ],
+  "parent14_reused_not_replayed": true
 }

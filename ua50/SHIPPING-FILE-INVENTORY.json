@@ -1,590 +1,488 @@
 {
-  "status": "prospective selected source files, not full SDK/Windows proof",
+  "status": "selected source postimages only",
   "selected_source_files": [
     {
       "file": "CMakeLists.txt",
       "target": "xllama",
       "target_path": "CMakeLists.txt",
       "bytes": 6282,
-      "sha256": "1fa8327399ec34ceba287c527a34863be4f226d69f4f81ecf01d6bbf7908f64a",
-      "parent_sha256": "1fa8327399ec34ceba287c527a34863be4f226d69f4f81ecf01d6bbf7908f64a",
-      "changed_or_added": false
+      "sha256": "1fa8327399ec34ceba287c527a34863be4f226d69f4f81ecf01d6bbf7908f64a"
     },
     {
       "file": "include/xllama/cpu_expert_session.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_expert_session.h",
       "bytes": 5576,
-      "sha256": "eaed9338b5e69d00ad23bec43122428525ecf3d77a36cf0afaa232dd741da131",
-      "parent_sha256": "a6fb6ebff01f4a4e329f2fed70f17af03720b1caecbf0e9293b8128bb1fb9b0e",
-      "changed_or_added": true
+      "sha256": "eaed9338b5e69d00ad23bec43122428525ecf3d77a36cf0afaa232dd741da131"
     },
     {
       "file": "include/xllama/cpu_pilot_binding.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_pilot_binding.h",
       "bytes": 2555,
-      "sha256": "4ae3f4b1e31c0bd62c78b98a1d22560134e077225ae285b13a40ccfa98282a85",
-      "parent_sha256": "4ae3f4b1e31c0bd62c78b98a1d22560134e077225ae285b13a40ccfa98282a85",
-      "changed_or_added": false
+      "sha256": "4ae3f4b1e31c0bd62c78b98a1d22560134e077225ae285b13a40ccfa98282a85"
     },
     {
       "file": "include/xllama/cpu_pilot_policy.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_pilot_policy.h",
       "bytes": 2491,
-      "sha256": "72cd78b148c9f03205e2317ca93bc6bbb805ee4280255c9475ac73cd375458c4",
-      "parent_sha256": "72cd78b148c9f03205e2317ca93bc6bbb805ee4280255c9475ac73cd375458c4",
-      "changed_or_added": false
+      "sha256": "72cd78b148c9f03205e2317ca93bc6bbb805ee4280255c9475ac73cd375458c4"
     },
     {
       "file": "include/xllama/dev_run_config.h",
       "target": "xllama",
       "target_path": "include/xllama/dev_run_config.h",
       "bytes": 12409,
-      "sha256": "b32a6e81b9ce6fcf88733f57d087b1903e1c5cb2402a04242aa50f593bc669ae",
-      "parent_sha256": "b32a6e81b9ce6fcf88733f57d087b1903e1c5cb2402a04242aa50f593bc669ae",
-      "changed_or_added": false
+      "sha256": "b32a6e81b9ce6fcf88733f57d087b1903e1c5cb2402a04242aa50f593bc669ae"
     },
     {
       "file": "include/xllama/expert_gpu_d3d12.h",
       "target": "xllama",
       "target_path": "include/xllama/expert_gpu_d3d12.h",
       "bytes": 512,
-      "sha256": "b4a06c3c76070bff028bb8da0c04adc20f3a9c6268a37862fc23a203c4e0a2be",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "b4a06c3c76070bff028bb8da0c04adc20f3a9c6268a37862fc23a203c4e0a2be"
     },
     {
       "file": "include/xllama/first_answer_record.h",
       "target": "xllama",
       "target_path": "include/xllama/first_answer_record.h",
       "bytes": 10170,
-      "sha256": "d1ea51ef686945631c4ebab6b62c51406b55c6515ce2503189903011ae99e436",
-      "parent_sha256": "d1ea51ef686945631c4ebab6b62c51406b55c6515ce2503189903011ae99e436",
-      "changed_or_added": false
+      "sha256": "d1ea51ef686945631c4ebab6b62c51406b55c6515ce2503189903011ae99e436"
     },
     {
       "file": "include/xllama/first_answer_template.h",
       "target": "xllama",
       "target_path": "include/xllama/first_answer_template.h",
       "bytes": 6711,
-      "sha256": "4a50b7bdc1b8742a10eb6664ac884d17803b1c4942d6f0f02fff9cbea1b9f414",
-      "parent_sha256": "4a50b7bdc1b8742a10eb6664ac884d17803b1c4942d6f0f02fff9cbea1b9f414",
-      "changed_or_added": false
+      "sha256": "4a50b7bdc1b8742a10eb6664ac884d17803b1c4942d6f0f02fff9cbea1b9f414"
     },
     {
       "file": "include/xllama/ggml_d3d12.h",
       "target": "xllama",
       "target_path": "include/xllama/ggml_d3d12.h",
       "bytes": 7089,
-      "sha256": "26c11c17335064786ca5f97c5ad30abbedf866d95aa5402c6627fe99f27cfc26",
-      "parent_sha256": "26c11c17335064786ca5f97c5ad30abbedf866d95aa5402c6627fe99f27cfc26",
-      "changed_or_added": false
+      "sha256": "26c11c17335064786ca5f97c5ad30abbedf866d95aa5402c6627fe99f27cfc26"
+    },
+    {
+      "file": "include/xllama/gpu_identity.h",
+      "target": "xllama",
+      "target_path": "include/xllama/gpu_identity.h",
+      "bytes": 2370,
+      "sha256": "c4769290afecfd260a603cfc9f6cf7e00938e275146d4717304f92236b180a17"
     },
     {
       "file": "include/xllama/gpu_numeric_proof.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_numeric_proof.h",
       "bytes": 9285,
-      "sha256": "482e0c34618e36219fdca78d25370761091693542d3078347de8bba39db2030e",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "482e0c34618e36219fdca78d25370761091693542d3078347de8bba39db2030e"
     },
     {
       "file": "include/xllama/gpu_proof_build_pins.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_proof_build_pins.h",
       "bytes": 586,
-      "sha256": "78d0def57a6a32b4afe20cc066c37da433baf080c44bf31744e8b4fe84130f45",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "78d0def57a6a32b4afe20cc066c37da433baf080c44bf31744e8b4fe84130f45"
     },
     {
       "file": "include/xllama/gpu_proof_controller.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_proof_controller.h",
       "bytes": 9402,
-      "sha256": "56d678091fc704fa68b037ab29f5332f443acb0dea313449fe213db5641cbe51",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "56d678091fc704fa68b037ab29f5332f443acb0dea313449fe213db5641cbe51"
     },
     {
       "file": "include/xllama/gpu_proof_trace.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_proof_trace.h",
       "bytes": 7392,
-      "sha256": "96caa6b3f2492b81aa8fee8141d0c6fee9a5b680404da779c322cdffd412c0c9",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "96caa6b3f2492b81aa8fee8141d0c6fee9a5b680404da779c322cdffd412c0c9"
     },
     {
       "file": "include/xllama/gpu_run_config.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_run_config.h",
       "bytes": 5431,
-      "sha256": "93fbe8f0928b99c605e029b582f35dc42a4e60f707fc170ddffd30e99abc851c",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "93fbe8f0928b99c605e029b582f35dc42a4e60f707fc170ddffd30e99abc851c"
     },
     {
       "file": "include/xllama/session.h",
       "target": "xllama",
       "target_path": "include/xllama/session.h",
       "bytes": 10627,
-      "sha256": "3937c8d7c157e961b6fbcb09ca439d65b3b8c52ce6160dbdc00a74ea4cef147c",
-      "parent_sha256": "3937c8d7c157e961b6fbcb09ca439d65b3b8c52ce6160dbdc00a74ea4cef147c",
-      "changed_or_added": false
+      "sha256": "3937c8d7c157e961b6fbcb09ca439d65b3b8c52ce6160dbdc00a74ea4cef147c"
     },
     {
       "file": "include/xllama/session_hub.h",
       "target": "xllama",
       "target_path": "include/xllama/session_hub.h",
       "bytes": 5937,
-      "sha256": "ffe039cb043dfb266d582b61cac55a8cbcccdc22deb41d7b6c200fe11d8e4f14",
-      "parent_sha256": "ffe039cb043dfb266d582b61cac55a8cbcccdc22deb41d7b6c200fe11d8e4f14",
-      "changed_or_added": false
+      "sha256": "ffe039cb043dfb266d582b61cac55a8cbcccdc22deb41d7b6c200fe11d8e4f14"
     },
     {
       "file": "include/xllama/session_spec.h",
       "target": "xllama",
       "target_path": "include/xllama/session_spec.h",
       "bytes": 2647,
-      "sha256": "a607bdd7929cb08bc781743849a55f2b8fe59fab76e6708a5d3db6984c9aa6d7",
-      "parent_sha256": "a607bdd7929cb08bc781743849a55f2b8fe59fab76e6708a5d3db6984c9aa6d7",
-      "changed_or_added": false
+      "sha256": "a607bdd7929cb08bc781743849a55f2b8fe59fab76e6708a5d3db6984c9aa6d7"
     },
     {
       "file": "llama.cpp/common/common.cpp",
       "target": "llama",
       "target_path": "common/common.cpp",
       "bytes": 82544,
-      "sha256": "9c29e758749c99bb87f9c42820dd447ec55bd25e92379dd2a09e89eceee88ff2",
-      "parent_sha256": "9c29e758749c99bb87f9c42820dd447ec55bd25e92379dd2a09e89eceee88ff2",
-      "changed_or_added": false
+      "sha256": "9c29e758749c99bb87f9c42820dd447ec55bd25e92379dd2a09e89eceee88ff2"
     },
     {
       "file": "llama.cpp/ggml/src/CMakeLists.txt",
       "target": "llama",
       "target_path": "ggml/src/CMakeLists.txt",
       "bytes": 27327,
-      "sha256": "03e10b01aec941d0a8034686b62f8d84158b32e2d35425cd6f46effe75be4ca6",
-      "parent_sha256": "03e10b01aec941d0a8034686b62f8d84158b32e2d35425cd6f46effe75be4ca6",
-      "changed_or_added": false
+      "sha256": "03e10b01aec941d0a8034686b62f8d84158b32e2d35425cd6f46effe75be4ca6"
     },
     {
       "file": "llama.cpp/ggml/src/ggml-alloc.c",
       "target": "llama",
       "target_path": "ggml/src/ggml-alloc.c",
       "bytes": 45506,
-      "sha256": "0e29dbd6996055c4b5794b4bcda6e6ae69a5a6ff6dfc27a6964d2e3960b74399",
-      "parent_sha256": "0e29dbd6996055c4b5794b4bcda6e6ae69a5a6ff6dfc27a6964d2e3960b74399",
-      "changed_or_added": false
+      "sha256": "0e29dbd6996055c4b5794b4bcda6e6ae69a5a6ff6dfc27a6964d2e3960b74399"
     },
     {
       "file": "llama.cpp/ggml/src/ggml-backend-dl.cpp",
       "target": "llama",
       "target_path": "ggml/src/ggml-backend-dl.cpp",
       "bytes": 1563,
-      "sha256": "5e42eccc732317bc66b68c65d08a6cc0c610a2846507502a41e90309a86bb545",
-      "parent_sha256": "5e42eccc732317bc66b68c65d08a6cc0c610a2846507502a41e90309a86bb545",
-      "changed_or_added": false
+      "sha256": "5e42eccc732317bc66b68c65d08a6cc0c610a2846507502a41e90309a86bb545"
     },
     {
       "file": "llama.cpp/ggml/src/ggml-cpu/CMakeLists.txt",
       "target": "llama",
       "target_path": "ggml/src/ggml-cpu/CMakeLists.txt",
       "bytes": 32985,
-      "sha256": "528ef8f8b09a1c51fb4fab9fbb3c374e4ad655bc2b79deb80525bb92100f0fc8",
-      "parent_sha256": "528ef8f8b09a1c51fb4fab9fbb3c374e4ad655bc2b79deb80525bb92100f0fc8",
-      "changed_or_added": false
+      "sha256": "528ef8f8b09a1c51fb4fab9fbb3c374e4ad655bc2b79deb80525bb92100f0fc8"
     },
     {
       "file": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
       "target": "llama",
       "target_path": "ggml/src/ggml-cpu/ggml-cpu.c",
       "bytes": 135860,
-      "sha256": "9609fda07db5e1bb3329310f7ee4372085749a3d805b2c054e2a6853f6459b53",
-      "parent_sha256": "c8f481bb8441538a9309175f9aa2e90cf5ca794d968207e420ca1e51fb9ac5fd",
-      "changed_or_added": true
+      "sha256": "9609fda07db5e1bb3329310f7ee4372085749a3d805b2c054e2a6853f6459b53"
     },
     {
       "file": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
       "target": "llama",
       "target_path": "ggml/src/ggml-cpu/ggml-cpu.cpp",
       "bytes": 25527,
-      "sha256": "3335de35ed5ff7759a3df2edb3466c7ac35c30a5f01baaca6bd6a5195dc19f3f",
-      "parent_sha256": "3335de35ed5ff7759a3df2edb3466c7ac35c30a5f01baaca6bd6a5195dc19f3f",
-      "changed_or_added": false
+      "sha256": "3335de35ed5ff7759a3df2edb3466c7ac35c30a5f01baaca6bd6a5195dc19f3f"
     },
     {
       "file": "llama.cpp/src/llama-mmap.cpp",
       "target": "llama",
       "target_path": "src/llama-mmap.cpp",
       "bytes": 30820,
-      "sha256": "c31b69a511c1a68df45edd8e6d825f1c6deaf07949be624826143778852c4586",
-      "parent_sha256": "c31b69a511c1a68df45edd8e6d825f1c6deaf07949be624826143778852c4586",
-      "changed_or_added": false
+      "sha256": "c31b69a511c1a68df45edd8e6d825f1c6deaf07949be624826143778852c4586"
     },
     {
       "file": "llama.cpp/src/llama-model-loader.cpp",
       "target": "llama",
       "target_path": "src/llama-model-loader.cpp",
       "bytes": 79576,
-      "sha256": "7233f27b3c3542e94f3182ba28eac5c3c847785eab105756df2ea8831d66c6b9",
-      "parent_sha256": "7233f27b3c3542e94f3182ba28eac5c3c847785eab105756df2ea8831d66c6b9",
-      "changed_or_added": false
+      "sha256": "7233f27b3c3542e94f3182ba28eac5c3c847785eab105756df2ea8831d66c6b9"
     },
     {
       "file": "llama.cpp/src/llama-model-loader.h",
       "target": "llama",
       "target_path": "src/llama-model-loader.h",
       "bytes": 9728,
-      "sha256": "3623647877af946fef50ef85445ba9ab6c95228a709901c0e62f5498bdfa4c4f",
-      "parent_sha256": "3623647877af946fef50ef85445ba9ab6c95228a709901c0e62f5498bdfa4c4f",
-      "changed_or_added": false
+      "sha256": "3623647877af946fef50ef85445ba9ab6c95228a709901c0e62f5498bdfa4c4f"
     },
     {
       "file": "llama.cpp/src/llama-model.cpp",
       "target": "llama",
       "target_path": "src/llama-model.cpp",
       "bytes": 164650,
-      "sha256": "560b10cd337bd4ae72d80594288e07c74e59191e6add10b4ebe7140da49148fc",
-      "parent_sha256": "560b10cd337bd4ae72d80594288e07c74e59191e6add10b4ebe7140da49148fc",
-      "changed_or_added": false
+      "sha256": "560b10cd337bd4ae72d80594288e07c74e59191e6add10b4ebe7140da49148fc"
     },
     {
       "file": "llama.cpp/src/llama-model.h",
       "target": "llama",
       "target_path": "src/llama-model.h",
       "bytes": 34043,
-      "sha256": "7d4fdabd9378746ce4622ef1e1681998967c8e5b5cfde778f307c8896053aab3",
-      "parent_sha256": "7d4fdabd9378746ce4622ef1e1681998967c8e5b5cfde778f307c8896053aab3",
-      "changed_or_added": false
+      "sha256": "7d4fdabd9378746ce4622ef1e1681998967c8e5b5cfde778f307c8896053aab3"
     },
     {
       "file": "llama.cpp/src/llama.cpp",
       "target": "llama",
       "target_path": "src/llama.cpp",
       "bytes": 29721,
-      "sha256": "23345076cd3e1a46cea277c575a4be9339e558b4eb03a409c706336711d2735a",
-      "parent_sha256": "2f0813877dc927aa9075b0d637fcc9aa98f8b73437a078e041fb1d72441f2939",
-      "changed_or_added": true
+      "sha256": "23345076cd3e1a46cea277c575a4be9339e558b4eb03a409c706336711d2735a"
     },
     {
       "file": "llama.cpp/src/ua50/cache_trace.h",
       "target": "llama",
       "target_path": "src/ua50/cache_trace.h",
       "bytes": 10693,
-      "sha256": "28125bb8069fcb92196078f06461b5ad3df3a04cb526f4198aeb0dac39693302",
-      "parent_sha256": "28125bb8069fcb92196078f06461b5ad3df3a04cb526f4198aeb0dac39693302",
-      "changed_or_added": false
+      "sha256": "28125bb8069fcb92196078f06461b5ad3df3a04cb526f4198aeb0dac39693302"
     },
     {
       "file": "llama.cpp/src/ua50/expert_cache.h",
       "target": "llama",
       "target_path": "src/ua50/expert_cache.h",
       "bytes": 9896,
-      "sha256": "a5187e1e42a2f135e67702f6f2c50472f1f327bb0fcde4d3cd04339c85236daf",
-      "parent_sha256": "a5187e1e42a2f135e67702f6f2c50472f1f327bb0fcde4d3cd04339c85236daf",
-      "changed_or_added": false
+      "sha256": "a5187e1e42a2f135e67702f6f2c50472f1f327bb0fcde4d3cd04339c85236daf"
     },
     {
       "file": "llama.cpp/src/ua50/expert_gpu.h",
       "target": "llama",
       "target_path": "src/ua50/expert_gpu.h",
       "bytes": 7213,
-      "sha256": "e8aae9b5170455537a4eb47fbeeb76d997d1e6c98a3d65547bdbf7d9ebf65837",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "e8aae9b5170455537a4eb47fbeeb76d997d1e6c98a3d65547bdbf7d9ebf65837"
     },
     {
       "file": "llama.cpp/src/ua50/ggml-ua50.h",
       "target": "llama",
       "target_path": "src/ua50/ggml-ua50.h",
       "bytes": 918,
-      "sha256": "5070fdef01cf8905621896866635e610615da61f51179e159f6bbd68ff581f3b",
-      "parent_sha256": "f5e1b78df021be2991d56c293bd3b6b3b04e991738b37ba1d929599e3cdad2f4",
-      "changed_or_added": true
+      "sha256": "5070fdef01cf8905621896866635e610615da61f51179e159f6bbd68ff581f3b"
     },
     {
       "file": "llama.cpp/src/ua50/native_provider.cpp",
       "target": "llama",
       "target_path": "src/ua50/native_provider.cpp",
       "bytes": 10588,
-      "sha256": "81b9bdf641b4d1ca9752e519e4cf055dcb4f0d7152537dad9f97e88d6d7536a2",
-      "parent_sha256": "e7ceb9d5b6b101540fa473d22adbb0de77759508d6fe0c67f7c9687891b48e7d",
-      "changed_or_added": true
+      "sha256": "81b9bdf641b4d1ca9752e519e4cf055dcb4f0d7152537dad9f97e88d6d7536a2"
     },
     {
       "file": "llama.cpp/src/ua50/native_provider.h",
       "target": "llama",
       "target_path": "src/ua50/native_provider.h",
       "bytes": 3319,
-      "sha256": "dd326487d77ae3a39e7e335f6d8eaadb040705e9678c8cbedbfb6a78f0e44a8a",
-      "parent_sha256": "a6a16a06b7f07829d84607e5356432a35c05c46a371a72a17a6d747f1a7da3ad",
-      "changed_or_added": true
+      "sha256": "dd326487d77ae3a39e7e335f6d8eaadb040705e9678c8cbedbfb6a78f0e44a8a"
     },
     {
       "file": "llama.cpp/src/ua50/owned_expert_load.h",
       "target": "llama",
       "target_path": "src/ua50/owned_expert_load.h",
       "bytes": 1531,
-      "sha256": "669e841c03ab1c31386fcc5fb13b2a8de89141da0362c553f7bd657898e6150d",
-      "parent_sha256": "f5cfed0c090c78fa6e1f265a0512d43e5d72230aacf50e081949a6491af562d2",
-      "changed_or_added": true
+      "sha256": "669e841c03ab1c31386fcc5fb13b2a8de89141da0362c553f7bd657898e6150d"
     },
     {
       "file": "scripts/apply-uwp-patches.sh",
       "target": "xllama",
       "target_path": "scripts/apply-uwp-patches.sh",
       "bytes": 1103,
-      "sha256": "8d16c43a8705be00bf218d50370c327561cd6f3f0bec486b91d735e3c9104a10",
-      "parent_sha256": "8d16c43a8705be00bf218d50370c327561cd6f3f0bec486b91d735e3c9104a10",
-      "changed_or_added": false
+      "sha256": "8d16c43a8705be00bf218d50370c327561cd6f3f0bec486b91d735e3c9104a10"
     },
     {
       "file": "scripts/check-uwp-sources.sh",
       "target": "xllama",
       "target_path": "scripts/check-uwp-sources.sh",
       "bytes": 2825,
-      "sha256": "01936e630eae70a958f7fe355d78172993d933355ce98b0bc71a022f1bae81de",
-      "parent_sha256": "01936e630eae70a958f7fe355d78172993d933355ce98b0bc71a022f1bae81de",
-      "changed_or_added": false
+      "sha256": "01936e630eae70a958f7fe355d78172993d933355ce98b0bc71a022f1bae81de"
     },
     {
       "file": "src/bridge/chat_prompt.cpp",
       "target": "xllama",
       "target_path": "src/bridge/chat_prompt.cpp",
       "bytes": 13097,
-      "sha256": "bc70ba4579da92ecfcf12934595320c01fe60057e0d82c3b5e53ab3e3689e096",
-      "parent_sha256": "bc70ba4579da92ecfcf12934595320c01fe60057e0d82c3b5e53ab3e3689e096",
-      "changed_or_added": false
+      "sha256": "bc70ba4579da92ecfcf12934595320c01fe60057e0d82c3b5e53ab3e3689e096"
     },
     {
       "file": "src/bridge/cpu_expert_app_session.inc",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_app_session.inc",
       "bytes": 7673,
-      "sha256": "ba2a65b52397b9a0996c1307b27695a57bd5fce0183757762f665c6a3087d95f",
-      "parent_sha256": "ba2a65b52397b9a0996c1307b27695a57bd5fce0183757762f665c6a3087d95f",
-      "changed_or_added": false
+      "sha256": "ba2a65b52397b9a0996c1307b27695a57bd5fce0183757762f665c6a3087d95f"
     },
     {
       "file": "src/bridge/cpu_expert_session.cpp",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_session.cpp",
       "bytes": 19251,
-      "sha256": "ca597eda9badb7efe8d2d54f9e9ea313bfd1a0249f0aa04139c12c1f8e30d892",
-      "parent_sha256": "5d5a5afa7851c1f97c992b39879f708e2694e6720fcde007b88936f4ab96e5b6",
-      "changed_or_added": true
+      "sha256": "ca597eda9badb7efe8d2d54f9e9ea313bfd1a0249f0aa04139c12c1f8e30d892"
     },
     {
       "file": "src/bridge/d3d12_compute.cpp",
       "target": "xllama",
       "target_path": "src/bridge/d3d12_compute.cpp",
-      "bytes": 5767,
-      "sha256": "3ab8a77ded9fab1b03cef903009a5360be70d7ac46980563153dd8126841a67b",
-      "parent_sha256": "3ab8a77ded9fab1b03cef903009a5360be70d7ac46980563153dd8126841a67b",
-      "changed_or_added": false
+      "bytes": 6068,
+      "sha256": "60a98a7d8222f902a24e1707e5bd1eac28e4b4bdd2c0003efc8a5016040f2078"
     },
     {
       "file": "src/bridge/d3d12_compute.h",
       "target": "xllama",
       "target_path": "src/bridge/d3d12_compute.h",
       "bytes": 2675,
-      "sha256": "ef5e602ff278696db1c4cf1719ef7f4f1b6a2e835e16b61f11b920a28083d4cb",
-      "parent_sha256": "ef5e602ff278696db1c4cf1719ef7f4f1b6a2e835e16b61f11b920a28083d4cb",
-      "changed_or_added": false
+      "sha256": "ef5e602ff278696db1c4cf1719ef7f4f1b6a2e835e16b61f11b920a28083d4cb"
     },
     {
       "file": "src/bridge/expert_gpu_d3d12.inc",
       "target": "xllama",
       "target_path": "src/bridge/expert_gpu_d3d12.inc",
-      "bytes": 13185,
-      "sha256": "093a1cad0859d3d49e1f4e798c11c14f4928df7b5ef612ee8baf0e61415b925d",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "bytes": 11663,
+      "sha256": "4bf577e198e036ad4f91fbde9cb50279131c3fcb486337b95cc522dc8a59d1eb"
     },
     {
       "file": "src/bridge/ggml_d3d12.cpp",
       "target": "xllama",
       "target_path": "src/bridge/ggml_d3d12.cpp",
-      "bytes": 60606,
-      "sha256": "b573c335b51064de03b60816d7a22a3dc606ba278fc3255f7644d125f311c454",
-      "parent_sha256": "e38bca66f8395447443ad7998f7e3e7a4c0220200d801502cba00ee9a9e97269",
-      "changed_or_added": true
+      "bytes": 60829,
+      "sha256": "1b0074bb931b4854bec6f49be89c351ae02d1b307d2e936b34b2c0f97c3fcc48"
+    },
+    {
+      "file": "src/bridge/gpu_identity_d3d12.inc",
+      "target": "xllama",
+      "target_path": "src/bridge/gpu_identity_d3d12.inc",
+      "bytes": 5078,
+      "sha256": "0034abf20d5b618212bfc96e1ce8b707abe2a4402fdd0d1ad1522db370aa0d23"
     },
     {
       "file": "src/bridge/held_file_sha256_win.cpp",
       "target": "xllama",
       "target_path": "src/bridge/held_file_sha256_win.cpp",
       "bytes": 4858,
-      "sha256": "d46d89a96b0b700159e494eefb13fbb272036cea2e15855632a1a9358d297f00",
-      "parent_sha256": "d46d89a96b0b700159e494eefb13fbb272036cea2e15855632a1a9358d297f00",
-      "changed_or_added": false
+      "sha256": "d46d89a96b0b700159e494eefb13fbb272036cea2e15855632a1a9358d297f00"
     },
     {
       "file": "src/bridge/session.cpp",
       "target": "xllama",
       "target_path": "src/bridge/session.cpp",
       "bytes": 64030,
-      "sha256": "31da412f7c13fca79585c1a05e585991cf03db0b76af68f86f87e05f8f18ea56",
-      "parent_sha256": "31da412f7c13fca79585c1a05e585991cf03db0b76af68f86f87e05f8f18ea56",
-      "changed_or_added": false
+      "sha256": "31da412f7c13fca79585c1a05e585991cf03db0b76af68f86f87e05f8f18ea56"
     },
     {
       "file": "src/bridge/session_factory.inc",
       "target": "xllama",
       "target_path": "src/bridge/session_factory.inc",
       "bytes": 2392,
-      "sha256": "580971e21f7fda10c1f3ad0279b6026a9eaba227ffd678eaf2659f2b1200d5e9",
-      "parent_sha256": "580971e21f7fda10c1f3ad0279b6026a9eaba227ffd678eaf2659f2b1200d5e9",
-      "changed_or_added": false
+      "sha256": "580971e21f7fda10c1f3ad0279b6026a9eaba227ffd678eaf2659f2b1200d5e9"
     },
     {
       "file": "src/platform/ua50/dev_run_io.h",
       "target": "xllama",
       "target_path": "src/platform/ua50/dev_run_io.h",
       "bytes": 6053,
-      "sha256": "44dc3a58d59a86a312770638a56ba0a5508244131923f37965ed65159ab0e948",
-      "parent_sha256": "44dc3a58d59a86a312770638a56ba0a5508244131923f37965ed65159ab0e948",
-      "changed_or_added": false
+      "sha256": "44dc3a58d59a86a312770638a56ba0a5508244131923f37965ed65159ab0e948"
     },
     {
       "file": "src/platform/ua50/staged_reader_core.h",
       "target": "xllama",
       "target_path": "src/platform/ua50/staged_reader_core.h",
       "bytes": 4963,
-      "sha256": "c50f4128d08520a1b67ecc440d2fe6cfba9b806c9c8ec118478edf416f954f87",
-      "parent_sha256": "c50f4128d08520a1b67ecc440d2fe6cfba9b806c9c8ec118478edf416f954f87",
-      "changed_or_added": false
+      "sha256": "c50f4128d08520a1b67ecc440d2fe6cfba9b806c9c8ec118478edf416f954f87"
     },
     {
       "file": "src/platform/ua50/windows_held_reader.cpp",
       "target": "xllama",
       "target_path": "src/platform/ua50/windows_held_reader.cpp",
       "bytes": 10274,
-      "sha256": "94a1cd8a368f5f7a65ce5fe774d6ab1351bb7eba746480bde7fe4f55324ec410",
-      "parent_sha256": "94a1cd8a368f5f7a65ce5fe774d6ab1351bb7eba746480bde7fe4f55324ec410",
-      "changed_or_added": false
+      "sha256": "94a1cd8a368f5f7a65ce5fe774d6ab1351bb7eba746480bde7fe4f55324ec410"
     },
     {
       "file": "src/platform/ua50/windows_held_reader.h",
       "target": "xllama",
       "target_path": "src/platform/ua50/windows_held_reader.h",
       "bytes": 2259,
-      "sha256": "1e42fc3a6bdb075b02935ba83b76500fc5f87d9723d3749aa9f79de6d3e739d4",
-      "parent_sha256": "1e42fc3a6bdb075b02935ba83b76500fc5f87d9723d3749aa9f79de6d3e739d4",
-      "changed_or_added": false
+      "sha256": "1e42fc3a6bdb075b02935ba83b76500fc5f87d9723d3749aa9f79de6d3e739d4"
     },
     {
       "file": "uwp/App.cpp",
       "target": "xllama",
       "target_path": "uwp/App.cpp",
-      "bytes": 32503,
-      "sha256": "9d249d26675ee962046d05ce23e5cbab7d015cf58a405a837dfc13ad5b746558",
-      "parent_sha256": "ca17069fa69c11e892f7a24434cbf32f854783b5d5fb2bc2700d6554398de5f5",
-      "changed_or_added": true
+      "bytes": 35360,
+      "sha256": "950217c482d8f196f04fbb17eb02fd1c8d5c1bc256bfaed97306887293715262"
     },
     {
       "file": "uwp/MainPage.cpp",
       "target": "xllama",
       "target_path": "uwp/MainPage.cpp",
       "bytes": 205936,
-      "sha256": "9f9c4c72d1b83d25571b983a9f76a3d146b7187f83c88c105683165e496a238f",
-      "parent_sha256": "9f9c4c72d1b83d25571b983a9f76a3d146b7187f83c88c105683165e496a238f",
-      "changed_or_added": false
+      "sha256": "9f9c4c72d1b83d25571b983a9f76a3d146b7187f83c88c105683165e496a238f"
     },
     {
       "file": "uwp/cpu-expert-pilot.cpp",
       "target": "xllama",
       "target_path": "uwp/cpu-expert-pilot.cpp",
-      "bytes": 30921,
-      "sha256": "6be22086c7b17d0f318f44688fb0fde6f5cb91b164d208758ae02a5b98170975",
-      "parent_sha256": "261663705b26e68884868cf822bdcc3e92d499af953562a677b4a7dd3e1e05a0",
-      "changed_or_added": true
+      "bytes": 30987,
+      "sha256": "444e881533b2e22bcaa39fa86403eae6cfcf03955f21ce9f5b8d2c14b7718ae8"
     },
     {
       "file": "uwp/dev-run-input.h",
       "target": "xllama",
       "target_path": "uwp/dev-run-input.h",
       "bytes": 5826,
-      "sha256": "1af075ed321af54a42c74a1836c9aea514548956d42daece36a2f5aaa3a159b9",
-      "parent_sha256": "1af075ed321af54a42c74a1836c9aea514548956d42daece36a2f5aaa3a159b9",
-      "changed_or_added": false
+      "sha256": "1af075ed321af54a42c74a1836c9aea514548956d42daece36a2f5aaa3a159b9"
     },
     {
       "file": "uwp/ggml-uwp.vcxproj",
       "target": "xllama",
       "target_path": "uwp/ggml-uwp.vcxproj",
       "bytes": 10498,
-      "sha256": "c923feeb2d75cb9ce092582f9bd3df6e3d6b76948d8b82c1ca4e48745c991910",
-      "parent_sha256": "c923feeb2d75cb9ce092582f9bd3df6e3d6b76948d8b82c1ca4e48745c991910",
-      "changed_or_added": false
+      "sha256": "c923feeb2d75cb9ce092582f9bd3df6e3d6b76948d8b82c1ca4e48745c991910"
+    },
+    {
+      "file": "uwp/gpu-identity-input.h",
+      "target": "xllama",
+      "target_path": "uwp/gpu-identity-input.h",
+      "bytes": 2772,
+      "sha256": "1640d9e6688a103abab49dc3abdcb917e9654eb7d3c9257d2b383a735fe52df7"
+    },
+    {
+      "file": "uwp/gpu-identity-pilot.inc",
+      "target": "xllama",
+      "target_path": "uwp/gpu-identity-pilot.inc",
+      "bytes": 7288,
+      "sha256": "2d469e097c9a8eab229ec91e676ceff9fb32edcbda2b0f6f92f312a1704223a7"
     },
     {
       "file": "uwp/gpu-proof-input.h",
       "target": "xllama",
       "target_path": "uwp/gpu-proof-input.h",
       "bytes": 2103,
-      "sha256": "bb01533eb6aaeeade9ff6d46a16adb57ef76de08798aa257f22c12ce7a1fec87",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "bb01533eb6aaeeade9ff6d46a16adb57ef76de08798aa257f22c12ce7a1fec87"
     },
     {
       "file": "uwp/gpu-proof-pilot.inc",
       "target": "xllama",
       "target_path": "uwp/gpu-proof-pilot.inc",
       "bytes": 20289,
-      "sha256": "7ac8a7a5ed3874b3749ecd1b1d1afd58c0e2816c4e1cb3784ade2ef8f9486376",
-      "parent_sha256": null,
-      "changed_or_added": true
+      "sha256": "7ac8a7a5ed3874b3749ecd1b1d1afd58c0e2816c4e1cb3784ade2ef8f9486376"
     },
     {
       "file": "uwp/inference-bridge.h",
       "target": "xllama",
       "target_path": "uwp/inference-bridge.h",
-      "bytes": 5900,
-      "sha256": "b1b4fd8867324c65b2ba7bd11b6b447f86bb5a1e88972ad966d8e4296346cdda",
-      "parent_sha256": "01523791c7eba3633a5261825f70118a47d8538cd7fd70b07fa0b44dbd275d32",
-      "changed_or_added": true
+      "bytes": 6006,
+      "sha256": "4c8140688b40fddde73a04989589073252c36592024b20726b858d6c183d3b96"
     },
     {
       "file": "uwp/llama-common-uwp.vcxproj",
       "target": "xllama",
       "target_path": "uwp/llama-common-uwp.vcxproj",
       "bytes": 7312,
-      "sha256": "96a71bb48d2c098df0d26f45ca21e462ab13a32aafdb5f87d2de9b3f088e1f74",
-      "parent_sha256": "96a71bb48d2c098df0d26f45ca21e462ab13a32aafdb5f87d2de9b3f088e1f74",
-      "changed_or_added": false
+      "sha256": "96a71bb48d2c098df0d26f45ca21e462ab13a32aafdb5f87d2de9b3f088e1f74"
     },
     {
       "file": "uwp/packages.config",
       "target": "xllama",
       "target_path": "uwp/packages.config",
       "bytes": 435,
-      "sha256": "ca6ab5b987d67ee565150d5e8d67d886985be1c67de7ea16625c218325156ba0",
-      "parent_sha256": "ca6ab5b987d67ee565150d5e8d67d886985be1c67de7ea16625c218325156ba0",
-      "changed_or_added": false
+      "sha256": "ca6ab5b987d67ee565150d5e8d67d886985be1c67de7ea16625c218325156ba0"
     },
     {
       "file": "uwp/xllama.sln",
       "target": "xllama",
       "target_path": "uwp/xllama.sln",
       "bytes": 1587,
-      "sha256": "37cedfbb825aadc9590e0f0e197403e429c72d8f0bf831e91411a9e6beb1a593",
-      "parent_sha256": "37cedfbb825aadc9590e0f0e197403e429c72d8f0bf831e91411a9e6beb1a593",
-      "changed_or_added": false
+      "sha256": "37cedfbb825aadc9590e0f0e197403e429c72d8f0bf831e91411a9e6beb1a593"
     },
     {
       "file": "uwp/xllama.vcxproj",
       "target": "xllama",
       "target_path": "uwp/xllama.vcxproj",
       "bytes": 23615,
-      "sha256": "54666608e42077fbecd3216f472bb8cafe682ccbe5e610c98ead379b18bdfa5d",
-      "parent_sha256": "54666608e42077fbecd3216f472bb8cafe682ccbe5e610c98ead379b18bdfa5d",
-      "changed_or_added": false
+      "sha256": "54666608e42077fbecd3216f472bb8cafe682ccbe5e610c98ead379b18bdfa5d"
     }
   ]
 }
