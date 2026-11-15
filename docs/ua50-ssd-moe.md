@@ -334,6 +334,8 @@ Developer release acceptance covers reviewed source, inspected Windows artifacts
 
 The first configurable Windows compile stopped at an unresolved developer
 header include. Its source-relative include route has been corrected without
-changing the engine contract, computation or project/import declarations. A
-replacement Windows artifact remains pending; the failed attempt does not
-establish a usable package.
+changing the engine contract, computation or project/import declarations. The separately selected
+[replacement Windows build](https://github.com/vetax-by/xllama/actions/runs/43680931110)
+compiled, linked and produced an inspected unsigned package. Signing, a
+preserving update and separate native CPU qualification remain required; the
+failed attempt remains part of the build history.

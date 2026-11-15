@@ -2,7 +2,7 @@
 import argparse,hashlib,json,re,stat
 from pathlib import Path,PurePosixPath
 import package_copy as package
-CURRENT_PATCH_LOCK='25b96683858ec2fbfbcb171cd6e93927d6c9fbe315f8e5ffe919cae65f784b44'
+CURRENT_PATCH_LOCK='f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e'
 def exact_file(root,relative):
  if not isinstance(relative,str) or not relative or '\\' in relative or ':' in relative or relative.startswith('/') or any(x in ('','.','..') for x in relative.split('/')):raise ValueError('canonical relative artifact file required')
  path=root.joinpath(*PurePosixPath(relative).parts)
@@ -29,7 +29,7 @@ def validate(plan,root):
   record=json.loads(raw)
   if record['track']!=track or record['xllama']!='4db51522c850e62d0bb24234dfeb48e55f4017d7' or record['llama']!='d81235049384534c167caea52b85a694f6103d14':raise ValueError('source receipt track/base')
   if track=='patch':
-   if record['reviewed_patch_lock']!=CURRENT_PATCH_LOCK or record['selected_shipping_files_verified']!=47:raise ValueError('finished384 25b9/47 receipt required')
+   if record['reviewed_patch_lock']!=CURRENT_PATCH_LOCK or record['selected_shipping_files_verified']!=51:raise ValueError('configurable f11d/51 receipt required')
   elif record['reviewed_patch_lock'] or record['selected_shipping_files_verified']!=0:raise ValueError('stock must be original unpatched baseline')
   if package.bounded_package_sha(pkg)!=entry['PackageSHA256']:raise ValueError('accepted unsigned package bytes changed')
   payload=package.read_package(pkg,False);_,identity=package.identity(payload['AppxManifest.xml'])

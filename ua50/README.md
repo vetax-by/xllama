@@ -45,16 +45,15 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The existing signing recipe remains tied to the historical eight-patch
-finished-answer artifact and reusable stock baseline. It does not sign the new
-ten-patch cache candidate: a future signing lane must bind the actual new
-unsigned artifact and both independently checked source-receipt validators. It verifies
-the source lock independently in both the Python preflight and PowerShell copy
-helper. A signing attempt needs its own exact artifact/version-bound selection. Manual
-signing also requires a fresh installed version and an explicitly selected higher
-patched version plus a still higher stock forward-recovery version. Signing does
-not install or launch the application, and a recovery package alone does not
-prove recovery compatibility.
+The signing recipe binds the inspected configurable-runner artifact and the
+reusable stock baseline. Both the Python preflight and independent PowerShell
+copy helper require the current twelve-patch lock and 51 selected files.
+The workflow pins both helpers and the exact artifact template; it retains the
+manual-only trigger, ephemeral non-exportable signing identity and owned cleanup.
+A signing attempt still needs an exact separately selected artifact/version-bound
+disposition, fresh installed-version facts, a higher patched version and a still
+higher stock forward-recovery version. Signing does not install or launch the
+application, and a recovery package alone does not prove compatibility.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -112,8 +111,9 @@ final section, native termination and normal teardown. This is a single-turn
 milestone, not assistant-quality, long-context or sustained-performance
 acceptance. The [ten-patch cache Windows build](https://github.com/vetax-by/xllama/actions/runs/43658336759)
 also produced an inspected unsigned package, without a cache-profile update or
-console A/B measurements. The configurable successor still needs its own
-Windows artifact, signing and preserving update; native CPU configuration
+console A/B measurements. The [configurable replacement Windows build](https://github.com/vetax-by/xllama/actions/runs/43680931110)
+now produced its own inspected unsigned package after a narrow header-resolution
+correction. Signing and preserving update remain pending; native CPU configuration
 qualification follows as a separate task. No private response or telemetry is included here.
 
 ## Bounded first-answer developer mode
