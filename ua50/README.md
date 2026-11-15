@@ -230,9 +230,10 @@ Q4_K/Q6_K shader bytes, then closes its temporary resources. It creates no comma
 queue, PSO, staging buffers or model Reader and submits no GPU math. The output is
 exclusive, bounded to 16 KiB and written, flushed and closed before normal terminal.
 
-This is a source candidate with successful Linux syntax and portable Request/OneUse
-author checks. Windows ingress, COM, BCrypt and native query execution remain
-unverified for this successor. Boundary checks enforce the original expiry and a
+This successor has accepted source review, portable Request/OneUse author checks
+and an independently inspected unsigned Windows package. App and pilot objects
+were compiled and linked. Native COM, BCrypt and identity query execution remain
+unverified; compilation does not establish those runtime outcomes. Boundary checks enforce the original expiry and a
 30-second native window; blocking platform calls are not hard-cancellable. Refusal
 or uncertain closure cannot establish a normal observation.
 
@@ -249,5 +250,25 @@ Both explicit identity and GPU proof ticket branches preserve an ordinary histor
 `api.flag` as inert. They reject metadata/query/close errors and nonregular files,
 then return through their selected headless route before UI/LAN/legacy dispatch.
 Other conflicting developer flags still refuse. No flag is deleted or reset.
-This App ingress correction has source-only checks; its Windows code remains
-uncompiled and does not establish native identity or GPU execution.
+The corrected App ingress has now compiled in the inspected Windows artifact.
+It does not establish native identity or GPU execution.
+
+## Identity successor signing composition
+
+The accepted unsigned identity successor comes from the public Windows run
+[43735865629](https://github.com/vetax-by/xllama/actions/runs/43735865629),
+with compile/link/package acceptance only. The prepared signing recipe binds that
+exact package and source receipt, current independent guards for all 69 shipping
+files, and the unchanged accepted stock payload. The original stock ZIP is fetched
+from its existing byte-exact release mirror; it is not rebuilt or repacked. Its
+historical BUILD-RECEIPT contains hosted Windows installation paths in the
+`msbuild` and `crt_directory` fields; this is retained legacy metadata, not a
+claim that those fields were omitted.
+
+Version inputs reserve patched 1.7.0.1506 and stock forward-recovery 1.7.0.1507,
+above the freshly observed installed 1.7.0.1504. InstalledVersion remains
+FRESH_ACTUAL_REQUIRED in the template. Preparation does not dispatch signing,
+create a key, install a package or run a capability query. A later exact selection
+must bind the published signing sources, accepted unsigned artifact and fresh
+version evidence. Stock recovery, console trust, identity observations, GPU math,
+fit and speed remain unproven.

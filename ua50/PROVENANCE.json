@@ -236,8 +236,36 @@
       "result_sha256": "af85189ed6cc70aa5da4ea78a1165a4affe2ca8d9e181fcf2ca5d2537f651b50"
     },
     "operator_source_manifest_sha256": "d232c8030fcdb64e93df6806ee91551b86103869dc6a8e91db77fe58d663a18f",
-    "actual_successor_Windows_artifact_accepted": false,
+    "actual_successor_Windows_artifact_accepted": true,
     "actual_native_identity_observation_accepted": false,
-    "app_ingress_correction": "Both explicit identity/proof tickets preserve ordinary api.flag as inert; metadata/query/close errors or nonregular file refuse. Existing default/CPU routes and proof wire remain unchanged. Corrected Windows App code uncompiled; saved portable author evidence applies only to unchanged tested code."
+    "app_ingress_correction": "Both explicit identity/proof tickets preserve ordinary api.flag as inert; metadata/query/close errors or nonregular file refuse. Existing default/CPU routes and proof wire remain unchanged. Corrected Windows App code compiled and linked in the accepted unsigned artifact; native identity query remains unexecuted. Saved portable author evidence applies only to its tested code.",
+    "unsigned_windows_artifact": {
+      "status": "PASS_ACTUAL_UNSIGNED_WINDOWS_ARTIFACT_ONLY",
+      "run_id": 43735865629,
+      "head": "93cdcff420bab231e942052b5773fcb02e156457",
+      "package_sha256": "55317f2a6fba1a23ceeebef7b81016ce563a96ff221d213cc54b85195c3c8eda",
+      "source_receipt_sha256": "db905201dac44bf5575df0d972f4454938cc21541800d63c0bc81bc75234d3ec",
+      "review_sha256": "f99f25f8a72d4477d9a94914c9b17b9b7a9deaae2e838f4e76bd071acf2c96bb",
+      "manifest_sha256": "8e1509cee01984ef75f18fc5942a063ce7754104f1a98356536f7eccd6860312",
+      "result_sha256": "108fbfb24c28bbfdc7487c236307eec12d52ff1ef647a0776496682292b2eaaa",
+      "qualification": "Original caller exit0/Actions false saved-attributed; caller_free UNKNOWN. Inherited prepare/receipt source qualification, no fresh independent Windows filesystem audit. Final8warnings/0errors only, C4715/C4018 unadjudicated. No native identity or GPU acceptance."
+    },
+    "signing_composition": {
+      "status": "SOURCE_REVIEWED_PENDING_EXACT_PUBLICATION_AND_EXECUTION_SELECTION",
+      "patched_version": "1.7.0.1506",
+      "recovery_version": "1.7.0.1507",
+      "installed_version_template": "FRESH_ACTUAL_REQUIRED",
+      "combined_source_QA": {
+        "status": "PASS_SOURCE_ONLY",
+        "review_sha256": "19ae1b9b665abedf9ab87580b2c2a843a00808f3711f97d1866590044b9eae62",
+        "manifest_sha256": "b207db9e4113099d87c3e3318223b0f05de62fbc668c9d0ef1ed577e4c4868ee",
+        "result_sha256": "ec86e671a4acaaa7d6308cff763ade0dc277b403584ccbcbf65c088f2255f450",
+        "source_manifest_sha256": "23b6f0051e812174739073b8b6fe8a360a3c02b3225553c59ed8135d469ba033"
+      },
+      "signed_pair_accepted": false,
+      "install_accepted": false,
+      "native_identity_accepted": false,
+      "stock_transport": "unchanged original archive e4e4d8a2 release mirror; historical msbuild/crt_directory hosted installation paths retained"
+    }
   }
 }
