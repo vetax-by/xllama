@@ -3,20 +3,20 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca",
-  "source_bundle_sha256": "9a84c724e6e5153be42d97a36cc6910587da5e673b366ec45d3102fa1398f666",
+  "patch_lock_sha256": "f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e",
+  "source_bundle_sha256": "c07942ac5f152bec5256e8af0ae87a4fb2cd7c07c2ea401c89b37e097248914f",
   "source_reviews": {
-    "composition": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151",
     "cpu_pilot": "efe7dbb8a350c1ca99c07386b207570580d7d13457f2ad247518da9d380f66dd",
     "base_composition": "a593f8389d86f1abf413b60176d9977a9e207a3d0288747091452cd3eaaedaaf",
     "first_answer_source_shipping": "71864b2e8be3709fe9423d8a16f61528397347ebfb0ed7414a66127884925669",
     "first_answer_operator_binding": "99393b8c86ccb0756266832205c1649032861303a111b061e61b42959d15d7f3",
     "finished_answer_source_shipping": "575e528a3dfe05358cc33e6f3dbc4dc6f277a9c4b17bfc837cb7742a4355d5fe",
     "historical_finished_answer_operator_admission": "de555cb0fc005b34ce950704479923b55026ed84ae0bdf1faa79f23d0f7bf99f",
-    "configurable_runner_source_shipping": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151",
-    "historical_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
+    "historical_operator_metadata_composition": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb",
+    "parent_configurable_composition": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151",
+    "parent_configurable_runner_source_shipping": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151"
   },
-  "qualification": "Historical fixed profiles have bounded console output evidence. The ten-patch cache successor has an inspected Windows artifact but no console cache comparison. The configurable successor has accepted source/shipping and synthetic analysis only; its own Windows artifact, signing, preserving update and separate CPU configuration qualification remain pending. Raw output and telemetry remain private.",
+  "qualification": "Historical fixed profiles have bounded console output evidence. The configurable source and synthetic analysis were reviewed; its first Windows attempt failed at a developer header include. The include-only correction requires exact source/operator acceptance and a new Windows artifact, signing, preserving update and separate CPU qualification. No new configurable native result is claimed; raw output and telemetry remain private.",
   "public_metadata_adjustment": "The ten historical patches retain their exact bytes. One additional root and one native patch implement a typed CPU developer runner with explicit successor records and bounded I/O aggregates. Exact runtime/operator source publication excludes author tests, private verification copies and telemetry.",
   "operator_base_source_manifest_sha256": "8c9a94146f7cebe4e3d608fd691c8723912cd8f59c91078f8f41fae31ca65566",
   "operator_corrections": [
@@ -41,9 +41,7 @@
       "review_sha256": "9013220f20bc80ec38696abab1abe169eadf093161ec29767d735da3e8f535bb"
     }
   ],
-  "operator_admission_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
-  "operator_composition_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
-  "operator_sha256": "aeda91aff7561f52dac4b6e5488efe6e7b6149fe421a1c6f90a9f79fb0e035a3",
+  "operator_sha256": "d29e451ab2dc8e8643a9aa0ebfbdf012b16706d662fb1f2f60bac0f95725a6bc",
   "build_receipt_hygiene": {
     "source_manifest_sha256": "d3fbfbba1ba02743601c0d77fc41400f9894756a19f8473894b177809420c3e8",
     "review_sha256": "a398cc06c8a5117ebd2010f47c41f544d470319b8f63251df2cc275281b815da",
@@ -144,8 +142,8 @@
     "actual_Windows_artifact_review": "53cc4114e487f1c403dcf435bb239546d7152251b3e9866c948522815900a5d1"
   },
   "configurable_runner_source": {
-    "status": "PASS_SOURCE_SHIPPING_AND_SYNTHETIC_ANALYSIS_ONLY",
-    "patch_lock_sha256": "bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca",
+    "status": "SOURCE_INCLUDE_CORRECTION_QA_PENDING",
+    "patch_lock_sha256": "f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e",
     "patches": 12,
     "selected_shipping_inputs": 51,
     "direct_include_rows": 496,
@@ -153,11 +151,23 @@
     "actual_Windows_build": false,
     "actual_configurable_console_run": false,
     "gpu_capability_implemented": false,
-    "source_sha256": "63136e6bf78c66890561e9c1451b8b1339ed1b1a8aefc373b6f37f5ae865310d",
-    "source_bundle_sha256": "9a84c724e6e5153be42d97a36cc6910587da5e673b366ec45d3102fa1398f666",
-    "source_review_sha256": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151",
-    "source_qa_manifest_sha256": "9771e666a7f40afac0189f7301b861c346bc1e5bc423296fcd50c07b5b88c1b3",
-    "operator_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
-    "operator_sha256": "aeda91aff7561f52dac4b6e5488efe6e7b6149fe421a1c6f90a9f79fb0e035a3"
-  }
+    "source_sha256": "19e673d12f500718f1c9cc6d4b70c935139ea8f5c96ad7df5cdf91d127280d95",
+    "source_bundle_sha256": "c07942ac5f152bec5256e8af0ae87a4fb2cd7c07c2ea401c89b37e097248914f",
+    "operator_sha256": "d29e451ab2dc8e8643a9aa0ebfbdf012b16706d662fb1f2f60bac0f95725a6bc",
+    "failed_Windows_compile": {
+      "run_id": 43669626232,
+      "operator_commit": "a5345026cb3b76a20f408b938e86ca0041af63e1",
+      "conclusion": "failure",
+      "cause": "C1083 developer header include resolution",
+      "artifact_exported": false
+    },
+    "operator_binding_status": "INCLUDE_CORRECTION_CANDIDATE_PENDING_SOURCE_QA",
+    "parent_source_review_sha256": "bd664eea22c6ba139f2b8d41ac72a3f23c5902ed0ee364ca881ac38aaa5c3151",
+    "parent_source_qa_manifest_sha256": "9771e666a7f40afac0189f7301b861c346bc1e5bc423296fcd50c07b5b88c1b3",
+    "analysis_source_binding_sha256": "25a43bfe21ed3f7dac0cd615162a16d5124fe69f5a6a8d9302888ec5d1c67107",
+    "include_correction_qualification": "One source-relative header directive changed; other 50 shipping postimages and native semantics unchanged. Current include/operator/publication review and replacement Windows compile remain pending."
+  },
+  "historical_operator_admission_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
+  "historical_operator_composition_manifest_sha256": "f4838f24a20dddc83e621d2ec9c0e89d3cbe059a43a7e02e7e0d562e7c27542a",
+  "operator_admission_candidate_sha256": "6fca43543467d88c64dba3f965b8985c7e5ea8591c61c456a0cce295663f5b24"
 }

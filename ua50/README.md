@@ -8,7 +8,7 @@ The patch rationale, implementation and evidence limits have one home:
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
 - Patch lock SHA-256:
-  `bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca`.
+  `f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
 The first four patches retain the accepted application/runtime bytes. Two
@@ -65,7 +65,7 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch bd378e6ea2ce45fbeb1584e7b137d1a69751da65a59c872d838803cabb352cca
+python operator/ua50/prepare_sources.py product operator/ua50 patch f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 

@@ -65,8 +65,8 @@
     {
       "file": "patch/configurable-runner-root.patch",
       "target": "xllama",
-      "bytes": 73401,
-      "sha256": "f33f7f533d8ba35dc6f017e42eceaf0c8f14c6db48db1b1ffb7e58cac648d16f"
+      "bytes": 73417,
+      "sha256": "f5a07b176389336456b47ae604fb404edf6c7b0cc6c4d9aeee688d14e10334f3"
     },
     {
       "file": "patch/configurable-runner-llama.patch",

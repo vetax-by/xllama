@@ -331,3 +331,9 @@ The explicit successor result and binary-trace versions preserve the historical 
 Storage aggregates distinguish covered provider Reader operations, held-file SHA reads and unobserved loader/metadata I/O. Reader and cache elapsed times are nested application measurements; terminal read bytes are logical completion bytes. SHA read time excludes hash computation and can affect the OS file cache. These values do not measure physical SSD traffic, service latency or saturation. Optional system metrics remain unavailable until explicitly supported and observed. Detail collection cannot silently exceed the charged trace, collector or JSON limits.
 
 Developer release acceptance covers reviewed source, inspected Windows artifacts, signing evidence and a preserving update. Native CPU configuration qualification follows as a separate task; the GPU direction stays blocked until independent CPU acceptance. A successful historical fixed-profile answer is not evidence that arbitrary configs, cache capacities or acceleration settings have been qualified.
+
+The first configurable Windows compile stopped at an unresolved developer
+header include. Its source-relative include route has been corrected without
+changing the engine contract, computation or project/import declarations. A
+replacement Windows artifact remains pending; the failed attempt does not
+establish a usable package.

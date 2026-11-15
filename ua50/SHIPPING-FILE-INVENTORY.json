@@ -436,8 +436,8 @@
       "target_path": "uwp/cpu-expert-pilot.cpp",
       "stock_preimage_sha256": null,
       "stock_git_blob": null,
-      "bytes": 29986,
-      "sha256": "023a91e025b58bc468b3b9e37ef55b1f884cb5aba98e13689b2689ac58b66e4c",
+      "bytes": 30002,
+      "sha256": "261663705b26e68884868cf822bdcc3e92d499af953562a677b4a7dd3e1e05a0",
       "changed_or_added": true
     },
     {

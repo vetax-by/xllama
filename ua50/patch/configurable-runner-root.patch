@@ -432,7 +432,7 @@ diff --git a/uwp/cpu-expert-pilot.cpp b/uwp/cpu-expert-pilot.cpp
  #include <cstdio>
  #include "xllama/first_answer_record.h"
  #include "ua50/cache_trace.h"
-+#include "ua50/dev_run_io.h"
++#include "../src/platform/ua50/dev_run_io.h"
 +#include "dev-run-input.h"
 +#include <winrt/Windows.ApplicationModel.h>
  
