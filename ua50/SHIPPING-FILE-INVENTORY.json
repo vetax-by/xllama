@@ -1,5 +1,5 @@
 {
-  "status": "selected production source postimages; not Windows compile proof",
+  "status": "selected followup production source postimages; source-only, not Windows compile proof",
   "selected_source_files": [
     {
       "file": "CMakeLists.txt",
@@ -168,6 +168,13 @@
       "target_path": "common/common.cpp",
       "bytes": 82544,
       "sha256": "9c29e758749c99bb87f9c42820dd447ec55bd25e92379dd2a09e89eceee88ff2"
+    },
+    {
+      "file": "llama.cpp/common/fit.cpp",
+      "target": "llama",
+      "target_path": "common/fit.cpp",
+      "bytes": 52126,
+      "sha256": "4286d5922a3ffc2370feb21a928d6739ebcb3f2c51ce7008cd2d3b3daa9d95ab"
     },
     {
       "file": "llama.cpp/ggml/src/CMakeLists.txt",
@@ -432,8 +439,15 @@
       "file": "uwp/MainPage.cpp",
       "target": "xllama",
       "target_path": "uwp/MainPage.cpp",
-      "bytes": 205936,
-      "sha256": "9f9c4c72d1b83d25571b983a9f76a3d146b7187f83c88c105683165e496a238f"
+      "bytes": 205925,
+      "sha256": "c14b0221768fbdd5c46fdd3dcc95688f8220b3216a8e206f51b2f7e866ed33b4"
+    },
+    {
+      "file": "uwp/MainPage.h",
+      "target": "xllama",
+      "target_path": "uwp/MainPage.h",
+      "bytes": 16980,
+      "sha256": "1544fa83a976086b086b905b4287c407dd1345a9d9868fb6ca6bf6bfefb562c7"
     },
     {
       "file": "uwp/api-server.cpp",
@@ -453,8 +467,8 @@
       "file": "uwp/cpu-expert-pilot.cpp",
       "target": "xllama",
       "target_path": "uwp/cpu-expert-pilot.cpp",
-      "bytes": 31435,
-      "sha256": "f000f3923e1f501faefbaf0556e84495bfb024e11929f5bc0607043e7309f0ed"
+      "bytes": 31567,
+      "sha256": "e9a726b2a6a59e4e1b3eb22403a20f33aa30614df736cae4916c1cd0fea1b709"
     },
     {
       "file": "uwp/dev-run-input.h",

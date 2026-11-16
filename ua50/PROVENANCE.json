@@ -3,11 +3,11 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
-  "source_bundle_sha256": "05c851b9990d5101f5930a007fc9aaf563cd4c6a4544bbc2ab4ffd7d4ca85c21",
-  "operator_sha256": "5f683aed004727d55104f152b6e81c4327a7d71bba6c66a54a3cc4e71963ab85",
-  "qualification": "Configurable single-turn generation source candidate with qualified saved portable author evidence. Current source QA passed; Windows artifact pending. No installation, native generation, GPU correctness, fit, quality or speed acceptance.",
-  "public_metadata_adjustment": "Fifteen parent patches retain exact bytes. Two generation patches give seventeen ordered patches, 77 selected postimages and 661 direct includes. Runtime23+prepare are compile inputs; Root adds three documentation files. Private evidence, tests, contracts, guards, requests, outputs and binaries are excluded.",
+  "patch_lock_sha256": "1997375adf70a259c3a1cd87651ac4f7f0fbcc532feb1d6230c534ed59e4615e",
+  "source_bundle_sha256": "3be5f387797827a1eaf25f69f0c0e9045a9ce9cda83f059b1164fc731531390e",
+  "operator_sha256": "b5f4f73c7c2f8207c2e00f40115c948441690ce44dd1b808e0d6cfc4db489cb8",
+  "qualification": "Current 19-patch followup source candidate only. Historical 17-patch Windows run 43825061482 passed compile/link/unsigned package inspection; it does not include followup C4715/C4018 fixes. No current Windows compile, installation, native generation, GPU correctness, fit, quality or speed acceptance.",
+  "public_metadata_adjustment": "Accepted 17 parent patch bytes are reused in order; two source-only followup patches yield 19 ordered patches and 79 selected postimages with unchanged 661 direct includes. Private decoder/controller, author fixtures, contracts, guards, requests, outputs and binaries are excluded.",
   "historical_cpu_provenance": {
     "repository": "vetax-by/xllama",
     "upstream": "gianlucamazza/xllama",
@@ -302,5 +302,13 @@
     "actual_console_generation_accepted": false,
     "actual_GPU_correctness_accepted": false,
     "quality_fit_speed_accepted": false
+  },
+  "followup_source_candidate": {
+    "parent_patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
+    "ordered_patches": 19,
+    "selected_shipping_files": 79,
+    "direct_include_rows": 661,
+    "windows_run_43825061482_contains_followups": false,
+    "verification_scope": "source_recipe_only_no_compile"
   }
 }

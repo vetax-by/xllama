@@ -45,17 +45,17 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = '921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe'
+CURRENT_PATCH_LOCK = '1997375adf70a259c3a1cd87651ac4f7f0fbcc532feb1d6230c534ed59e4615e'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current UA68 generation/921f lock admitted; oldd586/5e34/f11d/bd37/2d69/25b9/5dab/B803/760e/a199/e781 refused')
+        raise ValueError('only current UA68 followup/1997 lock admitted; historical generation/921f and older locks refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
     lock = json.loads(raw)
-    if lock['parent_patch_lock_sha256'] != 'd586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20' or lock['parent12_reused_not_replayed'] is not True:
-        raise ValueError('exact accepted identity parent15 identity required')
+    if lock['parent_patch_lock_sha256'] != '921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe' or lock['parent17_reused_not_replayed'] is not True or lock['parent12_reused_not_replayed'] is not True:
+        raise ValueError('exact accepted generation parent17 required')
     if [(e['file'], e['target']) for e in lock['patches']] != [
             ('patch/runtime-root.patch', 'xllama'), ('patch/runtime-llama.patch', 'llama'),
             ('patch/app-xllama.patch', 'xllama'), ('patch/app-llama.patch', 'llama'),
@@ -65,8 +65,9 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/configurable-runner-root.patch', 'xllama'), ('patch/configurable-runner-llama.patch', 'llama'),
             ('patch/ua68-expert-gpu-root.patch', 'xllama'), ('patch/ua68-expert-gpu-native.patch', 'llama'),
             ('patch/ua68-gpu-identity-root.patch', 'xllama'),
-            ('patch/generation-root.patch', 'xllama'), ('patch/generation-native.patch', 'llama')]:
-        raise ValueError('exact accepted parent fifteen plus generation root/native seventeenth order required')
+            ('patch/generation-root.patch', 'xllama'), ('patch/generation-native.patch', 'llama'),
+            ('patch/followup-root.patch', 'xllama'), ('patch/followup-native.patch', 'llama')]:
+        raise ValueError('exact accepted parent seventeen plus followup root/native nineteenth order required')
     if lock.get('parent14_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent14 required')
     for entry in lock['patches']:
@@ -75,7 +76,7 @@ def admitted_runtime_lock(operator, lock_sha):
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = '9b02365254f5a8d58be37ba36a71d84f85961aa8c2a94429481e441da9c55eff'
+SHIPPING_INVENTORY_SHA = '3be5f387797827a1eaf25f69f0c0e9045a9ce9cda83f059b1164fc731531390e'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):
@@ -89,8 +90,8 @@ def admitted_shipping_inventory(operator):
     if hashlib.sha256(includes).hexdigest() != '6d45e7df3f8a669361b29539bf306b430ebbfe198927a2dd610e4d01ad4e0326' or len(json.loads(includes)['direct_includes_only']) != 661:
         raise ValueError('exact current 661 direct source includes required')
     entries = json.loads(raw)['selected_source_files']
-    if len(entries) != 77:
-        raise ValueError('exact seventy-seven selected shipping files required')
+    if len(entries) != 79:
+        raise ValueError('exact seventy-nine selected shipping files required')
     seen = set()
     for entry in entries:
         target, path = entry['target'], entry['target_path']

@@ -1,0 +1,38 @@
+diff --git a/uwp/MainPage.cpp b/uwp/MainPage.cpp
+--- a/uwp/MainPage.cpp
++++ b/uwp/MainPage.cpp
+@@ -2727,7 +2727,7 @@
+     EnsureModelNamedAsync(gpu, false);
+ }
+ 
+-fire_and_forget MainPageController::EnsureModelAsync() {
++void MainPageController::EnsureModelAsync() {
+     auto self = shared_from_this();
+     std::wstring model_name =
+         self->m_model_filename.empty() ? DefaultChatModelId() : self->m_model_filename;
+diff --git a/uwp/MainPage.h b/uwp/MainPage.h
+--- a/uwp/MainPage.h
++++ b/uwp/MainPage.h
+@@ -66,7 +66,7 @@
+     void BuildUI();
+     void LoadModelName();
+     bool SelectModel(const std::wstring& name);
+-    winrt::fire_and_forget EnsureModelAsync();
++    void EnsureModelAsync();
+     // Provision one catalogue/USB/bundled model dir. When |set_app_ready| is true
+     // (chat model), enables Run on success and may queue gpu_model download.
+     winrt::fire_and_forget EnsureModelNamedAsync(std::wstring model_name,
+diff --git a/uwp/cpu-expert-pilot.cpp b/uwp/cpu-expert-pilot.cpp
+--- a/uwp/cpu-expert-pilot.cpp
++++ b/uwp/cpu-expert-pilot.cpp
+@@ -276,7 +276,9 @@
+             record->prompt=configured?first_answer::render_user(llama_model_chat_template(model,nullptr),llama_vocab_get_add_bos(vocab),record->bos,configured->config.prompt):first_answer::render(llama_model_chat_template(model,nullptr),llama_vocab_get_add_bos(vocab),record->bos);
+             record->template_verified=true;
+             gp.prompt=record->prompt;gp.n_predict=static_cast<int>(max_new);gp.expert_answer=record;
+-            if((cache_profile&&session->context_length()!=512) || session->context_length()>512 || session->count_tokens(gp.prompt)>(configured?configured->config.prompt_cap:128))throw std::runtime_error("first-answer context/prompt refused");
++            const int prompt_tokens=session->count_tokens(gp.prompt);
++            const int prompt_cap=static_cast<int>(configured?configured->config.prompt_cap:128);
++            if((cache_profile&&session->context_length()!=512) || session->context_length()>512 || prompt_tokens<=0 || prompt_tokens>prompt_cap)throw std::runtime_error("first-answer context/prompt refused");
+             log_output(marker+" generate begin CPU1 ctx512 maxnew"+std::to_string(max_new)+" template ea663864 tokenizer-owned BOS\n");
+         } else if(session->context_length()>256 || session->count_tokens("Hi")>4)throw std::runtime_error("pilot resolved context/prompt refused");
+         gp.stall_timeout_s=180;

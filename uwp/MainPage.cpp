@@ -2727,7 +2727,7 @@ void MainPageController::EnsureGpuModelIfNeeded() {
     EnsureModelNamedAsync(gpu, false);
 }
 
-fire_and_forget MainPageController::EnsureModelAsync() {
+void MainPageController::EnsureModelAsync() {
     auto self = shared_from_this();
     std::wstring model_name =
         self->m_model_filename.empty() ? DefaultChatModelId() : self->m_model_filename;
