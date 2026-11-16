@@ -1,27 +1,15 @@
-name: CPU pilot signed update copies
+name: UA50 successor signed update copies
 on:
   workflow_dispatch:
-    inputs:
-      installed_version:
-        description: Fresh confirmed installed version
-        required: true
-        type: string
-      patched_version:
-        description: Selected higher patched update version
-        required: true
-        type: string
-      recovery_version:
-        description: Selected still higher stock forward-recovery version
-        required: true
-        type: string
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: cpu-pilot-signing
+  group: ua50-successor-signing
   cancel-in-progress: false
 jobs:
   sign-copies:
+    if: github.ref == 'refs/heads/codex/ua50-ssd-moe'
     runs-on: windows-2022
     timeout-minutes: 20
     env:
@@ -51,13 +39,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $pins = @{
             'package_copy.py' = 'f4ee7c692e7194f3ebc97ee38f8537e29ec6a618ccde74126a37e260710492ce'
-            'sign_copy.ps1' = 'a996409cb42e30776b60a416b01adab14ab7be3cbfa7de89f861786cd4edd69c'
+            'sign_copy.ps1' = '9e36be677f79b221a8e075b4451cc96925bb9ddccc9fc37f0153b13ba3901f48'
             'sign_ephemeral_pair.ps1' = '121ef0d2ea6d0ce7b2fc91926abc49f1274e19544951a2998c77cbda174334b1'
-            'validate_pair_inputs.py' = '4e8083c39fc2c619e7a1d0f460150e27c26733ab896cef8a8e12592b2bda54db'
-            'input-template.json' = '275a06a3b34583a8d67c2d3cc5680865cc6638eb490fb8794998e2ce0b253900'
+            'validate_pair_inputs.py' = 'ad04ca17d88641ae54355c3d15a91e0af97085d103df1c8f1727cb6b105b6c17'
+            'input-template.json' = '37ba6f8e8cdb8445f2e8d3b116e4879342eb062249186200bf4b73297b8143f4'
           }
           foreach ($name in $pins.Keys) {
-            $path = Join-Path 'operator/ua50/signing' $name
+            $path = Join-Path 'operator/ua50/signing/successor' $name
             if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pins[$name]) { throw "Source pin mismatch: $name" }
             if ($name.EndsWith('.ps1')) {
               $tokens = $null; $errors = $null
@@ -74,8 +62,14 @@ jobs:
           $root = Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair'
           if (Test-Path -LiteralPath $root) { throw 'Exclusive artifact root required' }
           New-Item -ItemType Directory -Path $root | Out-Null
-          gh run download 43735865629 --repo vetax-by/xllama --name ua50-uwp-patch-43735865629 --dir (Join-Path $root 'patched')
+          gh run download 43918538956 --repo vetax-by/xllama --name ua50-uwp-patch-43918538956 --dir (Join-Path $root 'patched')
           if ($LASTEXITCODE -ne 0) { throw 'Exact patched artifact download failed; no retry' }
+          $patchedPackage = Join-Path $root 'patched/xllama_1.7.0.0_x64.msix'
+          $patchedReceipt = Join-Path $root 'patched/UA50-SOURCE-RECEIPT.json'
+          $buildReceipt = Join-Path $root 'patched/BUILD-RECEIPT.json'
+          if ((Get-FileHash -LiteralPath $patchedPackage -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c2087a2224207d615d0341a8bdb351242165954fa2964a785b0de2e0c8387f29') { throw 'Patched package SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $patchedReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c921b351a63b89088307a7e35f63e87c9637104f3e8ebf4937201779dd56eede') { throw 'Patched receipt SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $buildReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'df312f9e900b761cac68ede39a73d662dbb0f4efa002d65e68a7eb36c6b29e4f') { throw 'Patched build receipt SHA mismatch' }
           # Byte-exact retained archive from accepted run43592901046; transport mirror only, no rebuild.
           $transport = Join-Path $root 'stock-transport'
           New-Item -ItemType Directory -Path $transport | Out-Null
@@ -102,29 +96,23 @@ jobs:
           # Existing independent Python and PowerShell gates still verify exact stock package/source SHA before keys.
       - name: Sign preserving update and stock forward-recovery copies
         timeout-minutes: 10
-        env:
-          SIGN_INSTALLED: ${{ inputs.installed_version }}
-          SIGN_PATCHED: ${{ inputs.patched_version }}
-          SIGN_RECOVERY: ${{ inputs.recovery_version }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $plan = Get-Content -LiteralPath 'operator/ua50/signing/input-template.json' -Raw | ConvertFrom-Json
-          $plan.InstalledVersion = $env:SIGN_INSTALLED
-          $plan.PatchedVersion = $env:SIGN_PATCHED
-          $plan.RecoveryVersion = $env:SIGN_RECOVERY
+          $plan = Get-Content -LiteralPath 'operator/ua50/signing/successor/input-template.json' -Raw | ConvertFrom-Json
+          if ($plan.InstalledVersion -cne '1.7.0.1504' -or $plan.PatchedVersion -cne '1.7.0.1508' -or $plan.RecoveryVersion -cne '1.7.0.1509') { throw 'Selected version triplet changed' }
           $planPath = Join-Path $env:RUNNER_TEMP 'selected-signing-inputs.json'
           if (Test-Path -LiteralPath $planPath) { throw 'Exclusive input plan required' }
           $plan | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $planPath -Encoding utf8NoBOM
           $planSha = (Get-FileHash -LiteralPath $planPath -Algorithm SHA256).Hash.ToLowerInvariant()
           $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin/10.0.22621.0/x64'
-          & operator/ua50/signing/sign_ephemeral_pair.ps1 -InputPlan $planPath -InputPlanSha256 $planSha `
+          & operator/ua50/signing/successor/sign_ephemeral_pair.ps1 -InputPlan $planPath -InputPlanSha256 $planSha `
             -ArtifactRoot (Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair') `
             -PrivateRoot (Join-Path $env:RUNNER_TEMP 'owned-signing-private') `
             -Output (Join-Path $env:RUNNER_TEMP 'public-signed-pair') -SdkBin $sdk -PublicTrustScope LocalMachine
       - name: Upload only public signed copies and certificate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cpu-pilot-signed-pair-${{ github.run_id }}
+          name: ua50-successor-signed-pair-${{ github.run_id }}
           path: ${{ runner.temp }}/public-signed-pair/
           if-no-files-found: error
           retention-days: 1
