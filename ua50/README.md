@@ -7,8 +7,8 @@ The patch rationale, implementation and evidence limits have one home:
 
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
-- Current followup patch lock SHA-256:
-  `1997375adf70a259c3a1cd87651ac4f7f0fbcc532feb1d6230c534ed59e4615e`.
+- Current 21-patch model2 proof route lock SHA-256:
+  `fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027`.
 - The prior 17-patch lock `921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe`
   remains the binding for Windows run 43825061482; that build did not contain the followup fixes.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
@@ -22,7 +22,7 @@ the ten historical entries. Two further configurable-runner patches add a
 strict typed developer entrypoint, explicit successor records and bounded I/O
 aggregates; those twelve entries are retained. Two additional root/native GPU bridge patches
 bring the historical GPU route to fourteen entries. One further root identity patch
-brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches brought the historical route to seventeen entries and 77 selected shipping files. Two source-only followup patches now bring the recipe to nineteen entries and 79 selected postimages: the root patch fixes the `EnsureModelAsync` return type and signed prompt-cap comparison, and the pinned llama.cpp patch fixes the unsigned layer comparison. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
+brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches brought the historical route to seventeen entries and 77 selected shipping files. Two source-only followup patches now bring the recipe to nineteen entries and 79 selected postimages: the root patch fixes the `EnsureModelAsync` return type and signed prompt-cap comparison, and the pinned llama.cpp patch fixes the unsigned layer comparison. A twentieth patch adds byte-safe trace retrieval and per-run permit storage. The twenty-first patch requests logits on every model2 proof decode so final-layer MoE routes remain observable on nonfinal prefill tokens. The strict 456-route trace gate is unchanged. Both patches retain 79 selected postimages and 661 direct includes. The twenty-first patch has source and host synthetic review only; it has no Windows or native result. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -35,8 +35,8 @@ captured tool-installation-path excerpts are omitted from its public summary.
 
 [`ua50-uwp.yml`](../.github/workflows/ua50-uwp.yml) has only a manual
 `workflow_dispatch` trigger, uses `windows-2022`, limits each job to 45 minutes,
-and retains explicitly selected unsigned artifacts for one day. Actions is
-disabled at initial publication; publishing this recipe does not run it.
+and retains explicitly selected unsigned artifacts for one day. Publishing
+this recipe does not dispatch a build.
 
 The workflow checks out this fork as the operator and a separate clean pinned
 upstream tree as the product. This separation is important: the application
@@ -48,11 +48,11 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The existing signing workflow and helpers remain tied to their separately
-reviewed historical artifact. They are excluded from this compile-source change.
-A future signing lane must bind the actual new unsigned artifact and both
-independent current source-receipt validators before use. Signing and installation
-need separate selections; this preparation does not select them.
+The existing successor signing workflow and helpers remain bound to the signed
+1508 pair and its prior 20-patch source receipt. The new 21-patch source cannot
+pass those exact old receipt guards. A future signed successor requires its own
+new unsigned artifact, independent artifact QA and a derived signing input.
+This preparation does not select or sign a package.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -63,14 +63,14 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch 1997375adf70a259c3a1cd87651ac4f7f0fbcc532feb1d6230c534ed59e4615e
+python operator/ua50/prepare_sources.py product operator/ua50 patch fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, nineteen ordered patch files and source/import inventories. Old
+exact lock, twenty-one ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
 the pinned route once and checks all 79 selected shipping postimages,
 including shipping `.inc` dependencies and the gated Windows CPU-pilot unit, before

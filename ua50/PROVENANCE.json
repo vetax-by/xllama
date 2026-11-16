@@ -3,10 +3,10 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7",
-  "source_bundle_sha256": "a0a58d9035cf4aafa1cd9e6e66f90d92550946150d4de0269f1baa890d54bf90",
-  "operator_sha256": "b5f4f73c7c2f8207c2e00f40115c948441690ce44dd1b808e0d6cfc4db489cb8",
-  "qualification": "Current 19-patch followup source candidate only. Historical 17-patch Windows run 43825061482 passed compile/link/unsigned package inspection; it does not include followup C4715/C4018 fixes. No current Windows compile, installation, native generation, GPU correctness, fit, quality or speed acceptance.",
+  "patch_lock_sha256": "fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027",
+  "source_bundle_sha256": "54a3ce534da7db4d7870389c6f953535ab8dce268f7f51a7ab5ce443752f9a4e",
+  "operator_sha256": "0247cc86154f3bc78b91600c5b3f6208f522939d528827ef3259f7b2fc260540",
+  "qualification": "Current 21-patch model2 proof route source candidate. The signed 1508 artifact and native model2 refusal used the previous 20-patch lock; no successor Windows compile, signing, install or native model2 acceptance is claimed.",
   "public_metadata_adjustment": "Accepted 19 parent patch bytes are reused in order; one uncompiled trace/per-run root patch yields 20 ordered patches and 79 selected postimages with unchanged 661 direct includes. It changes permit storage/admission without changing retained wire schema or decoder contract SHA. Private decoder, lifecycle, CLI, operators, fixtures, receipts and outputs are excluded.",
   "historical_cpu_provenance": {
     "repository": "vetax-by/xllama",
@@ -318,5 +318,15 @@
     "direct_include_rows": 661,
     "historical_windows_run_43825061482_contains_trace_per_run": false,
     "verification_scope": "source_recipe_plus_host_synthetic_writer_only"
+  },
+  "model2_proof_route_source_candidate": {
+    "parent_patch_lock_sha256": "62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7",
+    "ordered_patches": 21,
+    "selected_shipping_files": 79,
+    "direct_include_rows": 661,
+    "proof_controller_postimage_sha256": "6ee8fcd17526549006212a7bc1a7b1d0a9a8b2dfd7538881cfe7eca0bdbf05cf",
+    "strict_route_guard": "456 unchanged",
+    "source_review_sha256": "997016191fb26eaaf44d2e16434e7dc40df482c7f037f94a38e35ade78522463",
+    "verification_scope": "source_recipe_and_host_synthetic_only; successor_unsigned_Windows_build_and_native_proof_pending"
   }
 }

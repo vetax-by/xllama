@@ -124,8 +124,8 @@
       "file": "include/xllama/gpu_proof_controller.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_proof_controller.h",
-      "bytes": 9402,
-      "sha256": "56d678091fc704fa68b037ab29f5332f443acb0dea313449fe213db5641cbe51"
+      "bytes": 9435,
+      "sha256": "6ee8fcd17526549006212a7bc1a7b1d0a9a8b2dfd7538881cfe7eca0bdbf05cf"
     },
     {
       "file": "include/xllama/gpu_proof_trace.h",

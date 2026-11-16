@@ -1,0 +1,39 @@
+diff --git a/include/xllama/gpu_proof_controller.h b/include/xllama/gpu_proof_controller.h
+--- a/include/xllama/gpu_proof_controller.h
++++ b/include/xllama/gpu_proof_controller.h
+@@ -26,15 +26,16 @@
+   opt.hybrid_catalog=[trace=trace_](uint32_t id,const ua50::Tensor&t,const char*n){trace->role(id,t,n);};
+   return opt;
+  }
+- void decode(std::shared_ptr<CpuExpertSession>s,llama_token token,uint32_t position,uint32_t phase,bool output){
++ void decode(std::shared_ptr<CpuExpertSession>s,llama_token token,uint32_t position,uint32_t phase){
+   gate("proof-before-decode");trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
+-  int32_t nseq=1;llama_seq_id sequence=0;llama_seq_id*sequence_ptr=&sequence;int8_t logits=output?1:0;llama_pos pos=llama_pos(position);
++  // Every proof frame must execute the final MoE layer, including prefill tokens.
++  int32_t nseq=1;llama_seq_id sequence=0;llama_seq_id*sequence_ptr=&sequence;int8_t logits=1;llama_pos pos=llama_pos(position);
+   llama_batch b{};b.n_tokens=1;b.token=&token;b.pos=&pos;b.n_seq_id=&nseq;b.seq_id=&sequence_ptr;b.logits=&logits;
+   if(s->decode(b)!=0)throw std::runtime_error("proof native decode failed; no continuation");
+   trace_->end(phase==2?gpu_->counts():ua50::GpuCounts{});gate("proof-after-decode");
+  }
+  static llama_token greedy(const float*row){llama_token best=0;for(size_t i=0;i<vocab;++i){if(!std::isfinite(row[i]))throw std::runtime_error("nonfinite native row");if(row[i]>row[size_t(best)])best=llama_token(i);}return best;}
+- void prefill(std::shared_ptr<CpuExpertSession>s,uint32_t phase){s->begin_fresh_turn();for(size_t i=0;i<prompt_count_;++i)decode(s,prompt_[i],uint32_t(i),phase,i+1==prompt_count_);}
++ void prefill(std::shared_ptr<CpuExpertSession>s,uint32_t phase){s->begin_fresh_turn();for(size_t i=0;i<prompt_count_;++i)decode(s,prompt_[i],uint32_t(i),phase);}
+ public:
+  Controller(std::shared_ptr<Proof>proof,std::shared_ptr<Trace>trace,std::shared_ptr<ua50::ExpertGpu>gpu,std::function<void(const char*)> progress):gpu_(std::move(gpu)),proof_(std::move(proof)),trace_(std::move(trace)),progress_(std::move(progress)){
+   if(!gpu_||!proof_||!trace_||!progress_)throw std::invalid_argument("proof complete ownership required");
+@@ -54,13 +55,13 @@
+    std::unique_ptr<llama_sampler,decltype(&llama_sampler_free)> sampler(llama_sampler_init_greedy(),llama_sampler_free);if(!sampler)throw std::bad_alloc();
+    prefill(cpu,1);cpu->capture_logits(proof_->reference(0),vocab);++cpu_rows_;t0_=cpu->sample(sampler.get());if(t0_!=greedy(proof_->reference(0)))throw std::runtime_error("native greedy/reference argmax mismatch");
+    if(llama_vocab_is_eog(v,t0_))throw std::runtime_error("EARLY_TERMINATOR reference coverage1of2");
+-   decode(cpu,t0_,uint32_t(prompt_count_),1,true);cpu->capture_logits(proof_->reference(1),vocab);++cpu_rows_;t1_=cpu->sample(sampler.get());if(t1_!=greedy(proof_->reference(1)))throw std::runtime_error("native second greedy mismatch");
++   decode(cpu,t0_,uint32_t(prompt_count_),1);cpu->capture_logits(proof_->reference(1),vocab);++cpu_rows_;t1_=cpu->sample(sampler.get());if(t1_!=greedy(proof_->reference(1)))throw std::runtime_error("native second greedy mismatch");
+    close_current();cpu.reset(); // Actual model/context destruction BEFORE hybrid creation, retained rows only.
+    gate("hybrid-open");auto hybrid_options=options(base,gpu_);auto hybrid=CpuExpertSession::open_if_requested(&hybrid_options);if(!hybrid)throw std::runtime_error("hybrid unavailable");attach(hybrid);
+    const auto*hv=llama_model_get_vocab(hybrid->model_view());auto hrendered=first_answer::render(llama_model_chat_template(hybrid->model_view(),nullptr),llama_vocab_get_add_bos(hv),llama_vocab_bos(hv));auto hids=hybrid->tokenize(hrendered);
+    if(hids!=ids||hybrid->context_length()!=512)throw std::runtime_error("reference/hybrid logical input state mismatch");
+    prefill(hybrid,2);hybrid->capture_logits(proof_->working(),vocab);++gpu_rows_;proof_->compare(4,0,0,0,0,uint32_t(prompt_count_-1),proof_->reference(0),proof_->working(),vocab);g0_=hybrid->sample(sampler.get());proof_->greedy(g0_==t0_&&greedy(proof_->working())==t0_);
+-   decode(hybrid,t0_,uint32_t(prompt_count_),2,true);hybrid->capture_logits(proof_->working(),vocab);++gpu_rows_;proof_->compare(4,1,0,0,0,uint32_t(prompt_count_),proof_->reference(1),proof_->working(),vocab);g1_=hybrid->sample(sampler.get());proof_->greedy(g1_==t1_&&greedy(proof_->working())==t1_);
++   decode(hybrid,t0_,uint32_t(prompt_count_),2);hybrid->capture_logits(proof_->working(),vocab);++gpu_rows_;proof_->compare(4,1,0,0,0,uint32_t(prompt_count_),proof_->reference(1),proof_->working(),vocab);g1_=hybrid->sample(sampler.get());proof_->greedy(g1_==t1_&&greedy(proof_->working())==t1_);
+    gate("model-proof-compute-complete"); // final owner retained through postSHA+monitor join
+   }catch(...){request_stop();drain();throw;}
+  }

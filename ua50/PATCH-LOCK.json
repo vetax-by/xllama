@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_TRACE_PER_RUN_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_MODEL2_PROOF_ROUTE_SOURCE_CANDIDATE",
   "parent_patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
   "parent12_reused_not_replayed": true,
   "patches": [
@@ -122,8 +122,16 @@
       "target": "xllama",
       "bytes": 15129,
       "sha256": "8995a63c40fbf37dd6198a75d86c58ce6fa06332d06bc6d64ca01a78028a3fb2"
+    },
+    {
+      "file": "patch/model2-proof-logits-root.patch",
+      "target": "xllama",
+      "bytes": 4904,
+      "sha256": "16cffa580651b5d168262ef78ee9a87c4deac91f255c9827d72920853112d48a"
     }
   ],
   "parent14_reused_not_replayed": true,
-  "parent17_reused_not_replayed": true
+  "parent17_reused_not_replayed": true,
+  "parent20_patch_lock_sha256": "62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7",
+  "parent20_reused_not_replayed": true
 }
