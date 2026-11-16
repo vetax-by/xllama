@@ -1,6 +1,6 @@
 {
-  "status": "IDENTITY_SUCCESSOR_SOURCE_INPUTS_ONLY",
-  "parent_patch_lock_sha256": "f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e",
+  "status": "UNCOMPILED_CONFIGURABLE_GENERATION_SOURCE_CANDIDATE",
+  "parent_patch_lock_sha256": "d586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20",
   "parent12_reused_not_replayed": true,
   "patches": [
     {
@@ -92,6 +92,18 @@
       "target": "xllama",
       "bytes": 28376,
       "sha256": "e264109de43652aedc373d60deb10b03074df2c12f788bfe21687eed4ded7267"
+    },
+    {
+      "file": "patch/generation-root.patch",
+      "target": "xllama",
+      "bytes": 49445,
+      "sha256": "1425fa87ebf079ebfe652e39ddd1fb9345b5d1340c828c1c8e094906a63bf7b4"
+    },
+    {
+      "file": "patch/generation-native.patch",
+      "target": "llama",
+      "bytes": 980,
+      "sha256": "55929ccff84749ae3509035f8e386c614a496ab706cdab3233d1b0b99cd4449c"
     }
   ],
   "parent14_reused_not_replayed": true

@@ -1,5 +1,5 @@
 {
-  "status": "selected source postimages only",
+  "status": "selected production source postimages; not Windows compile proof",
   "selected_source_files": [
     {
       "file": "CMakeLists.txt",
@@ -12,8 +12,8 @@
       "file": "include/xllama/cpu_expert_session.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_expert_session.h",
-      "bytes": 5576,
-      "sha256": "eaed9338b5e69d00ad23bec43122428525ecf3d77a36cf0afaa232dd741da131"
+      "bytes": 5861,
+      "sha256": "94e8400f9412a5e8161c9d094835ae85d3ca112c3de7ddd611ecdc09b943e9f8"
     },
     {
       "file": "include/xllama/cpu_pilot_binding.h",
@@ -56,6 +56,41 @@
       "target_path": "include/xllama/first_answer_template.h",
       "bytes": 6711,
       "sha256": "4a50b7bdc1b8742a10eb6664ac884d17803b1c4942d6f0f02fff9cbea1b9f414"
+    },
+    {
+      "file": "include/xllama/generation_capabilities.h",
+      "target": "xllama",
+      "target_path": "include/xllama/generation_capabilities.h",
+      "bytes": 1400,
+      "sha256": "ee5aa15692eb62fb2939fb35d75fa9a0d2a4a600ab7e32fa0dc576b4eb02d70f"
+    },
+    {
+      "file": "include/xllama/generation_profile.h",
+      "target": "xllama",
+      "target_path": "include/xllama/generation_profile.h",
+      "bytes": 7165,
+      "sha256": "a8b7ca4f7e49c555943c569f4e90099670cf964b851411a1df51a88e9c66a28a"
+    },
+    {
+      "file": "include/xllama/generation_result.h",
+      "target": "xllama",
+      "target_path": "include/xllama/generation_result.h",
+      "bytes": 4959,
+      "sha256": "d845ce63d5aeff232f458f0e774faf1f2ee88ec46a7ea1c83f23fcb568b15bc2"
+    },
+    {
+      "file": "include/xllama/generation_runner.h",
+      "target": "xllama",
+      "target_path": "include/xllama/generation_runner.h",
+      "bytes": 376,
+      "sha256": "6c6fc42cecf684a476f4eadfded60dd242990ca78e0ab041abaeda8e0502bc22"
+    },
+    {
+      "file": "include/xllama/generation_trace.h",
+      "target": "xllama",
+      "target_path": "include/xllama/generation_trace.h",
+      "bytes": 5016,
+      "sha256": "184af14b2f643358fa36f7365b5f0c6dc1768f5e6bde7c6456777f87bd28f013"
     },
     {
       "file": "include/xllama/ggml_d3d12.h",
@@ -110,8 +145,8 @@
       "file": "include/xllama/session.h",
       "target": "xllama",
       "target_path": "include/xllama/session.h",
-      "bytes": 10627,
-      "sha256": "3937c8d7c157e961b6fbcb09ca439d65b3b8c52ce6160dbdc00a74ea4cef147c"
+      "bytes": 10781,
+      "sha256": "88f4930c94e231f67f8fb770cc12c3a19d335b3d1168a27480b045d7f9b7e9d5"
     },
     {
       "file": "include/xllama/session_hub.h",
@@ -250,8 +285,8 @@
       "file": "llama.cpp/src/ua50/native_provider.cpp",
       "target": "llama",
       "target_path": "src/ua50/native_provider.cpp",
-      "bytes": 10588,
-      "sha256": "81b9bdf641b4d1ca9752e519e4cf055dcb4f0d7152537dad9f97e88d6d7536a2"
+      "bytes": 10599,
+      "sha256": "16c3b6c622d42df54ab580a6e8e502e9364297824d3433201f8ab773106cd215"
     },
     {
       "file": "llama.cpp/src/ua50/native_provider.h",
@@ -292,15 +327,15 @@
       "file": "src/bridge/cpu_expert_app_session.inc",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_app_session.inc",
-      "bytes": 7673,
-      "sha256": "ba2a65b52397b9a0996c1307b27695a57bd5fce0183757762f665c6a3087d95f"
+      "bytes": 7775,
+      "sha256": "e5d53c08725a4ec1625038312cb2d0b6bd0810469147104bc445b23f334cbefe"
     },
     {
       "file": "src/bridge/cpu_expert_session.cpp",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_session.cpp",
-      "bytes": 19251,
-      "sha256": "ca597eda9badb7efe8d2d54f9e9ea313bfd1a0249f0aa04139c12c1f8e30d892"
+      "bytes": 19569,
+      "sha256": "d32b8cbe851db4534468be3d77c76d28858b7f903a1a6ee9a80309caf3894b89"
     },
     {
       "file": "src/bridge/d3d12_compute.cpp",
@@ -401,11 +436,25 @@
       "sha256": "9f9c4c72d1b83d25571b983a9f76a3d146b7187f83c88c105683165e496a238f"
     },
     {
+      "file": "uwp/api-server.cpp",
+      "target": "xllama",
+      "target_path": "uwp/api-server.cpp",
+      "bytes": 99326,
+      "sha256": "fc17d1e92bbd9377ee9ae9fc6715fb4866f52580994f5595c3685369518e7c2e"
+    },
+    {
+      "file": "uwp/api-server.h",
+      "target": "xllama",
+      "target_path": "uwp/api-server.h",
+      "bytes": 2009,
+      "sha256": "a14a787445c3f5ba67dabc8db30caaf82cb0a8fb38e2f13fc658e126eebbccb0"
+    },
+    {
       "file": "uwp/cpu-expert-pilot.cpp",
       "target": "xllama",
       "target_path": "uwp/cpu-expert-pilot.cpp",
-      "bytes": 30987,
-      "sha256": "444e881533b2e22bcaa39fa86403eae6cfcf03955f21ce9f5b8d2c14b7718ae8"
+      "bytes": 31435,
+      "sha256": "f000f3923e1f501faefbaf0556e84495bfb024e11929f5bc0607043e7309f0ed"
     },
     {
       "file": "uwp/dev-run-input.h",
@@ -413,6 +462,13 @@
       "target_path": "uwp/dev-run-input.h",
       "bytes": 5826,
       "sha256": "1af075ed321af54a42c74a1836c9aea514548956d42daece36a2f5aaa3a159b9"
+    },
+    {
+      "file": "uwp/generation-runner.inc",
+      "target": "xllama",
+      "target_path": "uwp/generation-runner.inc",
+      "bytes": 21013,
+      "sha256": "9c944163d13187c1c762ab7bf1e2335e20fdda1f3376d118cb9f84d15ad428ff"
     },
     {
       "file": "uwp/ggml-uwp.vcxproj",

@@ -3,11 +3,11 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "d586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20",
-  "source_bundle_sha256": "cc24e65f03ffc3249206a77bab16266f5717dc11ec797e5a5d3acd44a0ebf1cb",
-  "operator_sha256": "065451efba99601e06037924e0142a2fe1b1681ebad920b233807af37bd492be",
-  "qualification": "Identity-only successor source candidate and successful saved Linux/portable author checks. Current successor Windows artifact/sign/update/native identity observation are pending. Earlier GPU proof package/update evidence does not establish GPU execution. No fit, numerical parity or performance acceptance.",
-  "public_metadata_adjustment": "Fourteen parent patches retain exact bytes. One identity-only root patch gives fifteen ordered patches and 69 shipping postimages. Runtime21+prepare are compile inputs; Root documentation adds3. No private operators, guards, validators, requests, observations, tests, contracts or author binaries.",
+  "patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
+  "source_bundle_sha256": "05c851b9990d5101f5930a007fc9aaf563cd4c6a4544bbc2ab4ffd7d4ca85c21",
+  "operator_sha256": "5f683aed004727d55104f152b6e81c4327a7d71bba6c66a54a3cc4e71963ab85",
+  "qualification": "Configurable single-turn generation source candidate with qualified saved portable author evidence. Current source QA passed; Windows artifact pending. No installation, native generation, GPU correctness, fit, quality or speed acceptance.",
+  "public_metadata_adjustment": "Fifteen parent patches retain exact bytes. Two generation patches give seventeen ordered patches, 77 selected postimages and 661 direct includes. Runtime23+prepare are compile inputs; Root adds three documentation files. Private evidence, tests, contracts, guards, requests, outputs and binaries are excluded.",
   "historical_cpu_provenance": {
     "repository": "vetax-by/xllama",
     "upstream": "gianlucamazza/xllama",
@@ -251,7 +251,7 @@
       "qualification": "Original caller exit0/Actions false saved-attributed; caller_free UNKNOWN. Inherited prepare/receipt source qualification, no fresh independent Windows filesystem audit. Final8warnings/0errors only, C4715/C4018 unadjudicated. No native identity or GPU acceptance."
     },
     "signing_composition": {
-      "status": "SOURCE_REVIEWED_PENDING_EXACT_PUBLICATION_AND_EXECUTION_SELECTION",
+      "status": "SAVED_SIGNED_PAIR_ACCEPTED_ARTIFACT_ONLY_NOT_INSTALLED",
       "patched_version": "1.7.0.1506",
       "recovery_version": "1.7.0.1507",
       "installed_version_template": "FRESH_ACTUAL_REQUIRED",
@@ -262,10 +262,45 @@
         "result_sha256": "ec86e671a4acaaa7d6308cff763ade0dc277b403584ccbcbf65c088f2255f450",
         "source_manifest_sha256": "23b6f0051e812174739073b8b6fe8a360a3c02b3225553c59ed8135d469ba033"
       },
-      "signed_pair_accepted": false,
+      "signed_pair_accepted": true,
       "install_accepted": false,
       "native_identity_accepted": false,
       "stock_transport": "unchanged original archive e4e4d8a2 release mirror; historical msbuild/crt_directory hosted installation paths retained"
+    },
+    "signed_pair": {
+      "status": "PASS_SAVED_SIGNED_PAIR_ARTIFACT_ONLY",
+      "manifest_sha256": "06a21e792a60c3f64983885b9dabd43377a885e151c8376f9d4ebc3a1baae90b",
+      "review_sha256": "6037f575c8e28168c20510e189346f6f2fc990a19a94c638101a4a8c7145906b",
+      "qa_manifest_sha256": "e0b935118010daea6ce26f5297f62ff76ed39985056016027c48f3985c03c92f",
+      "qa_result_sha256": "ca6da9aeb78c46b5aa00682abdca280f20d6d18290bd1904a2d276e6364ac8b0",
+      "patched_version": "1.7.0.1506",
+      "recovery_version": "1.7.0.1507",
+      "installed": false,
+      "native_identity_accepted": false,
+      "qualification": "Saved artifact and signer-identity inspection only; no console trust, recovery or installation acceptance."
     }
+  },
+  "historical_identity_provenance_as_of": "REMOTE_BASE_385a4f5344e50f5f9cedfd85790ed83d0eb4d537_PLUS_SAVED_SIGNED_PAIR_QA",
+  "historical_cpu_provenance_snapshot_qualification": "The nested historical CPU provenance is retained as a historical source-bundle snapshot, including its then-pending states; later accepted configurable CPU and stopped GPU-package milestones are described separately in this document and the canonical patch rationale.",
+  "generation_successor": {
+    "runtime_source_sha256": "82ad34959116212e49102667a9bac79c478efaa6da5294991e342f445a219e46",
+    "shipping_lock_sha256": "05c851b9990d5101f5930a007fc9aaf563cd4c6a4544bbc2ab4ffd7d4ca85c21",
+    "patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
+    "ordered_patches": 17,
+    "selected_shipping_files": 77,
+    "direct_include_rows": 661,
+    "coherent_source_review": {
+      "status": "PASS_SOURCE_ONLY",
+      "review_sha256": "ffe2b2ea520eccb2abb5106464a5f44726b4cdc08bfbaaeb612867cd2c5a0891",
+      "manifest_sha256": "4f0fa2d7d0803b3fd61b33e831a21de1132a358f41fa9e80730af79f77660b90",
+      "result_sha256": "d6d40e493d1873401cdf91c94c46e4a78eb064ee172c60d7444637e427480266"
+    },
+    "operator_source_manifest_sha256": "c73f9898ce11a5f95f7e307e7ca5ccc17c125be2e17335d2e82beb748027d475",
+    "portable_author_evidence_sha256": "6888a1ff051c90cd7a395e43e7b4de02a82d758841764907ab4535c35b65584e",
+    "author_evidence_qualification": "Three compiler commands and one portable fixture exited zero; synthetic input/counters/clock, ASan/UBSan detect_leaks=0. Preliminary authority chain used during an unissued-adoption/superseding-binding race. Final gate NOT_ADMITTED due existing claim; no retroactive final-gate admission, no rerun. Sampled RSS is not peak; namespace PIDs are not host-global closure proof.",
+    "actual_Windows_artifact_accepted": false,
+    "actual_console_generation_accepted": false,
+    "actual_GPU_correctness_accepted": false,
+    "quality_fit_speed_accepted": false
   }
 }

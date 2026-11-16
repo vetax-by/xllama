@@ -223,6 +223,78 @@
       "include": "string"
     },
     {
+      "from": "include/xllama/generation_profile.h",
+      "line": 2,
+      "style": "\"",
+      "include": "dev_run_config.h"
+    },
+    {
+      "from": "include/xllama/generation_profile.h",
+      "line": 3,
+      "style": "<",
+      "include": "mutex"
+    },
+    {
+      "from": "include/xllama/generation_profile.h",
+      "line": 4,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "include/xllama/generation_profile.h",
+      "line": 5,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "include/xllama/generation_profile.h",
+      "line": 6,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "include/xllama/generation_result.h",
+      "line": 2,
+      "style": "\"",
+      "include": "generation_profile.h"
+    },
+    {
+      "from": "include/xllama/generation_result.h",
+      "line": 3,
+      "style": "<",
+      "include": "charconv"
+    },
+    {
+      "from": "include/xllama/generation_runner.h",
+      "line": 2,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/generation_trace.h",
+      "line": 2,
+      "style": "\"",
+      "include": "ua50/expert_gpu.h"
+    },
+    {
+      "from": "include/xllama/generation_trace.h",
+      "line": 3,
+      "style": "\"",
+      "include": "generation_profile.h"
+    },
+    {
+      "from": "include/xllama/generation_trace.h",
+      "line": 4,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/generation_trace.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
       "from": "include/xllama/ggml_d3d12.h",
       "line": 23,
       "style": "<",
@@ -3307,6 +3379,288 @@
       "include": "vector"
     },
     {
+      "from": "uwp/api-server.cpp",
+      "line": 8,
+      "style": "\"",
+      "include": "api-server.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 15,
+      "style": "\"",
+      "include": "pch.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 16,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 17,
+      "style": "<",
+      "include": "winrt/Windows.Data.Json.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 18,
+      "style": "<",
+      "include": "winrt/Windows.Networking.Sockets.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 19,
+      "style": "<",
+      "include": "winrt/Windows.System.Threading.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 22,
+      "style": "\"",
+      "include": "inference-bridge.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 23,
+      "style": "\"",
+      "include": "xllama/generation_runner.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 24,
+      "style": "\"",
+      "include": "model-downloader.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 25,
+      "style": "\"",
+      "include": "xllama/api_activity.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 26,
+      "style": "\"",
+      "include": "xllama/api_connection.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 27,
+      "style": "\"",
+      "include": "xllama/api_policy.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 28,
+      "style": "\"",
+      "include": "xllama/api_pull_policy.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 29,
+      "style": "\"",
+      "include": "xllama/chat_prompt.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 30,
+      "style": "\"",
+      "include": "xllama/compute_admission.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 31,
+      "style": "\"",
+      "include": "xllama/http_framing.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 32,
+      "style": "\"",
+      "include": "xllama/model_provision.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 33,
+      "style": "\"",
+      "include": "xllama/path_utils.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 34,
+      "style": "\"",
+      "include": "xllama/personalize.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 35,
+      "style": "\"",
+      "include": "xllama/platform.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 36,
+      "style": "\"",
+      "include": "xllama/preference_capture.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 37,
+      "style": "\"",
+      "include": "xllama/prompt_budget.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 38,
+      "style": "\"",
+      "include": "xllama/routing_policy.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 39,
+      "style": "\"",
+      "include": "xllama/session.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 40,
+      "style": "\"",
+      "include": "xllama/session_hub.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 41,
+      "style": "\"",
+      "include": "xllama/sse.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 42,
+      "style": "\"",
+      "include": "xllama/stop_sequence_filter.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 43,
+      "style": "\"",
+      "include": "xllama/tool_request.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 44,
+      "style": "\"",
+      "include": "xllama/tool_template.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 45,
+      "style": "\"",
+      "include": "xllama/tool_transcript.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 46,
+      "style": "\"",
+      "include": "xllama/utf8_utils.h"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 48,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 49,
+      "style": "<",
+      "include": "cctype"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 50,
+      "style": "<",
+      "include": "charconv"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 51,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 52,
+      "style": "<",
+      "include": "climits"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 53,
+      "style": "<",
+      "include": "cstdio"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 54,
+      "style": "<",
+      "include": "cstdlib"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 55,
+      "style": "<",
+      "include": "ctime"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 56,
+      "style": "<",
+      "include": "filesystem"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 57,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 58,
+      "style": "<",
+      "include": "mutex"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 59,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 60,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 61,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "uwp/api-server.cpp",
+      "line": 2283,
+      "style": "\"",
+      "include": "xllama/api_activity.h"
+    },
+    {
+      "from": "uwp/api-server.h",
+      "line": 11,
+      "style": "<",
+      "include": "string"
+    },
+    {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 2,
       "style": "\"",
@@ -3477,18 +3831,54 @@
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 30,
+      "style": "\"",
+      "include": "xllama/generation_runner.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 31,
+      "style": "\"",
+      "include": "xllama/generation_profile.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 32,
+      "style": "\"",
+      "include": "xllama/generation_trace.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 33,
+      "style": "\"",
+      "include": "xllama/generation_result.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 34,
+      "style": "\"",
+      "include": "xllama/generation_capabilities.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 35,
       "style": "<",
       "include": "winrt/Windows.ApplicationModel.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
-      "line": 364,
+      "line": 371,
       "style": "\"",
       "include": "gpu-proof-pilot.inc"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
-      "line": 365,
+      "line": 372,
+      "style": "\"",
+      "include": "generation-runner.inc"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 373,
       "style": "\"",
       "include": "gpu-identity-pilot.inc"
     },
@@ -3576,5 +3966,6 @@
       "style": "\"",
       "include": "xllama/training_params.h"
     }
-  ]
+  ],
+  "not_transitive_SDK_or_link_proof": true
 }

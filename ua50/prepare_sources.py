@@ -45,17 +45,17 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = 'd586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20'
+CURRENT_PATCH_LOCK = '921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current UA68 identity/d586 lock admitted; old5e34/f11d/bd37/2d69/25b9/5dab/B803/760e/a199/e781 refused')
+        raise ValueError('only current UA68 generation/921f lock admitted; oldd586/5e34/f11d/bd37/2d69/25b9/5dab/B803/760e/a199/e781 refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
     lock = json.loads(raw)
-    if lock['parent_patch_lock_sha256'] != 'f11dd6bb7234fd62d3a12e773f8369a81f66f5412016e3516e603caedc99123e' or lock['parent12_reused_not_replayed'] is not True:
-        raise ValueError('exact accepted CPU parent12 identity required')
+    if lock['parent_patch_lock_sha256'] != 'd586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20' or lock['parent12_reused_not_replayed'] is not True:
+        raise ValueError('exact accepted identity parent15 identity required')
     if [(e['file'], e['target']) for e in lock['patches']] != [
             ('patch/runtime-root.patch', 'xllama'), ('patch/runtime-llama.patch', 'llama'),
             ('patch/app-xllama.patch', 'xllama'), ('patch/app-llama.patch', 'llama'),
@@ -64,8 +64,9 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/cache-ab-root.patch', 'xllama'), ('patch/cache-ab-llama.patch', 'llama'),
             ('patch/configurable-runner-root.patch', 'xllama'), ('patch/configurable-runner-llama.patch', 'llama'),
             ('patch/ua68-expert-gpu-root.patch', 'xllama'), ('patch/ua68-expert-gpu-native.patch', 'llama'),
-            ('patch/ua68-gpu-identity-root.patch', 'xllama')]:
-        raise ValueError('exact accepted fourteen plus identity root fifteenth order required')
+            ('patch/ua68-gpu-identity-root.patch', 'xllama'),
+            ('patch/generation-root.patch', 'xllama'), ('patch/generation-native.patch', 'llama')]:
+        raise ValueError('exact accepted parent fifteen plus generation root/native seventeenth order required')
     if lock.get('parent14_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent14 required')
     for entry in lock['patches']:
@@ -74,7 +75,7 @@ def admitted_runtime_lock(operator, lock_sha):
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = '8ef1dcbe9609455acdd1ee233b8b1c75ac8bcf380833d643a4203cc98c00a525'
+SHIPPING_INVENTORY_SHA = '9b02365254f5a8d58be37ba36a71d84f85961aa8c2a94429481e441da9c55eff'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):
@@ -85,11 +86,11 @@ def admitted_shipping_inventory(operator):
     if hashlib.sha256(imports).hexdigest() != COMPILER_INVENTORY_SHA:
         raise ValueError('compiler/import declarations changed')
     includes = (operator / 'INCLUDE-DEPENDENCY-INVENTORY.json').read_bytes()
-    if hashlib.sha256(includes).hexdigest() != '6236e0d0e0d479b53f6bfca6d5a68c3729873fe6956b0917d0e19935c15fa557' or len(json.loads(includes)['direct_includes_only']) != 596:
-        raise ValueError('exact current 596 direct source includes required')
+    if hashlib.sha256(includes).hexdigest() != '6d45e7df3f8a669361b29539bf306b430ebbfe198927a2dd610e4d01ad4e0326' or len(json.loads(includes)['direct_includes_only']) != 661:
+        raise ValueError('exact current 661 direct source includes required')
     entries = json.loads(raw)['selected_source_files']
-    if len(entries) != 69:
-        raise ValueError('exact sixty-nine selected shipping files required')
+    if len(entries) != 77:
+        raise ValueError('exact seventy-seven selected shipping files required')
     seen = set()
     for entry in entries:
         target, path = entry['target'], entry['target_path']

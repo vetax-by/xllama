@@ -294,7 +294,7 @@ patch in its exact order on a separate clean base tree. The configurable
 CPU successor retains the ten historical entries and adds its root and native
 patches. The GPU proof successor adds one root and one native patch after those
 twelve entries. The identity-only successor appends one root patch after the GPU
-root/native pair: fifteen ordered patches and 69 shipping postimages. Do not additionally apply intermediate development patches or apply a
+root/native pair. Two further generation patches give the current seventeen ordered patches and 77 shipping postimages. Do not additionally apply intermediate development patches or apply a
 cumulative patch twice.
 
 The historical session `.inc` files and the additional GPU `.inc` files are
@@ -432,3 +432,20 @@ create a key, install a package or run a capability query. A later exact selecti
 must bind the published signing sources, accepted unsigned artifact and fresh
 version evidence. Stock recovery, console trust, identity observations, GPU math,
 fit and speed remain unproven.
+
+
+## Configurable single-turn generation successor
+
+Two additive patches preserve the identity and numerical-proof routes and add a dedicated generation surface to the existing opt-in LAN server. A fresh request explicitly selects CPU-only or hybrid mode. Existing chat behavior is unchanged. This surface is buffered single-turn generation; it does not implement streaming, history, tool execution, parallel generations or a new chat UI. It refuses an already resident model instead of unloading it.
+
+The declared source envelope supports one CPU worker, contexts of 64, 128, 256 or 512 tokens, a complete rendered prompt of 1–128 tokens and 1–384 new samples within the selected context. Global expert-cache capacity is 2–512 slots under an explicit owned-memory ceiling and actual native admission. Unsupported worker counts, affinity, asynchronous paging and larger contexts refuse. The immutable reserve and metadata-probe allowance are unchanged. Hybrid mode retains one GPU matrix slot, one outstanding submission and Q4_K/Q6_K selected-expert operators. These are source capabilities, not observed memory fit or performance results.
+
+Both modes require a bounded held permit binding the actual new package/artifact and externally authenticated same-artifact primitive and model-proof acceptances. Hash fields alone do not authenticate those acceptances. No permit or current native acceptance is provided by this source publication; older packages cannot authorize the new code. Each request uses a fresh immutable run identity, exact consumed request/permit hashes and a permanent exclusive claim. Missing, expired or mismatched prerequisites refuse before claim and model access.
+
+The result preserves actual effective settings, sampled token IDs, raw token-piece bytes, UTF-8 status and native termination separately. Only an actual first thinking-close delimiter separates the final suffix; no final answer or closing tag is manufactured. A sample limit inside reasoning is not a completed answer. Status, cooperative stop and publication share a serialized terminal decision. Accepting a stop or losing the HTTP connection does not establish native closure. An unknown fence can retain resources indefinitely; no hard-cancel guarantee is made.
+
+The distinct main record is bounded to 256 KiB; its UA68GEN1 trace is separately bounded to 512 KiB and charges its actual storage to the plan. Collector, serialization, context/cache and GPU allocations must all fit fresh native quota with the existing reserve. Complete trace and main publication require native owner/fence/file/permit release and monitor join. Returned caller closure and origin authentication remain external requirements. Cache and Reader timings are nested application measurements, not physical SSD I/O; GPU timestamps and peak usage are unavailable.
+
+Saved local author checks passed owner/provider syntax and an actual portable parser, registry, collector, trace and serializer fixture with synthetic data and clock. ASan/UBSan ran with leak detection disabled. The preliminary authority chain was used during a superseding selection-message race; the final resource gate refused an existing invocation claim. The exact commands and source match the plan, but the evidence is not relabeled as final-gate admitted. No second compile was run. Windows LAN/pilot/platform code, backend math, model answers and console lifecycle remain untested for this successor.
+
+A fixed offline usability casepack is authored privately; every model outcome remains unrun. Later device validation must establish same-artifact correctness before usability, stability or performance conclusions. The existing console access issue pauses installation and native tests. Velocity/FSR integration stays deferred.

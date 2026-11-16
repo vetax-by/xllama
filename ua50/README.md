@@ -8,7 +8,7 @@ The patch rationale, implementation and evidence limits have one home:
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
 - Patch lock SHA-256:
-  `d586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20`.
+  `921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe`.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
 
 The first four patches retain the accepted application/runtime bytes. Two
@@ -20,7 +20,7 @@ the ten historical entries. Two further configurable-runner patches add a
 strict typed developer entrypoint, explicit successor records and bounded I/O
 aggregates; those twelve entries are retained. Two additional root/native GPU bridge patches
 bring the historical GPU route to fourteen entries. One further root identity patch
-brings the current route to fifteen entries and 69 selected shipping files. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
+brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches now bring the route to seventeen entries and 77 selected shipping files. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -61,16 +61,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch d586d1701c7f060e5605e8f0b0e052fa0fb9d1a14b0f2285a683e31ea0288e20
+python operator/ua50/prepare_sources.py product operator/ua50 patch 921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, fifteen ordered patch files and source/import inventories. Old
+exact lock, seventeen ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 69 selected shipping postimages,
+the pinned route once and checks all 77 selected shipping postimages,
 including shipping `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 
@@ -112,8 +112,7 @@ console A/B measurements. The configurable CPU successor subsequently completed 
 Windows artifact, signed preserving update and bounded CPU configuration cases.
 Those outcomes belong to the historical CPU revision. The historical GPU bridge
 subsequently completed compile, signing and a preserving update; no GPU execution
-was established. The identity successor requires its own Windows artifact,
-signing, preserving update and actual identity observation before native correctness checks. No private response or telemetry is included here.
+was established. The identity successor subsequently produced a separately inspected Windows artifact and signed pair; preserving update and actual identity observation remain incomplete before native correctness checks. No private response or telemetry is included here.
 
 ## Bounded first-answer developer mode
 
@@ -265,10 +264,13 @@ historical BUILD-RECEIPT contains hosted Windows installation paths in the
 `msbuild` and `crt_directory` fields; this is retained legacy metadata, not a
 claim that those fields were omitted.
 
-Version inputs reserve patched 1.7.0.1506 and stock forward-recovery 1.7.0.1507,
-above the freshly observed installed 1.7.0.1504. InstalledVersion remains
-FRESH_ACTUAL_REQUIRED in the template. Preparation does not dispatch signing,
-create a key, install a package or run a capability query. A later exact selection
-must bind the published signing sources, accepted unsigned artifact and fresh
-version evidence. Stock recovery, console trust, identity observations, GPU math,
-fit and speed remain unproven.
+A separate selected signing run produced patched 1.7.0.1506 and stock forward-recovery 1.7.0.1507; the saved pair passed independent artifact inspection. Those packages remain retained and uninstalled. Their templates and accepted historical source bindings apply to that exact identity revision. The new generation source requires a new unsigned artifact and any later signing must bind it independently. Stock recovery, console trust, native identity observations, GPU math, fit and speed remain unproven.
+
+
+## Configurable single-turn generation successor
+
+The current two-patch addition exposes a separate bounded developer surface in the existing optional LAN server. The normal chat route is unchanged. See [the generation contract and evidence limits](../docs/ua50-ssd-moe.md#configurable-single-turn-generation-successor) before using it. Supported source branches do not establish a working console release.
+
+The current saved local author check completed two syntax checks and one portable fixture compile/run under ASan and UBSan. It did not compile the Windows LAN, pilot or native GPU branches. The executed commands match the Root plan, but a selection-message race meant the preliminary authority chain was used; the superseding final resource gate refused the existing claim. This is qualified saved author evidence, with no repeat run or retroactive final-gate admission. Current source review has passed; a new Windows artifact remains pending.
+
+The earlier identity revision did produce an inspected unsigned Windows artifact and a separately inspected signed 1506/1507 pair. Those retained packages were not installed; no native identity query or GPU numerical proof was accepted. That historical artifact does not contain these generation changes.
