@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_FOLLOWUP_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_TRACE_PER_RUN_SOURCE_CANDIDATE",
   "parent_patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
   "parent12_reused_not_replayed": true,
   "patches": [
@@ -116,6 +116,12 @@
       "target": "llama",
       "bytes": 528,
       "sha256": "3b38cc7ea7877039015dba496db9166e41c4d165a8f6e9a0d6457155e30c2b75"
+    },
+    {
+      "file": "patch/test-harness-trace-root.patch",
+      "target": "xllama",
+      "bytes": 15129,
+      "sha256": "8995a63c40fbf37dd6198a75d86c58ce6fa06332d06bc6d64ca01a78028a3fb2"
     }
   ],
   "parent14_reused_not_replayed": true,

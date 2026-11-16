@@ -1,5 +1,5 @@
 {
-  "status": "selected followup production source postimages; source-only, not Windows compile proof",
+  "status": "UNCOMPILED_TRACE_PER_RUN_SOURCE_CANDIDATE",
   "selected_source_files": [
     {
       "file": "CMakeLists.txt",
@@ -82,8 +82,8 @@
       "file": "include/xllama/generation_runner.h",
       "target": "xllama",
       "target_path": "include/xllama/generation_runner.h",
-      "bytes": 376,
-      "sha256": "6c6fc42cecf684a476f4eadfded60dd242990ca78e0ab041abaeda8e0502bc22"
+      "bytes": 466,
+      "sha256": "b88a1b03ac99d6c9403b9aa976bb9055f1d260118f6c3a9e93ea31a975154a9b"
     },
     {
       "file": "include/xllama/generation_trace.h",
@@ -453,8 +453,8 @@
       "file": "uwp/api-server.cpp",
       "target": "xllama",
       "target_path": "uwp/api-server.cpp",
-      "bytes": 99326,
-      "sha256": "fc17d1e92bbd9377ee9ae9fc6715fb4866f52580994f5595c3685369518e7c2e"
+      "bytes": 100514,
+      "sha256": "0ca48a6dc2399ed56f01a1262e838e925274fe7d48799a48c27d78b7a75a286d"
     },
     {
       "file": "uwp/api-server.h",
@@ -481,8 +481,8 @@
       "file": "uwp/generation-runner.inc",
       "target": "xllama",
       "target_path": "uwp/generation-runner.inc",
-      "bytes": 21013,
-      "sha256": "9c944163d13187c1c762ab7bf1e2335e20fdda1f3376d118cb9f84d15ad428ff"
+      "bytes": 23573,
+      "sha256": "3d46d36cb0aa0f45022a10c61db0aa3d0ca513e83e54304901edc36b819ab307"
     },
     {
       "file": "uwp/ggml-uwp.vcxproj",

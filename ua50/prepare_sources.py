@@ -45,11 +45,11 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = '1997375adf70a259c3a1cd87651ac4f7f0fbcc532feb1d6230c534ed59e4615e'
+CURRENT_PATCH_LOCK = '62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current UA68 followup/1997 lock admitted; historical generation/921f and older locks refused')
+        raise ValueError('only current trace/per-run lock admitted; historical followup/1997 and older locks refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
@@ -66,8 +66,9 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/ua68-expert-gpu-root.patch', 'xllama'), ('patch/ua68-expert-gpu-native.patch', 'llama'),
             ('patch/ua68-gpu-identity-root.patch', 'xllama'),
             ('patch/generation-root.patch', 'xllama'), ('patch/generation-native.patch', 'llama'),
-            ('patch/followup-root.patch', 'xllama'), ('patch/followup-native.patch', 'llama')]:
-        raise ValueError('exact accepted parent seventeen plus followup root/native nineteenth order required')
+            ('patch/followup-root.patch', 'xllama'), ('patch/followup-native.patch', 'llama'),
+            ('patch/test-harness-trace-root.patch', 'xllama')]:
+        raise ValueError('exact accepted parent nineteen plus trace/per-run twentieth order required')
     if lock.get('parent14_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent14 required')
     for entry in lock['patches']:
@@ -76,7 +77,7 @@ def admitted_runtime_lock(operator, lock_sha):
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = '3be5f387797827a1eaf25f69f0c0e9045a9ce9cda83f059b1164fc731531390e'
+SHIPPING_INVENTORY_SHA = 'a0a58d9035cf4aafa1cd9e6e66f90d92550946150d4de0269f1baa890d54bf90'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):

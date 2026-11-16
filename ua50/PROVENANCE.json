@@ -3,11 +3,11 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "1997375adf70a259c3a1cd87651ac4f7f0fbcc532feb1d6230c534ed59e4615e",
-  "source_bundle_sha256": "3be5f387797827a1eaf25f69f0c0e9045a9ce9cda83f059b1164fc731531390e",
+  "patch_lock_sha256": "62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7",
+  "source_bundle_sha256": "a0a58d9035cf4aafa1cd9e6e66f90d92550946150d4de0269f1baa890d54bf90",
   "operator_sha256": "b5f4f73c7c2f8207c2e00f40115c948441690ce44dd1b808e0d6cfc4db489cb8",
   "qualification": "Current 19-patch followup source candidate only. Historical 17-patch Windows run 43825061482 passed compile/link/unsigned package inspection; it does not include followup C4715/C4018 fixes. No current Windows compile, installation, native generation, GPU correctness, fit, quality or speed acceptance.",
-  "public_metadata_adjustment": "Accepted 17 parent patch bytes are reused in order; two source-only followup patches yield 19 ordered patches and 79 selected postimages with unchanged 661 direct includes. Private decoder/controller, author fixtures, contracts, guards, requests, outputs and binaries are excluded.",
+  "public_metadata_adjustment": "Accepted 19 parent patch bytes are reused in order; one uncompiled trace/per-run root patch yields 20 ordered patches and 79 selected postimages with unchanged 661 direct includes. It changes permit storage/admission without changing retained wire schema or decoder contract SHA. Private decoder, lifecycle, CLI, operators, fixtures, receipts and outputs are excluded.",
   "historical_cpu_provenance": {
     "repository": "vetax-by/xllama",
     "upstream": "gianlucamazza/xllama",
@@ -310,5 +310,13 @@
     "direct_include_rows": 661,
     "windows_run_43825061482_contains_followups": false,
     "verification_scope": "source_recipe_only_no_compile"
+  },
+  "trace_per_run_source_candidate": {
+    "parent_patch_lock_sha256": "1997375adf70a259c3a1cd87651ac4f7f0fbcc532feb1d6230c534ed59e4615e",
+    "ordered_patches": 20,
+    "selected_shipping_files": 79,
+    "direct_include_rows": 661,
+    "historical_windows_run_43825061482_contains_trace_per_run": false,
+    "verification_scope": "source_recipe_plus_host_synthetic_writer_only"
   }
 }

@@ -1,0 +1,128 @@
+diff --git a/include/xllama/generation_runner.h b/include/xllama/generation_runner.h
+--- a/include/xllama/generation_runner.h
++++ b/include/xllama/generation_runner.h
+@@ -1,9 +1,10 @@
+ #pragma once
+ #include <string>
+ namespace xllama::bridge {
+-struct GenerationReply {int http_status=500;std::string body;};
++struct GenerationReply {int http_status=500;std::string body;std::string sha256;};
+ GenerationReply run_configured_generation(std::string raw);
+ GenerationReply configured_generation_status(const std::string&run_id);
+ GenerationReply stop_configured_generation(const std::string&run_id);
++GenerationReply configured_generation_trace(const std::string&run_id);
+ std::string configured_generation_capabilities();
+ }
+diff --git a/uwp/generation-runner.inc b/uwp/generation-runner.inc
+--- a/uwp/generation-runner.inc
++++ b/uwp/generation-runner.inc
+@@ -14,6 +14,40 @@
+ GenerationReply configured_generation_status(const std::string&raw){try{auto id=generation_control(raw);auto a=generation_registry.get(id);if(a){std::lock_guard<std::mutex>l(a->mutex);return {200,"{\"schema\":\"ua68-generation-service-v1\",\"status\":\"ACTIVE_NOT_CLOSED\",\"run_id\":"+first_answer::quote(id)+",\"config_sha256\":"+first_answer::quote(a->config_sha)+",\"phase\":"+first_answer::quote(a->phase)+",\"stop_requested\":"+(a->stop_requested.load()?"true":"false")+"}"};}
+  const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());DevHandle h;open_dev_file(h,generation_path(root,id,"output.json"),false);auto body=read_dev_file(h,generation::result_cap);h.close();return {200,std::move(body)};
+  }catch(const std::exception&e){return generation_error(404,e.what());}}
++GenerationReply configured_generation_trace(const std::string&raw){
++ try{
++  const auto id=generation_control(raw);
++  const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());
++  generation_directory(root);
++  DevHandle binding;
++  open_dev_file(binding,generation_path(root,id,"trace.binding"),false);
++  const auto proof=read_dev_file(binding,293);
++  binding.close();
++  dev_run::need(proof.size()==293&&proof[32]=='\n'&&proof[97]=='\n'&&proof[162]=='\n'&&proof[227]=='\n'&&proof[292]=='\n',"trace binding shape");
++  const auto config=proof.substr(33,64),permit=proof.substr(98,64);
++  const auto output_sha=proof.substr(163,64),trace_sha=proof.substr(228,64);
++  dev_run::need(proof.substr(0,32)==id&&dev_run::hex(config,64)&&dev_run::hex(permit,64)&&dev_run::hex(output_sha,64)&&dev_run::hex(trace_sha,64),"trace binding identity");
++  DevHandle output;
++  open_dev_file(output,generation_path(root,id,"output.json"),false);
++  const auto saved=read_dev_file(output,generation::result_cap);
++  output.close();
++  dev_run::need(identity_request_sha(saved)==output_sha,"trace/result saved bytes changed");
++  DevHandle file;
++  open_dev_file(file,generation_path(root,id,"trace.bin"),false);
++  auto bytes=read_dev_file(file,generation::Trace::cap);
++  file.close();
++  dev_run::need(bytes.size()==generation::Trace::file_bytes&&bytes.compare(0,8,"UA68GEN1")==0,"trace binary shape");
++  const auto same_hex=[&](size_t offset,const std::string&value){
++   const char*alphabet="0123456789abcdef";
++   for(size_t i=0;i<value.size()/2;++i){const auto b=static_cast<unsigned char>(bytes[offset+i]);if(alphabet[b>>4]!=value[i*2]||alphabet[b&15]!=value[i*2+1])return false;}
++   return true;
++  };
++  dev_run::need(same_hex(64,id)&&same_hex(80,config)&&same_hex(112,permit)&&same_hex(144,generation::contract_sha),"trace header identity");
++  const auto sha=identity_request_sha(bytes);
++  dev_run::need(sha==trace_sha,"trace/result content mismatch");
++  return {200,std::move(bytes),sha};
++ }catch(const std::exception&e){return generation_error(404,e.what());}
++}
+ GenerationReply run_configured_generation(std::string raw){
+  generation::Request request;try{request=generation::parse(std::move(raw));}catch(const std::exception&e){return generation_error(400,e.what());}
+  const std::string tag="[generation-v1 run_id="+request.id+"]";
+@@ -26,9 +60,9 @@
+  try{
+   root=winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str();generation_directory(root);auto quota=state->snapshot("generation-prepermit");state->initial_limit=quota.limit;check(quota,quota.limit,probe_allowance);
+   result.pid=GetCurrentProcessId();result.package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());result.config_sha=identity_request_sha(request.raw);
+-  open_dev_file(permit_file,root/L"ua68-generation-v1.permit.json",false);auto permit_raw=read_dev_file(permit_file,generation::permit_cap);result.permit_sha=identity_request_sha(permit_raw);if(result.permit_sha!=request.permit_sha)throw std::runtime_error("generation exact held permit SHA mismatch");permit=generation::permit(std::move(permit_raw),dev_utc_ms(),result.package);state->ticket_expiry=permit.expires;
++  open_dev_file(permit_file,generation_path(root,request.id,"permit.json"),false);auto permit_raw=read_dev_file(permit_file,generation::permit_cap);result.permit_sha=identity_request_sha(permit_raw);if(result.permit_sha!=request.permit_sha)throw std::runtime_error("generation exact held permit SHA mismatch");permit=generation::permit(std::move(permit_raw),dev_utc_ms(),result.package);state->ticket_expiry=permit.expires;
+   const auto now=dev_utc_ms();if(now>=permit.expires)throw std::runtime_error("generation expired permit");state->deadline=std::min(state->deadline,ua50::uwp::Clock::now()+std::chrono::milliseconds(permit.expires-now));state->stop_path=generation_path(root,request.id,"stop").wstring();
+-  for(const auto*s:{"config.json","output.json","trace.bin"}){DWORD a=GetFileAttributesW(generation_path(root,request.id,s).c_str());if(a!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("generation old namespace/query failure");}
++  for(const auto*s:{"config.json","output.json","trace.bin","trace.binding"}){DWORD a=GetFileAttributesW(generation_path(root,request.id,s).c_str());if(a!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("generation old namespace/query failure");}
+   ULARGE_INTEGER free{},total{},all{};if(!GetDiskFreeSpaceExW(root.c_str(),&free,&total,&all)||free.QuadPart<(64ull<<20))throw std::runtime_error("generation output disk reserve unknown/refused");
+   generation_commit(generation_path(root,request.id,"claim"),result.config_sha.data(),result.config_sha.size());claimed=true;generation_commit(generation_path(root,request.id,"config.json"),request.raw.data(),request.raw.size());active=generation_registry.start(request.id,result.config_sha);
+   std::weak_ptr<Pilot> weak_state=state;active->bind_stop([weak_state]{if(auto s=weak_state.lock())s->request_stop();});
+@@ -74,7 +108,14 @@
+   if(trace){trace->seal(result.native_success&&result.error.empty(),uint32_t(record->prompt_ids.size()),uint32_t(record->samples.size()));result.trace_complete=trace->complete();result.trace_fnv=trace->fnv();if(result.native_success&&!result.trace_complete)fail("generation trace incomplete");generation_commit(generation_path(root,request.id,"trace.bin"),trace->data(),trace->file_bytes);log_output(tag+(result.trace_complete?" TRACE_COMMITTED complete\n":" TRACE_COMMITTED partial\n"));}
+   if(effective.context){result.effective_json="{\"compute\":"+first_answer::quote(gpu_applied?"hybrid_selected_expert_sync":"cpu")+",\"context\":"+std::to_string(effective.context)+",\"workers\":"+std::to_string(effective.threads)+",\"workers_batch\":"+std::to_string(effective.threads_batch)+",\"cache_slots\":"+std::to_string(effective.slots)+",\"cache_owned_ceiling\":"+std::to_string(effective.ceiling)+",\"required_owned_bytes\":"+std::to_string(effective.owned)+",\"arena_bytes\":"+std::to_string(effective.arena)+",\"metadata_bytes\":"+std::to_string(effective.metadata)+",\"GPU_slots\":"+(gpu_applied?"1":"0")+",\"adapter_luid\":"+(gpu_applied?first_answer::quote(gpu_info.adapter_luid):std::string("null"))+",\"compiled_shader_sha256\":"+(gpu_applied?first_answer::quote(gpu_info.shader_sha256):std::string("null"))+",\"prompt_tokens\":"+std::to_string(record->prompt_ids.size())+",\"max_new\":"+std::to_string(record->max_new())+",\"output_max_bytes\":262144,\"main_gpu\":-1,\"nonfused\":true,\"sampler\":\"greedy\",\"fallback\":false}";}
+   result.counters_json="{\"route_requests\":"+std::to_string(cache_counts.requests)+",\"hits\":"+std::to_string(cache_counts.hits)+",\"misses\":"+std::to_string(cache_counts.misses)+",\"logical_reader_calls\":"+std::to_string(cache_counts.read_calls)+",\"logical_reader_bytes\":"+std::to_string(cache_counts.read_bytes)+",\"Reader_ns\":"+std::to_string(cache_counts.reader_ns_total)+",\"acquire_ns\":"+std::to_string(cache_counts.acquire_ns_total)+",\"GPU_submits\":"+std::to_string(gpu_counts.submits)+",\"GPU_completed\":"+std::to_string(gpu_counts.completed)+",\"GPU_published\":"+std::to_string(gpu_counts.published)+",\"fence_poll_wait_ns\":"+std::to_string(gpu_counts.fence_wait_ns)+",\"copy_CPU_ns\":"+std::to_string(gpu_counts.copy_cpu_ns)+",\"GPU_compute_ns\":null,\"GPU_timestamps_status\":\"not_collected_first_slice\",\"SHA_calls\":"+std::to_string(sha_calls)+",\"SHA_requested\":"+std::to_string(sha_requested)+",\"SHA_returned\":"+std::to_string(sha_returned)+",\"SHA_elapsed_ns\":"+std::to_string(sha_ns)+",\"GPU_required_owned_bytes\":"+std::to_string(gpu_owned)+",\"GPU_app_limit\":"+std::to_string(gpu_info.app_limit)+",\"GPU_app_usage\":"+std::to_string(gpu_info.app_usage)+",\"DXGI_budget\":"+std::to_string(gpu_info.dxgi_budget)+",\"DXGI_usage\":"+std::to_string(gpu_info.dxgi_usage)+",\"cache_coherent_UMA\":"+(gpu_info.cache_coherent_uma?"true":"false")+",\"DXGI_is_extra_RAM\":false,\"native_plan_total\":"+std::to_string(native_plan.total())+",\"quota_limit\":"+std::to_string(state->initial_limit)+",\"sampled_usage_not_peak\":"+std::to_string(state->max_sampled_usage.load())+",\"reserve\":536870912,\"probe\":268435456,\"physical_SSD_metrics\":null,\"partial_Reader_bytes_available\":false,\"metadata_load_FILE_IO\":\"unobserved\"}";
+-  auto body=generation::serialize(request,*record,result);generation_commit(generation_path(root,request.id,"output.json"),body.data(),body.size());const bool normal=result.normal(*record);log_output(tag+(normal?" OUTPUT_COMMITTED normal owner/file/writer closed\n":" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));reply={normal?200:422,std::move(body)};
++  auto body=generation::serialize(request,*record,result);
++  if(trace){
++   const std::string trace_bytes(reinterpret_cast<const char*>(trace->data()),trace->file_bytes);
++   const auto binding=request.id+"\n"+result.config_sha+"\n"+result.permit_sha+"\n"+identity_request_sha(body)+"\n"+identity_request_sha(trace_bytes)+"\n";
++   dev_run::need(binding.size()==293,"trace binding writer shape");
++   generation_commit(generation_path(root,request.id,"trace.binding"),binding.data(),binding.size());
++  }
++  generation_commit(generation_path(root,request.id,"output.json"),body.data(),body.size());const bool normal=result.normal(*record);log_output(tag+(normal?" OUTPUT_COMMITTED normal owner/file/writer closed\n":" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));reply={normal?200:422,std::move(body)};
+  }catch(const std::exception&e){fail(e.what());log_output(tag+" OUTPUT_FAILED: "+result.error+"\n");reply=generation_error(422,result.error);}catch(...){fail("generation unknown output failure");log_output(tag+" OUTPUT_FAILED unknown\n");reply=generation_error(422,result.error);}
+  if(active)generation_registry.closed(active);log_output(tag+(result.normal(*record)?" terminal normal\n":" terminal stopped; no retry\n"));return reply;
+ }
+diff --git a/uwp/api-server.cpp b/uwp/api-server.cpp
+--- a/uwp/api-server.cpp
++++ b/uwp/api-server.cpp
+@@ -252,4 +252,22 @@
+     out += "\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n";
+     out += json;
+     write_raw(socket, out);
++}
++
++void write_generation_trace(StreamSocket const& socket, const std::string& bytes,
++                            const std::string& sha256) {
++    if (bytes.size() != 517296 || sha256.size() != 64)
++        throw std::runtime_error("generation trace response bound");
++    const std::string header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
++        "Content-Length: 517296\r\nX-Content-SHA256: " + sha256 +
++        "\r\nConnection: close\r\n\r\n";
++    DataWriter writer(socket.OutputStream());
++    writer.UnicodeEncoding(UnicodeEncoding::Utf8);
++    writer.WriteString(winrt::to_hstring(header));
++    writer.WriteBytes(winrt::array_view<const uint8_t>(
++        reinterpret_cast<const uint8_t*>(bytes.data()),
++        reinterpret_cast<const uint8_t*>(bytes.data() + bytes.size())));
++    writer.StoreAsync().get();
++    writer.FlushAsync().get();
++    writer.DetachStream();
+ }
+@@ -1943,11 +1961,12 @@
+         if(req.method=="GET" && req.path=="/v1/developer/generation/capabilities"){
+             write_response(socket,"200 OK",::xllama::bridge::configured_generation_capabilities());return;
+         }
+-        if(req.method=="POST" && (req.path=="/v1/developer/generation/run" || req.path=="/v1/developer/generation/status" || req.path=="/v1/developer/generation/stop")){
++        if(req.method=="POST" && (req.path=="/v1/developer/generation/run" || req.path=="/v1/developer/generation/status" || req.path=="/v1/developer/generation/stop" || req.path=="/v1/developer/generation/trace")){
+             bool developer_listener_active;{std::lock_guard<std::mutex> lock(g_state_mtx);developer_listener_active=g_status.state==ServerState::Running&&generation==g_generation;}
+             if(!developer_listener_active){write_response(socket,"503 Service Unavailable",error_json("server stopped"));return;}
+-            auto reply=req.path=="/v1/developer/generation/run" ? ::xllama::bridge::run_configured_generation(req.body) : req.path=="/v1/developer/generation/stop" ? ::xllama::bridge::stop_configured_generation(req.body) : ::xllama::bridge::configured_generation_status(req.body);
++            auto reply=req.path=="/v1/developer/generation/run" ? ::xllama::bridge::run_configured_generation(req.body) : req.path=="/v1/developer/generation/stop" ? ::xllama::bridge::stop_configured_generation(req.body) : req.path=="/v1/developer/generation/trace" ? ::xllama::bridge::configured_generation_trace(req.body) : ::xllama::bridge::configured_generation_status(req.body);
+             const char* status=reply.http_status==200?"200 OK":reply.http_status==202?"202 Accepted":reply.http_status==400?"400 Bad Request":reply.http_status==404?"404 Not Found":reply.http_status==409?"409 Conflict":reply.http_status==503?"503 Service Unavailable":"422 Unprocessable Entity";
++            if(req.path=="/v1/developer/generation/trace" && reply.http_status==200){write_generation_trace(socket,reply.body,reply.sha256);return;}
+             write_response(socket,status,reply.body);return;
+         }
+ #endif

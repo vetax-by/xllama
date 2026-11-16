@@ -67,6 +67,8 @@ this is Developer Mode research, not a hosted service.
 
 ## Protocol (v1)
 
+The separate developer generation successor adds `POST /v1/developer/generation/trace` with the canonical `ua68-generation-control-v1` JSON body (`run_id`). On the new source candidate it returns only a saved, exact 517296-byte `UA68GEN1` trace as raw `application/octet-stream`, with `Content-Length: 517296` and `X-Content-SHA256`. It binds the binary to the saved result, request, permit and contract through a committed `trace.binding` sidecar; it returns a JSON refusal when the files are missing or inconsistent. A partial saved result can expose its trace without being accepted as normal. This route and the per-run permit leaf are unbuilt successor changes; see [UA50 generation source status](ua50-ssd-moe.md#trace-retrieval-and-per-run-permit-successor-source-candidate).
+
 | Method    | Path                     | Behaviour                                                                                                                                                                           |
 | --------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET`     | `/` or `/health`         | `200 {"status":"ok","service":"xllama"}` — the spike/liveness probe.                                                                                                                |
