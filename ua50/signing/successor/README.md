@@ -1,34 +1,11 @@
-# UA50 model2 route successor signing input
+# UA50 model2 layer witness successor signing input
 
-The registered, manually dispatched `cpu-pilot-signing.yml` workflow binds the
-accepted unsigned Windows run `43952468463` (head
-`593340f2f4463d0089733960a16f6c97635c79e8`, attempt 1). Independent
-artifact QA accepted compile, link and package only; its RESULT SHA-256 is
-`2c2d1134568ad611c00cd84be8b10d4aef0476d4e1f156caa1fdf7f5ebcbd4a8`.
-The unsigned MSIX SHA-256 is
-`e72e73aa697aa7c4b85328d0177aa82950a951d8cd71adfbf6564b1995174fd1`.
-Its source receipt binds patch lock
-`fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027`
-and 79 selected postimages. The stock input is the unchanged accepted
-run `43592901046` baseline, retained as an exact archive.
+The registered manual `cpu-pilot-signing.yml` workflow binds one reviewed unsigned Windows run: `43988466126`, attempt 1, source head `89d6e943930752aaa0d117114650fca943e7d59e`. Independent artifact QA RESULT SHA-256 `2a64f20ba90d0b6b935f30e3e0cc5f03bbda44f76f6b6234417b0779676e5746` accepts compile, link and unsigned package only. The unsigned patched MSIX SHA-256 is `bb77f4eca4f805b0f96f969d9c925b1240d9046e35a40750c67281ab6a7bd996` (21,309,855 bytes); its source receipt SHA-256 `3117c8fddad608fccc131ed0e52ee0bd85aa388b4cc5056b90d43a753910ce83` binds patch lock `b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48` and 80 selected postimages. The stock input remains the unchanged accepted run `43592901046` baseline retained as an exact archive.
 
-Fresh read-only installed-version evidence selected `1.7.0.1508`. This input
-selects patched `1.7.0.1510` and stock forward-recovery `1.7.0.1511`. The
-workflow checks the exact version triplet, source and build receipts, package
-hashes and retained stock archive before one disposable signing operation.
-`package_copy.py` and `sign_ephemeral_pair.ps1` remain byte-identical to the
-prior successor recipe; the validator and signing helper advance only the
-current lock guard and diagnostic. The helper permits only the selected
-`Identity.Version` change in the application payload, subject to its bounded
-SDK CodeIntegrity catalog rule.
+Fresh GET-only installed-version evidence, independently reviewed as SHA-256 `5f36df70482761073148e7c6ca28da470d585bf866ee1828ad0f0aa3d5aba79e`, observes `1.7.0.1510`. This input selects patched `1.7.0.1512` and stock forward-recovery `1.7.0.1513`; the earlier signed `1511` remains historical. The workflow checks this exact triplet, both source and build receipts, both package hashes and the retained stock archive before one disposable signing operation. It does not compile native code.
 
-The signing workflow creates a new ephemeral certificate. A successful run
-would require independent signed-artifact QA, exact certificate trust evidence
-and a separate device install route. No signed, installed or native model2
-acceptance follows from this source input. The old signed `1508` model2 refusal
-and its spent run remain unchanged.
+`package_copy.py` and `sign_ephemeral_pair.ps1` remain byte-identical to the previous signing recipe. `validate_pair_inputs.py` and `sign_copy.ps1` advance only the patched lock/count guard and its diagnostic; the stock guard remains unchanged. The signing helper permits only the selected `Identity.Version` change in the application payload, subject to its bounded SDK CodeIntegrity catalog rule.
 
-The patched Actions artifact has one-day retention. If the exact run artifact
-has expired, the workflow refuses; the accepted unsigned archive is also
-retained in private evidence for a separately reviewed transport route. Do
-not rebuild or reuse an old signing invocation to replace an expired download.
+The signing workflow creates a new ephemeral certificate. A successful run would require independent signed-artifact QA, exact certificate trust evidence and a separate preserving device install route. The optional witness sidecar is diagnostic only; this signing input does not establish native callback behavior, model2 numerical parity, generation or model usability. The signed `1510` model2 refusal and spent run remain unchanged.
+
+The patched Actions artifact expires after one day. If the exact run artifact has expired, this workflow refuses; the accepted unsigned ZIP is also retained in private evidence for a separately reviewed transport route. Do not rebuild or reuse an old signing invocation to replace an expired download.

@@ -1,13 +1,13 @@
 {
   "schema": "ua50-sign-pair-input-v1",
-  "InstalledVersion": "1.7.0.1508",
-  "PatchedVersion": "1.7.0.1510",
-  "RecoveryVersion": "1.7.0.1511",
+  "InstalledVersion": "1.7.0.1510",
+  "PatchedVersion": "1.7.0.1512",
+  "RecoveryVersion": "1.7.0.1513",
   "Patched": {
     "Package": "patched/xllama_1.7.0.0_x64.msix",
-    "PackageSHA256": "e72e73aa697aa7c4b85328d0177aa82950a951d8cd71adfbf6564b1995174fd1",
+    "PackageSHA256": "bb77f4eca4f805b0f96f969d9c925b1240d9046e35a40750c67281ab6a7bd996",
     "SourceReceipt": "patched/UA50-SOURCE-RECEIPT.json",
-    "SourceReceiptSHA256": "a8384d1326a2dbe020c0c3619ce314316344eaf1cdbb048e0916689ab080c236"
+    "SourceReceiptSHA256": "3117c8fddad608fccc131ed0e52ee0bd85aa388b4cc5056b90d43a753910ce83"
   },
   "Stock": {
     "Package": "stock/xllama_1.7.0.0_x64.msix",
