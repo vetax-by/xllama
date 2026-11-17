@@ -1,0 +1,951 @@
+diff --git a/include/xllama/cpu_expert_session.h b/include/xllama/cpu_expert_session.h
+index 22ed7df9b97368c49aa2b442b6c34bb8ee3503e3..25c3a04fd9bab97d50aa27fe6ff83bd49f8ad333 100644
+--- a/include/xllama/cpu_expert_session.h
++++ b/include/xllama/cpu_expert_session.h
+@@ -9,6 +9,7 @@
+ #include <vector>
+ #include <string>
+ #include <stdexcept>
++namespace ua50 {struct CrossArmObserver;}
+ namespace xllama {
+ // INTERNAL source candidate only. No UI/LAN/C ABI setting or automatic provider activation.
+ struct CpuExpertEffective {uint32_t context,threads,threads_batch;size_t slots,ceiling,owned,arena,metadata;};
+@@ -23,6 +24,7 @@ struct CpuExpertOptIn {
+  bool enabled=false;
+  std::shared_ptr<ua50::ExpertGpu> hybrid_gpu; // explicit synchronous MMID bridge; CPU graph remains CPU
+  std::shared_ptr<ua50::VectorObserver> vector_observer; // model2-only held-input/post-fence diagnostic
++ std::shared_ptr<ua50::CrossArmObserver> cross_arm_observer; // optional CPU/hybrid paired copy
+  size_t numerical_proof_owned_bytes=0; // separately admitted, never borrowed from collector
+  llama_model_params model=llama_model_default_params();
+  llama_context_params context=llama_context_default_params();
+@@ -47,6 +49,7 @@ public:
+  ~CpuExpertSession();
+  void begin_fresh_turn(); // mandatory before each full plain prompt; no saved/raw-thinking KV reuse
+  int decode(llama_batch,std::atomic<bool>* turn_abort=nullptr);
++ void diagnostic_frame(uint32_t phase,uint32_t position,int32_t token) noexcept;
+  void request_stop() noexcept;
+  bool close() noexcept; // false only for an active decode/close: caller must retain owner
+  std::vector<llama_token> tokenize(const std::string&) const;
+diff --git a/include/xllama/gpu_cross_arm_witness.h b/include/xllama/gpu_cross_arm_witness.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d4bcd34378ef6656324bb8f3afcb3d23170eb84
+--- /dev/null
++++ b/include/xllama/gpu_cross_arm_witness.h
+@@ -0,0 +1,197 @@
++#pragma once
++#include "ua50/cross_arm_observer.h"
++#include <algorithm>
++#include <array>
++#include <charconv>
++#include <chrono>
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++#include <stdexcept>
++#include <string>
++#include <vector>
++
++namespace xllama::gpu_proof {
++// Synchronous diagnostic copy at the common CPU pack barrier. The only retained
++// bytes are bounded CPU-reference rows; hybrid data is compared before return.
++class CrossArmWitness final : public ua50::CrossArmObserver {
++public:
++ struct Key {uint32_t position,role,expert,slot,input_row,occurrence;};
++ static constexpr uint32_t any_slot=4;
++ struct Record {
++  Key key{};int32_t token[2]{-1,-1};uint32_t observed_slot[2]{any_slot,any_slot};uint32_t input_calls[2]{},output_calls[2]{};
++  bool input_seen[2]{},output_seen[2]{};bool q8_equal=false,f32_equal=false,output_equal=false;
++  uint32_t f32_violations=0,output_violations=0,q8_byte_differences=0,zero_blocks[2]{},bad_bsums[2]{},nonfinite_scales[2]{};
++  uint32_t scale_diff_blocks=0,qs_diff_bytes=0,bsums_diff_bytes=0;
++  double f32_max_abs=0,output_max_abs=0;
++  uint64_t f32_hash[2]{},q8_hash[2]{},output_hash[2]{};
++  uint32_t k=0,n=0;std::array<float,2048> cpu_f32{},cpu_output{};
++  std::array<unsigned char,2336> cpu_q8{};
++  std::array<float,2048> hybrid_f32{},hybrid_output{};std::array<unsigned char,2336> hybrid_q8{};
++ };
++ static constexpr size_t max_records=16,max_q8_bytes=2336;
++private:
++ std::vector<Record> rows_;uint32_t phase_=0,position_=0,prompt_count_=UINT32_MAX;int32_t token_=-1;
++ bool unavailable_=false,raw_=false;const char*reason_=nullptr;uint64_t work_ns_=0,work_units_=0;
++ uint64_t max_work_,max_time_ns_;uint32_t abs_ppm_,rel_ppm_;
++ static uint64_t hash(const void*data,size_t n)noexcept{
++  const auto*p=static_cast<const unsigned char*>(data);uint64_t h=14695981039346656037ull;
++  for(size_t i=0;i<n;++i){h^=p[i];h*=1099511628211ull;}return h;
++ }
++ static bool same(const Key&a,const Key&b)noexcept{
++  return a.position==b.position&&a.role==b.role&&a.expert==b.expert&&a.slot==b.slot&&a.input_row==b.input_row&&a.occurrence==b.occurrence;
++ }
++ void fail(const char*why)noexcept{unavailable_=true;if(!reason_)reason_=why;}
++ void charge(std::chrono::steady_clock::time_point start,uint64_t units)noexcept{
++  auto ns=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-start).count();
++  if(ns<0||uint64_t(ns)>UINT64_MAX-work_ns_||units>UINT64_MAX-work_units_){fail("ACCOUNTING");return;}
++  work_ns_+=uint64_t(ns);work_units_+=units;
++  if(work_ns_>max_time_ns_||work_units_>max_work_)fail("BUDGET");
++ }
++ static void q8_check(const unsigned char*q,size_t k,uint32_t&zeros,uint32_t&bad,uint32_t&nonfinite)noexcept{
++  for(size_t b=0;b<k/256;++b){const auto*p=q+b*292;float d=0;std::memcpy(&d,p,4);
++   if(!std::isfinite(d))++nonfinite;
++   bool zero=true;
++   for(size_t i=0;i<256;++i)if(p[4+i])zero=false;
++   if(zero)++zeros;
++   for(size_t group=0;group<16;++group){int sum=0;for(size_t i=0;i<16;++i)sum+=int(int8_t(p[4+group*16+i]));
++    int16_t stored=0;std::memcpy(&stored,p+260+group*2,2);if(stored!=sum)++bad;}
++  }
++ }
++ static void compare(const float*cpu,const float*other,size_t n,uint32_t abs_ppm,uint32_t rel_ppm,
++                     bool&equal,uint32_t&violations,double&max_abs)noexcept{
++  equal=true;for(size_t i=0;i<n;++i){uint32_t a=0,b=0;std::memcpy(&a,cpu+i,4);std::memcpy(&b,other+i,4);
++   if(a!=b)equal=false;
++   const double delta=std::abs(double(cpu[i])-double(other[i]));
++   max_abs=std::max(max_abs,delta);
++   if(delta>(double(abs_ppm)+double(rel_ppm)*std::abs(double(cpu[i])))/1e6)++violations;
++  }
++ }
++public:
++ void configure(uint32_t prompt_count)noexcept{prompt_count_=prompt_count;}
++ CrossArmWitness(std::vector<Key>keys,uint32_t abs_ppm,uint32_t rel_ppm,uint64_t max_work,uint32_t max_time_ms,bool raw=false)
++  :raw_(raw),max_work_(max_work),max_time_ns_(uint64_t(max_time_ms)*1000000),abs_ppm_(abs_ppm),rel_ppm_(rel_ppm){
++  if(keys.empty()||keys.size()>max_records||(raw&&keys.size()>8)||max_time_ms<1000||max_time_ms>120000||max_work==0||max_work>120000000||abs_ppm>1000000||rel_ppm>1000000)throw std::invalid_argument("cross-arm bounds");
++  for(const auto&key:keys){
++   if(key.position>128||key.role>113||key.expert>63||key.slot>any_slot||key.input_row>128||key.occurrence>3)throw std::invalid_argument("cross-arm identity range");
++   for(const auto&row:rows_)if((same(key,row.key))||
++    (key.position==row.key.position&&key.role==row.key.role&&key.expert==row.key.expert&&
++     key.input_row==row.key.input_row&&key.occurrence==row.key.occurrence&&
++     (key.slot==any_slot||row.key.slot==any_slot)))throw std::invalid_argument("cross-arm overlapping selection");
++   rows_.emplace_back();rows_.back().key=key;
++  }
++ }
++ void frame(uint32_t phase,uint32_t position,int32_t token)noexcept override{
++  if((phase!=1&&phase!=2)||position>128||token<0){fail("FRAME_IDENTITY");return;}
++  phase_=phase;position_=position;token_=token;
++ }
++ void input(uint32_t role,uint32_t expert,uint32_t slot,uint32_t input_row,const float*f32,size_t k,
++            const unsigned char*q8,size_t bytes)noexcept override{
++  const auto start=std::chrono::steady_clock::now();if(unavailable_)return;
++  if(!phase_||!f32||!q8||!(k==1536||k==2048)||bytes!=k/256*292||bytes>max_q8_bytes){fail("INPUT_SHAPE");return;}
++  for(auto&r:rows_)if(r.key.position==position_&&r.key.role==role&&r.key.expert==expert&&(r.key.slot==any_slot||r.key.slot==slot)&&r.key.input_row==input_row){
++   const auto arm=phase_-1,call=r.input_calls[arm]++;if(call!=r.key.occurrence)continue;
++   if(r.input_seen[arm]||(r.k&&r.k!=k)){fail("INPUT_ORDER_SHAPE");return;}
++   for(size_t i=0;i<k;++i)if(!std::isfinite(f32[i])){fail("NONFINITE_F32");return;}
++   r.input_seen[arm]=true;r.token[arm]=token_;r.observed_slot[arm]=slot;r.k=uint32_t(k);
++   r.f32_hash[arm]=hash(f32,k*4);r.q8_hash[arm]=hash(q8,bytes);
++   q8_check(q8,k,r.zero_blocks[arm],r.bad_bsums[arm],r.nonfinite_scales[arm]);
++   if(arm==0){std::memcpy(r.cpu_f32.data(),f32,k*4);std::memcpy(r.cpu_q8.data(),q8,bytes);}
++   else if(r.input_seen[0]&&r.token[0]==token_){
++    if(raw_){std::memcpy(r.hybrid_f32.data(),f32,k*4);std::memcpy(r.hybrid_q8.data(),q8,bytes);}
++    compare(r.cpu_f32.data(),f32,k,abs_ppm_,rel_ppm_,r.f32_equal,r.f32_violations,r.f32_max_abs);
++    r.q8_equal=std::memcmp(r.cpu_q8.data(),q8,bytes)==0;
++    for(size_t i=0;i<bytes;++i)if(r.cpu_q8[i]!=q8[i])++r.q8_byte_differences;
++    for(size_t b=0;b<k/256;++b){const auto*old=r.cpu_q8.data()+b*292;const auto*now=q8+b*292;
++     if(std::memcmp(old,now,4))++r.scale_diff_blocks;
++     for(size_t i=4;i<260;++i)if(old[i]!=now[i])++r.qs_diff_bytes;
++     for(size_t i=260;i<292;++i)if(old[i]!=now[i])++r.bsums_diff_bytes;
++    }
++   }
++   charge(start,2*k+bytes);return;
++  }
++ }
++ void output(uint32_t role,uint32_t expert,uint32_t slot,uint32_t input_row,const float*values,size_t n)noexcept override{
++  const auto start=std::chrono::steady_clock::now();if(unavailable_)return;
++  if(!phase_||!values||n<1||n>2048){fail("OUTPUT_SHAPE");return;}
++  for(auto&r:rows_)if(r.key.position==position_&&r.key.role==role&&r.key.expert==expert&&(r.key.slot==any_slot||r.key.slot==slot)&&r.key.input_row==input_row){
++   const auto arm=phase_-1,call=r.output_calls[arm]++;if(call!=r.key.occurrence)continue;
++   if(!r.input_seen[arm]||r.output_seen[arm]||r.observed_slot[arm]!=slot||(r.n&&r.n!=n)){fail("OUTPUT_ORDER_SHAPE");return;}
++   for(size_t i=0;i<n;++i)if(!std::isfinite(values[i])){fail("NONFINITE_OUTPUT");return;}
++   r.output_seen[arm]=true;r.n=uint32_t(n);r.output_hash[arm]=hash(values,n*4);
++   if(arm==0)std::memcpy(r.cpu_output.data(),values,n*4);
++   else if(r.output_seen[0]&&r.token[0]==token_){
++    if(raw_)std::memcpy(r.hybrid_output.data(),values,n*4);
++    compare(r.cpu_output.data(),values,n,abs_ppm_,rel_ppm_,r.output_equal,r.output_violations,r.output_max_abs);
++   }
++   charge(start,n);return;
++  }
++ }
++ void unavailable(const char*reason)noexcept override{fail(reason?reason:"DIAGNOSTIC_UNAVAILABLE");}
++ bool available()const noexcept{return !unavailable_;}
++ const char*reason()const noexcept{return reason_;}
++ uint64_t work_ns()const noexcept{return work_ns_;}
++ uint64_t work_units()const noexcept{return work_units_;}
++ const std::vector<Record>&records()const noexcept{return rows_;}
++ std::string summary(uint64_t max_output_bytes)const{
++  if(max_output_bytes<4096||max_output_bytes>(2ull<<20))throw std::invalid_argument("cross-arm output cap");
++  std::string s="{\"schema\":\"ua68-model2-cross-arm-v1\",\"unavailable\":"+
++   std::string(unavailable_?"true":"false")+",\"reason\":"+
++   (reason_?std::string("\"")+reason_+"\"":"null")+
++   ",\"selected\":"+std::to_string(rows_.size())+",\"diagnostic_work_ns\":"+std::to_string(work_ns_)+
++   ",\"diagnostic_work_units\":"+std::to_string(work_units_)+",\"raw_private\":"+
++   (raw_?"true":"false")+",\"rows\":[";
++  s.reserve(size_t(max_output_bytes));
++  auto hex=[&](const void*data,size_t n){static constexpr char digits[]="0123456789abcdef";
++   const auto*b=static_cast<const unsigned char*>(data);
++   if(n>(max_output_bytes-s.size())/2)throw std::length_error("cross-arm raw cap");
++   for(size_t k=0;k<n;++k){s+=digits[b[k]>>4];s+=digits[b[k]&15];}
++  };
++  auto real=[&](double d){char b[64];auto x=std::to_chars(b,b+sizeof(b),d,std::chars_format::general,17);
++   if(x.ec!=std::errc{})throw std::runtime_error("cross-arm numeric serialization");
++   s.append(b,x.ptr);};
++  for(size_t i=0;i<rows_.size();++i){const auto&r=rows_[i];if(i)s+=',';
++   const bool input_pair=r.input_seen[0]&&r.input_seen[1]&&r.token[0]==r.token[1];
++   const bool output_pair=input_pair&&r.output_seen[0]&&r.output_seen[1];
++   const char*gap=r.key.position>prompt_count_?"POSITION_OUTSIDE_WORKLOAD":
++    !r.input_seen[0]?"CPU_INPUT_NOT_OBSERVED":!r.input_seen[1]?"HYBRID_INPUT_NOT_OBSERVED":
++    !input_pair?"TOKEN_UNPAIRED":!r.output_seen[0]?"CPU_OUTPUT_NOT_OBSERVED":
++    !r.output_seen[1]?"HYBRID_OUTPUT_NOT_OBSERVED":"";
++   s+="{\"position\":"+std::to_string(r.key.position)+",\"role\":"+std::to_string(r.key.role)+
++     ",\"expert\":"+std::to_string(r.key.expert)+",\"slot\":"+(r.key.slot==any_slot?"null":std::to_string(r.key.slot))+
++     ",\"CPU_slot\":"+(r.input_seen[0]?std::to_string(r.observed_slot[0]):"null")+
++     ",\"hybrid_slot\":"+(r.input_seen[1]?std::to_string(r.observed_slot[1]):"null")+
++     ",\"input_row\":"+std::to_string(r.key.input_row)+",\"occurrence\":"+std::to_string(r.key.occurrence)+
++     ",\"CPU_token\":"+std::to_string(r.token[0])+",\"hybrid_token\":"+std::to_string(r.token[1])+
++     ",\"CPU_input_seen\":"+(r.input_seen[0]?"true":"false")+",\"hybrid_input_seen\":"+(r.input_seen[1]?"true":"false")+
++     ",\"CPU_output_seen\":"+(r.output_seen[0]?"true":"false")+",\"hybrid_output_seen\":"+(r.output_seen[1]?"true":"false")+
++     ",\"gap\":\""+gap+"\",\"F32_equal_bits\":"+(input_pair?(r.f32_equal?"true":"false"):"null")+
++     ",\"output_equal_bits\":"+(output_pair?(r.output_equal?"true":"false"):"null")+
++     ",\"F32_compared\":"+std::to_string(input_pair?r.k:0)+",\"output_compared\":"+std::to_string(output_pair?r.n:0)+
++     ",\"k\":"+std::to_string(r.k)+",\"n\":"+std::to_string(r.n)+
++     ",\"CPU_F32_fnv1a64\":"+std::to_string(r.f32_hash[0])+",\"hybrid_F32_fnv1a64\":"+std::to_string(r.f32_hash[1])+
++     ",\"CPU_Q8_fnv1a64\":"+std::to_string(r.q8_hash[0])+",\"hybrid_Q8_fnv1a64\":"+std::to_string(r.q8_hash[1])+
++     ",\"CPU_output_fnv1a64\":"+std::to_string(r.output_hash[0])+",\"hybrid_output_fnv1a64\":"+std::to_string(r.output_hash[1])+
++     ",\"F32_violations\":"+std::to_string(r.f32_violations)+",\"output_violations\":"+std::to_string(r.output_violations)+
++     ",\"Q8_byte_differences\":"+std::to_string(r.q8_byte_differences)+
++     ",\"Q8_scale_diff_blocks\":"+std::to_string(r.scale_diff_blocks)+",\"Q8_qs_diff_bytes\":"+std::to_string(r.qs_diff_bytes)+
++     ",\"Q8_bsums_diff_bytes\":"+std::to_string(r.bsums_diff_bytes)+
++     ",\"CPU_Q8_zero_blocks\":"+std::to_string(r.zero_blocks[0])+",\"hybrid_Q8_zero_blocks\":"+std::to_string(r.zero_blocks[1])+
++     ",\"CPU_Q8_bsums_anomalies\":"+std::to_string(r.bad_bsums[0])+",\"hybrid_Q8_bsums_anomalies\":"+std::to_string(r.bad_bsums[1])+
++     ",\"CPU_Q8_nonfinite_scales\":"+std::to_string(r.nonfinite_scales[0])+",\"hybrid_Q8_nonfinite_scales\":"+std::to_string(r.nonfinite_scales[1])+
++     ",\"F32_max_abs\":";real(r.f32_max_abs);s+=",\"output_max_abs\":";real(r.output_max_abs);
++   if(raw_&&r.input_seen[0]&&r.input_seen[1]&&r.output_seen[0]&&r.output_seen[1]&&r.token[0]==r.token[1]){
++    const size_t qbytes=size_t(r.k)/256*292;
++    s+=",\"CPU_F32_hex\":\"";hex(r.cpu_f32.data(),size_t(r.k)*4);s+='"';
++    s+=",\"hybrid_F32_hex\":\"";hex(r.hybrid_f32.data(),size_t(r.k)*4);s+='"';
++    s+=",\"CPU_Q8_hex\":\"";hex(r.cpu_q8.data(),qbytes);s+='"';
++    s+=",\"hybrid_Q8_hex\":\"";hex(r.hybrid_q8.data(),qbytes);s+='"';
++    s+=",\"CPU_output_hex\":\"";hex(r.cpu_output.data(),size_t(r.n)*4);s+='"';
++    s+=",\"hybrid_output_hex\":\"";hex(r.hybrid_output.data(),size_t(r.n)*4);s+='"';
++   }
++   s+='}';if(s.size()>max_output_bytes)throw std::length_error("cross-arm output cap");
++  }
++  s+="]}";if(s.size()>max_output_bytes)throw std::length_error("cross-arm output cap");return s;
++ }
++};
++}
+diff --git a/include/xllama/gpu_diagnostic_plan_v3.h b/include/xllama/gpu_diagnostic_plan_v3.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..68255ae98316df0a06ab2e77c0b2d3008a2ef5ab
+--- /dev/null
++++ b/include/xllama/gpu_diagnostic_plan_v3.h
+@@ -0,0 +1,124 @@
++#pragma once
++#include "gpu_diagnostic_plan.h"
++#include "gpu_graph_witness.h"
++#include "gpu_cross_arm_witness.h"
++#include <memory>
++#include <string>
++#include <vector>
++
++namespace xllama::gpu_diagnostic {
++// Versioned diagnostic selection. V3 is observational; the fixed proof
++// contract and immutable execution envelope remain in gpu_run_config.h.
++struct PlanV3 {
++ Plan base;
++ std::vector<gpu_proof::GraphWitness::Selection> graph;
++ std::vector<gpu_proof::CrossArmWitness::Key> cross_arm;
++ bool graph_workload_axis=false,raw_private=false;
++ uint32_t graph_abs_ppm=1000,graph_rel_ppm=1000,cross_abs_ppm=1000,cross_rel_ppm=1000;
++ uint64_t graph_memory=0,graph_output=0,graph_work=0,cross_memory=0,cross_output=0,cross_work=0;
++ uint32_t graph_time_ms=0,cross_time_ms=0;
++ uint64_t graph_memory_upper=0,graph_output_upper=0,graph_work_upper=0,cross_output_upper=0;
++ uint64_t serializer_charge=0;
++ size_t owned_bytes()const noexcept{
++  size_t n=sizeof(*this)+graph.capacity()*sizeof(gpu_proof::GraphWitness::Selection)+
++   cross_arm.capacity()*sizeof(gpu_proof::CrossArmWitness::Key);
++  for(const auto&entry:graph)n+=entry.point.capacity();
++  return n;
++ }
++};
++inline PlanV3 parse_v3(const dev_run::Json&j){
++ using J=dev_run::Json;
++ j.keys({"schema","overview","vectors","sampling","analysis","output","budgets","graph","cross_arm"});
++ j.at("schema").eq("ua68-model2-diagnostics-v2");
++ J old;old.type=J::Type::object;
++ J version;version.type=J::Type::string;version.text="ua68-model2-diagnostics-v1";
++ old.object.emplace_back("schema",std::move(version));
++ for(const char*name:{"overview","vectors","sampling","analysis","output","budgets"})old.object.emplace_back(name,j.at(name));
++ PlanV3 p;p.base=gpu_diagnostic::parse(old);
++ const auto&graph=j.at("graph");
++ if(graph.type!=J::Type::null){
++  graph.keys({"positions","layers","points","analysis","budgets"});
++  const auto pos=axis(graph.at("positions"),Plan::max_positions,true);
++  const auto layers=axis(graph.at("layers"),Plan::max_layers);
++  p.graph_workload_axis=pos.mode==Axis::Mode::all||pos.mode==Axis::Mode::workload;
++  const auto&points=graph.at("points");
++  dev_run::need(points.type==J::Type::array&&!points.array.empty()&&points.array.size()<=std::size(gpu_proof::GraphWitness::catalog),"graph point list bound");
++  std::vector<const gpu_proof::GraphWitness::Point*> chosen;
++  for(const auto&entry:points.array){
++   dev_run::need(entry.type==J::Type::string,"graph point type");
++   const gpu_proof::GraphWitness::Point*found=nullptr;
++   for(const auto&catalog:gpu_proof::GraphWitness::catalog)if(entry.text==catalog.key){found=&catalog;break;}
++   dev_run::need(found!=nullptr,"unsupported graph point");
++   for(const auto*prior:chosen)dev_run::need(prior!=found,"duplicate graph point");
++   chosen.push_back(found);
++  }
++  const auto&analysis=graph.at("analysis");analysis.keys({"absolute_ppm","relative_ppm"});
++  p.graph_abs_ppm=uint32_t(analysis.at("absolute_ppm").range(0,1000000));
++  p.graph_rel_ppm=uint32_t(analysis.at("relative_ppm").range(0,1000000));
++  const auto&b=graph.at("budgets");b.keys({"max_output_bytes","max_extra_memory_bytes","max_reference_work","max_time_ms"});
++  p.graph_output=b.at("max_output_bytes").range(4096,Plan::output_ceiling);
++  p.graph_memory=b.at("max_extra_memory_bytes").range(1u<<20,Plan::memory_ceiling);
++  p.graph_work=b.at("max_reference_work").range(1,Plan::work_ceiling);
++  p.graph_time_ms=uint32_t(b.at("max_time_ms").range(1000,Plan::time_ceiling_ms));
++  p.graph_memory_upper=1048576;
++  p.graph_output_upper=4096;
++  for(uint32_t position=0;position<Plan::max_positions;++position)if(pos.contains(position,Plan::max_positions))
++   for(uint32_t layer=0;layer<Plan::max_layers;++layer)if(layers.contains(layer,Plan::max_layers))
++    for(const auto*point:chosen){
++     if(!point->layer&&layer!=0)continue;
++     p.graph.push_back({position,layer,point->key});
++     p.graph_memory_upper+=sizeof(gpu_proof::GraphWitness::Row)+sizeof(size_t)+uint64_t(point->max_elements)*8;
++     p.graph_output_upper+=gpu_proof::GraphWitness::max_encoded_row_bytes;
++     p.graph_work_upper+=uint64_t(point->max_elements)*2;
++    }
++  dev_run::need(!p.graph.empty()&&p.graph.size()<=8192&&p.graph_memory_upper<=p.graph_memory&&
++   p.graph_output_upper<=p.graph_output&&p.graph_work_upper<=p.graph_work,"graph expanded bounds");
++ }
++ const auto&cross=j.at("cross_arm");
++ if(cross.type!=J::Type::null){
++  cross.keys({"rows","analysis","raw_private","budgets"});
++  const auto&rows=cross.at("rows");dev_run::need(rows.type==J::Type::array&&!rows.array.empty()&&rows.array.size()<=16,"cross-arm rows bound");
++  for(const auto&entry:rows.array){
++   entry.keys({"position","role","expert","slot","input_row","occurrence"});
++   gpu_proof::CrossArmWitness::Key key{
++    uint32_t(entry.at("position").range(0,128)),uint32_t(entry.at("role").range(0,113)),
++    uint32_t(entry.at("expert").range(0,63)),
++    entry.at("slot").type==J::Type::null?gpu_proof::CrossArmWitness::any_slot:uint32_t(entry.at("slot").range(0,3)),
++    uint32_t(entry.at("input_row").range(0,128)),uint32_t(entry.at("occurrence").range(0,3))};
++   for(const auto&prior:p.cross_arm)dev_run::need(
++    prior.position!=key.position||prior.role!=key.role||prior.expert!=key.expert||
++    (prior.slot!=key.slot&&prior.slot!=gpu_proof::CrossArmWitness::any_slot&&key.slot!=gpu_proof::CrossArmWitness::any_slot)||
++    prior.input_row!=key.input_row||prior.occurrence!=key.occurrence,
++    "duplicate cross-arm semantic key");
++   p.cross_arm.push_back(key);
++  }
++  dev_run::need(cross.at("raw_private").type==J::Type::boolean,"raw private type");
++  p.raw_private=cross.at("raw_private").flag;
++  dev_run::need(!p.raw_private||p.cross_arm.size()<=8,"raw private mapping cap");
++  const auto&a=cross.at("analysis");a.keys({"absolute_ppm","relative_ppm"});
++  p.cross_abs_ppm=uint32_t(a.at("absolute_ppm").range(0,1000000));
++  p.cross_rel_ppm=uint32_t(a.at("relative_ppm").range(0,1000000));
++  const auto&b=cross.at("budgets");b.keys({"max_output_bytes","max_extra_memory_bytes","max_reference_work","max_time_ms"});
++  p.cross_output=b.at("max_output_bytes").range(4096,Plan::output_ceiling);
++  p.cross_memory=b.at("max_extra_memory_bytes").range(1u<<20,Plan::memory_ceiling);
++  p.cross_work=b.at("max_reference_work").range(1,Plan::work_ceiling);
++  p.cross_time_ms=uint32_t(b.at("max_time_ms").range(1000,Plan::time_ceiling_ms));
++  const uint64_t logical_raw=uint64_t(p.cross_arm.size())*2*(2048*4+2336+2048*4);
++  dev_run::need(!p.raw_private||logical_raw<=512u*1024,"raw private logical cap");
++  p.cross_output_upper=4096+uint64_t(p.cross_arm.size())*1024+(p.raw_private?2*logical_raw:0);
++  dev_run::need(p.cross_output_upper<=p.cross_output,"cross-arm encoded output bound");
++  dev_run::need(sizeof(gpu_proof::CrossArmWitness)+uint64_t(p.cross_arm.size())*sizeof(gpu_proof::CrossArmWitness::Record)+1048576<=p.cross_memory,"cross-arm memory bound");
++  dev_run::need(uint64_t(p.cross_arm.size())*2*(2*2048+2336+2048)<=p.cross_work,"cross-arm work bound");
++ }
++ const uint64_t output_charge=p.base.output_budget+p.graph_output+p.cross_output;
++ p.serializer_charge=8*output_charge+(1u<<20);
++ // Summary strings, concatenation temporaries, sidecar and capacity coexist.
++ // Charge eight full output envelopes plus fixed serializer scratch.
++ dev_run::need(p.base.memory_budget+p.graph_memory+p.cross_memory+
++  p.serializer_charge<=Plan::memory_ceiling,"joint diagnostic memory ceiling");
++ dev_run::need(output_charge<=Plan::output_ceiling,"joint diagnostic output ceiling");
++ dev_run::need(p.base.reference_work_budget+p.graph_work+p.cross_work<=Plan::work_ceiling,"joint diagnostic work ceiling");
++ dev_run::need(uint64_t(p.base.time_budget_ms)+p.graph_time_ms+p.cross_time_ms<=Plan::time_ceiling_ms,"joint diagnostic time ceiling");
++ return p;
++}
++}
+diff --git a/include/xllama/gpu_graph_witness.h b/include/xllama/gpu_graph_witness.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..d08ef29f48a8210907795aed87fdfacff112b544
+--- /dev/null
++++ b/include/xllama/gpu_graph_witness.h
+@@ -0,0 +1,306 @@
++#pragma once
++#include "gpu_layer_witness.h"
++#include <algorithm>
++#include <array>
++#include <charconv>
++#include <chrono>
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++#include <functional>
++#include <stdexcept>
++#include <string>
++#include <string_view>
++#include <vector>
++
++namespace xllama::gpu_proof {
++// Optional, selected graph boundaries. A construction callback is only a
++// candidate: absence, aliasing and unsupported shape remain explicit gaps.
++class GraphWitness final {
++public:
++ // Maximum encoded row, including two shapes and optional router arrays.
++ static constexpr uint64_t max_encoded_row_bytes=1600;
++ enum class Kind {f32,i32};
++ struct Point {const char *key;const char *final_name;Kind kind;uint32_t max_elements;bool layer;};
++ static constexpr Point catalog[]={
++  {"embedding","model.embed_tokens",Kind::f32,2048,false},
++  {"operator_norm","model.layers.{}.operator_norm",Kind::f32,2048,true},
++  {"operator_conv_out","model.layers.{}.conv.out_proj",Kind::f32,2048,true},
++  {"operator_attn_out","model.layers.{}.self_attn.out_proj",Kind::f32,2048,true},
++  {"pre_ffn_residual","model.layers.{}.pre_ffn_residual",Kind::f32,2048,true},
++  {"ffn_norm","model.layers.{}.ffn_norm",Kind::f32,2048,true},
++  {"router_logits","ffn_moe_logits",Kind::f32,64,true},
++  {"router_logits_biased","ffn_moe_logits_biased",Kind::f32,64,true},
++  {"router_probs","ffn_moe_probs",Kind::f32,64,true},
++  {"router_probs_biased","ffn_moe_probs_biased",Kind::f32,64,true},
++  {"router_probs_masked","ffn_moe_probs_masked",Kind::f32,64,true},
++  {"router_rank","ffn_moe_argsort",Kind::i32,64,true},
++  {"router_topk","ffn_moe_topk",Kind::i32,4,true},
++  {"router_weights","ffn_moe_weights",Kind::f32,4,true},
++  {"router_weights_norm","ffn_moe_weights_norm",Kind::f32,4,true},
++  {"router_weights_scaled","ffn_moe_weights_scaled",Kind::f32,4,true},
++  {"moe_gate","ffn_moe_gate",Kind::f32,6144,true},
++  {"moe_up","ffn_moe_up",Kind::f32,6144,true},
++  {"moe_activation","ffn_moe_swiglu",Kind::f32,6144,true},
++  {"moe_down","ffn_moe_down",Kind::f32,8192,true},
++  {"moe_weighted","ffn_moe_weighted",Kind::f32,8192,true},
++  {"moe_aggregate","ffn_moe_out",Kind::f32,2048,true},
++  {"dense_ffn_out","model.layers.{}.dense_ffn_out",Kind::f32,2048,true},
++  {"post_ffn_residual","model.layers.{}.post_ffn_residual",Kind::f32,2048,true},
++  {"result_norm","result_norm",Kind::f32,2048,false},
++  {"result_output","result_output",Kind::f32,128000,false},
++ };
++ struct Selection {uint32_t position=0,layer=0;std::string point;};
++ struct Row {
++  Selection selected;bool seen[2]{};int32_t token[2]{-1,-1};
++  uint32_t elements=0,violations=0,first_difference=UINT32_MAX,first_violation=UINT32_MAX;
++  double max_abs=0;uint64_t hash[2]{};std::string gap="NOT_OBSERVED";
++  LayerWitness::Shape shape[2]{};
++  bool score_stats_seen[2]{};double kth_margin[2]{};uint32_t exact_score_ties[2]{};
++  bool topk_seen[2]{},weights_seen[2]{};std::array<int32_t,4> topk[2]{};std::array<float,4> weights[2]{};
++  std::vector<unsigned char> reference;
++ };
++private:
++ std::vector<Row> rows_;std::array<std::vector<size_t>,129> by_position_{};
++ uint32_t phase_=0,position_=0,selected_upper_=0;int32_t token_=-1;
++ bool workload_axis_=false,configured_=false;
++ uint64_t memory_budget_,work_budget_,work_units_=0,time_ns_=0,time_cap_ns_,output_budget_;
++ uint64_t ask_calls_=0,sync_requests_=0,observe_calls_=0;
++ uint32_t abs_ppm_,rel_ppm_;bool unavailable_=false;const char*reason_=nullptr;
++ static const Point*point(std::string_view name)noexcept{
++  for(const auto&p:catalog)if(name==p.key)return &p;
++  return nullptr;
++ }
++ static std::string final_name(const Point&p,uint32_t layer){
++  std::string n=p.final_name;if(p.layer){n+='-';n+=std::to_string(layer);}return n;
++ }
++ static bool matches(const Point&p,uint32_t layer,std::string_view name)noexcept{
++  const std::string_view base(p.final_name);
++  if(!p.layer)return name==base;
++  if(name.size()<=base.size()+1||name.substr(0,base.size())!=base||name[base.size()]!='-')return false;
++  uint32_t parsed=0;
++  for(size_t i=base.size()+1;i<name.size();++i){
++   if(name[i]<'0'||name[i]>'9')return false;
++   parsed=parsed*10+uint32_t(name[i]-'0');if(parsed>=40)return false;
++  }
++  return parsed==layer;
++ }
++ // Exact model2 one-token endpoint shapes and pinned ggml op IDs. A changed
++ // producer or alias is a visible gap, never a numerically paired row.
++ static bool admitted_endpoint(std::string_view key,const LayerWitness::Shape&s)noexcept{
++  uint64_t n0=2048,n1=1;uint32_t op=0;
++  if(key=="embedding")op=40;
++  else if(key=="operator_norm"||key=="ffn_norm"||key=="result_norm")op=7;
++  else if(key=="operator_conv_out"||key=="operator_attn_out"||key=="dense_ffn_out"||key=="result_output")op=29;
++  else if(key=="pre_ffn_residual"||key=="post_ffn_residual")op=2;
++  else if(key=="router_logits"){n0=64;op=29;}
++  else if(key=="router_logits_biased"){n0=64;op=2;}
++  else if(key=="router_probs"){n0=64;op=46;}
++  else if(key=="router_probs_biased"){n0=64;op=2;}
++  else if(key=="router_probs_masked"){n0=64;op=36;}
++  else if(key=="router_rank"){n0=64;op=69;}
++  else if(key=="router_topk"){n0=4;op=37;}
++  else if(key=="router_weights"){n0=1;n1=4;op=40;}
++  else if(key=="router_weights_norm"){n0=4;op=8;}
++  else if(key=="router_weights_scaled"){n0=1;n1=4;op=32;}
++  else if(key=="moe_gate"||key=="moe_up"||key=="moe_activation"){n0=1536;n1=4;op=key=="moe_activation"?100:30;}
++  else if(key=="moe_down"){n0=2048;n1=4;op=30;}
++  else if(key=="moe_weighted"){n0=2048;n1=4;op=7;}
++  else if(key=="moe_aggregate")op=2;
++  else return false;
++  if(key=="result_output")n0=128000;
++  return s.op==op&&s.ne[0]==n0&&s.ne[1]==n1&&s.ne[2]==1&&s.ne[3]==1;
++ }
++ static uint64_t fnv(const void*p,size_t n)noexcept{
++  uint64_t h=14695981039346656037ull;const auto*b=static_cast<const unsigned char*>(p);
++  for(size_t i=0;i<n;++i){h^=b[i];h*=1099511628211ull;}return h;
++ }
++ void fail(const char*why)noexcept{unavailable_=true;if(!reason_)reason_=why;}
++public:
++ GraphWitness(std::vector<Selection> selected,uint32_t abs_ppm,uint32_t rel_ppm,
++              uint64_t memory_budget,uint64_t work_budget,uint32_t time_budget_ms,uint64_t output_budget=2ull<<20,bool workload_axis=false)
++  :workload_axis_(workload_axis),memory_budget_(memory_budget),work_budget_(work_budget),time_cap_ns_(uint64_t(time_budget_ms)*1000000),output_budget_(output_budget),abs_ppm_(abs_ppm),rel_ppm_(rel_ppm){
++  if(selected.empty()||selected.size()>8192||memory_budget>64ull*1024*1024||memory_budget<1024*1024||
++     work_budget==0||work_budget>120000000||time_budget_ms<1000||time_budget_ms>120000||
++     abs_ppm>1000000||rel_ppm>1000000||output_budget<4096||output_budget>(2ull<<20))throw std::invalid_argument("graph witness budget");
++  uint64_t charge=sizeof(*this)+selected.size()*sizeof(Row)+1024*1024;
++  for(auto&s:selected){
++   const auto*p=point(s.point);if(!p||s.position>128||(p->layer?s.layer>=40:s.layer!=0))throw std::invalid_argument("graph point unsupported");
++   for(const auto&r:rows_)if(r.selected.position==s.position&&r.selected.layer==s.layer&&r.selected.point==s.point)throw std::invalid_argument("graph point duplicate");
++   charge+=uint64_t(p->max_elements)*8; // retained CPU row plus transient read buffer
++   Row r;r.selected=std::move(s);by_position_[r.selected.position].push_back(rows_.size());rows_.push_back(std::move(r));
++  }
++  if(charge>memory_budget_)throw std::invalid_argument("graph witness memory");
++  selected_upper_=uint32_t(rows_.size());
++ }
++ void configure(uint32_t prompt_count)noexcept{
++  if(configured_||prompt_count<1||prompt_count>128){fail("GRAPH_PROMPT_ENVELOPE");return;}
++  configured_=true;
++  if(workload_axis_){
++   try{
++    rows_.erase(std::remove_if(rows_.begin(),rows_.end(),[prompt_count](const Row&r){return r.selected.position>prompt_count;}),rows_.end());
++    for(auto&entries:by_position_)entries.clear();
++    for(size_t i=0;i<rows_.size();++i)by_position_[rows_[i].selected.position].push_back(i);
++   }catch(...){fail("GRAPH_ALLOCATION_UNAVAILABLE");}
++  }else{
++   for(auto&r:rows_)if(r.selected.position>prompt_count){r.gap="POSITION_OUTSIDE_WORKLOAD";fail("POSITION_OUTSIDE_WORKLOAD");}
++  }
++ }
++ void begin(uint32_t phase,uint32_t position,int32_t token)noexcept{
++  if(!configured_||(phase!=1&&phase!=2)||position>128||token<0){fail("FRAME_IDENTITY");return;}
++  phase_=phase;position_=position;token_=token;
++ }
++ bool selected(std::string_view name)const noexcept{
++  if(unavailable_||!phase_)return false;
++  for(size_t index:by_position_[position_]){const auto&r=rows_[index];const auto*p=point(r.selected.point);
++   if(p&&matches(*p,r.selected.layer,name))return true;}
++  return false;
++ }
++ bool ask(std::string_view name)noexcept{
++  if(unavailable_||!phase_)return false;
++  const auto start=std::chrono::steady_clock::now();++ask_calls_;
++  const bool chosen=selected(name);
++  const auto elapsed=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-start).count();
++  if(elapsed<0||uint64_t(elapsed)>UINT64_MAX-time_ns_){fail("GRAPH_TIME_ACCOUNTING");return false;}
++  time_ns_+=uint64_t(elapsed);if(time_ns_>time_cap_ns_){fail("GRAPH_TIME_BUDGET");return false;}
++  if(chosen)++sync_requests_;
++  return chosen;
++ }
++ template<class Reader>void observe(std::string_view name,const LayerWitness::Shape&shape,Reader&&read)noexcept{
++  if(unavailable_||!phase_)return;
++  ++observe_calls_;
++  const auto start=std::chrono::steady_clock::now();
++  try{
++   for(size_t index:by_position_[position_]){auto&r=rows_[index];
++    const auto*p=point(r.selected.point);if(!p||!matches(*p,r.selected.layer,name))continue;
++    const auto arm=phase_-1;
++    if(r.seen[arm]){r.gap="DUPLICATE_OBSERVATION";return;}
++    if(!shape.contiguous||!shape.buffer||!shape.data||shape.bytes==0||shape.bytes%4||
++       shape.bytes>uint64_t(p->max_elements)*4||shape.ne[3]!=1||shape.nb[0]!=4||
++       (p->kind==Kind::f32?!shape.f32:!shape.i32)||!admitted_endpoint(r.selected.point,shape)){
++     r.gap="SHAPE_OR_TYPE_UNAVAILABLE";return;
++    }
++    uint64_t elements=1;
++    for(uint64_t dim:shape.ne){if(dim==0||dim>p->max_elements/elements){r.gap="SHAPE_OR_TYPE_UNAVAILABLE";return;}elements*=dim;}
++    if(elements*4!=shape.bytes){r.gap="SHAPE_OR_TYPE_UNAVAILABLE";return;}
++    std::vector<unsigned char> bytes(size_t(shape.bytes),0);
++    if(!read(bytes.data(),bytes.size())){r.gap="READ_UNAVAILABLE";return;}
++    if(p->kind==Kind::f32){for(size_t i=0;i<bytes.size();i+=4){float value;std::memcpy(&value,bytes.data()+i,4);if(!std::isfinite(value)){r.gap="NONFINITE";return;}}}
++    r.seen[arm]=true;r.token[arm]=token_;r.elements=uint32_t(bytes.size()/4);r.hash[arm]=fnv(bytes.data(),bytes.size());
++    r.shape[arm]=shape;
++    if(r.selected.point=="router_topk"&&r.elements==4){
++     std::memcpy(r.topk[arm].data(),bytes.data(),16);
++     std::array<bool,64> used{};
++     for(int32_t id:r.topk[arm]){if(id<0||id>=64||used[size_t(id)]){r.gap="ROUTER_ID_INVALID";fail("ROUTER_ID_INVALID");return;}used[size_t(id)]=true;}
++     r.topk_seen[arm]=true;
++    }
++    if((r.selected.point=="router_weights"||r.selected.point=="router_weights_norm"||
++        r.selected.point=="router_weights_scaled")&&r.elements==4){
++     std::memcpy(r.weights[arm].data(),bytes.data(),16);r.weights_seen[arm]=true;
++    }
++    if((r.selected.point=="router_logits"||r.selected.point=="router_logits_biased"||
++        r.selected.point=="router_probs"||r.selected.point=="router_probs_biased"||
++        r.selected.point=="router_probs_masked")&&r.elements==64){
++     std::array<float,64> scores{};std::memcpy(scores.data(),bytes.data(),bytes.size());
++     std::sort(scores.begin(),scores.end(),std::greater<float>{});
++     r.kth_margin[arm]=double(scores[3])-double(scores[4]);
++     for(size_t j=1;j<scores.size();++j)if(scores[j]==scores[j-1])++r.exact_score_ties[arm];
++     r.score_stats_seen[arm]=true;
++    }
++    if(arm==0){r.reference=std::move(bytes);r.gap="HYBRID_NOT_OBSERVED";}
++    else if(!r.seen[0]||r.token[0]!=token_||r.reference.size()!=bytes.size()||
++            r.shape[0].type!=shape.type||r.shape[0].op!=shape.op||
++            !std::equal(std::begin(r.shape[0].ne),std::end(r.shape[0].ne),std::begin(shape.ne))||
++            !std::equal(std::begin(r.shape[0].nb),std::end(r.shape[0].nb),std::begin(shape.nb))){r.gap="SEMANTIC_SHAPE_UNPAIRED";}
++    else if(r.selected.point=="moe_gate"||r.selected.point=="moe_up"||r.selected.point=="moe_activation"||
++            r.selected.point=="moe_down"||r.selected.point=="moe_weighted"){
++     const Row*route=nullptr;
++     for(size_t route_ix:by_position_[position_]){const auto&candidate=rows_[route_ix];
++      if(candidate.selected.layer==r.selected.layer&&candidate.selected.point=="router_topk"){route=&candidate;break;}}
++     if(!route||!route->seen[0]||!route->seen[1])r.gap="ROUTE_IDENTITY_UNOBSERVED";
++     else if(!route->gap.empty()||route->violations)r.gap="ROUTE_UNPAIRED";
++     else r.gap="ROUTE_MATCHED_COMPARISON_PENDING";
++    }
++    else{
++     for(size_t i=0;i<bytes.size();i+=4){
++      uint32_t a,b;std::memcpy(&a,r.reference.data()+i,4);std::memcpy(&b,bytes.data()+i,4);
++      if(a!=b&&r.first_difference==UINT32_MAX)r.first_difference=uint32_t(i/4);
++      if(p->kind==Kind::i32){if(a!=b){++r.violations;if(r.first_violation==UINT32_MAX)r.first_violation=uint32_t(i/4);}}
++      else{float af,bf;std::memcpy(&af,&a,4);std::memcpy(&bf,&b,4);
++       const auto delta=std::abs(double(af)-double(bf));r.max_abs=std::max(r.max_abs,delta);
++       if(delta>(double(abs_ppm_)+double(rel_ppm_)*std::abs(double(af)))/1000000.0){++r.violations;if(r.first_violation==UINT32_MAX)r.first_violation=uint32_t(i/4);}}
++     }
++     r.gap="";
++    }
++    if(r.gap=="ROUTE_MATCHED_COMPARISON_PENDING"){
++     for(size_t i=0;i<bytes.size();i+=4){
++      float af,bf;std::memcpy(&af,r.reference.data()+i,4);std::memcpy(&bf,bytes.data()+i,4);
++      uint32_t a,b;std::memcpy(&a,&af,4);std::memcpy(&b,&bf,4);
++      if(a!=b&&r.first_difference==UINT32_MAX)r.first_difference=uint32_t(i/4);
++      const auto delta=std::abs(double(af)-double(bf));r.max_abs=std::max(r.max_abs,delta);
++      if(delta>(double(abs_ppm_)+double(rel_ppm_)*std::abs(double(af)))/1000000.0){++r.violations;if(r.first_violation==UINT32_MAX)r.first_violation=uint32_t(i/4);}
++     }
++     r.gap="";
++    }
++    work_units_+=r.elements;if(work_units_>work_budget_)fail("GRAPH_WORK_BUDGET");
++    const auto elapsed=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-start).count();
++    if(elapsed<0||uint64_t(elapsed)>UINT64_MAX-time_ns_)fail("GRAPH_TIME_ACCOUNTING");
++    else{time_ns_+=uint64_t(elapsed);if(time_ns_>time_cap_ns_)fail("GRAPH_TIME_BUDGET");}
++    return;
++   }
++  }catch(...){fail("GRAPH_OBSERVER_FAILURE");}
++ }
++ void unavailable(const char*reason)noexcept{fail(reason?reason:"GRAPH_UNAVAILABLE");}
++ bool available()const noexcept{return !unavailable_;}
++ const char*reason()const noexcept{return reason_;}
++ uint64_t work_units()const noexcept{return work_units_;}
++ uint64_t work_ns()const noexcept{return time_ns_;}
++ const std::vector<Row>&rows()const noexcept{return rows_;}
++ std::string summary()const{
++  auto real_json=[](double value){char b[64];auto n=std::to_chars(b,b+sizeof(b),value,std::chars_format::general,17);
++   if(n.ec!=std::errc{})throw std::runtime_error("graph score serialization");
++   return std::string(b,n.ptr);};
++  auto shape_json=[](const LayerWitness::Shape&shape){
++   std::string out="{\"type\":"+std::to_string(shape.type)+",\"op\":"+std::to_string(shape.op)+
++    ",\"bytes\":"+std::to_string(shape.bytes)+",\"ne\":[";
++   for(size_t axis=0;axis<4;++axis){if(axis)out+=',';out+=std::to_string(shape.ne[axis]);}
++   out+="],\"nb\":[";
++   for(size_t axis=0;axis<4;++axis){if(axis)out+=',';out+=std::to_string(shape.nb[axis]);}
++   out+="]}";return out;
++  };
++  std::string s="{\"schema\":\"ua68-model2-graph-v1\",\"unavailable\":"+std::string(unavailable_?"true":"false")+
++   ",\"reason\":"+(reason_?std::string("\"")+reason_+"\"":"null")+
++   ",\"selected_upper\":"+std::to_string(selected_upper_)+",\"selected_actual\":"+std::to_string(rows_.size())+",\"diagnostic_work_ns\":"+std::to_string(time_ns_)+
++   ",\"diagnostic_work_units\":"+std::to_string(work_units_)+
++   ",\"ask_calls\":"+std::to_string(ask_calls_)+",\"sync_requests\":"+std::to_string(sync_requests_)+
++   ",\"observe_calls\":"+std::to_string(observe_calls_)+",\"rows\":[";
++  s.reserve(size_t(output_budget_));
++  for(size_t i=0;i<rows_.size();++i){const auto&r=rows_[i];if(i)s+=",";
++   s+="{\"position\":"+std::to_string(r.selected.position)+",\"layer\":"+std::to_string(r.selected.layer)+
++      ",\"point\":\""+r.selected.point+"\",\"CPU_seen\":"+(r.seen[0]?"true":"false")+
++      ",\"hybrid_seen\":"+(r.seen[1]?"true":"false")+",\"CPU_token\":"+std::to_string(r.token[0])+
++      ",\"hybrid_token\":"+std::to_string(r.token[1])+
++      ",\"CPU_shape\":"+(r.seen[0]?shape_json(r.shape[0]):"null")+
++      ",\"hybrid_shape\":"+(r.seen[1]?shape_json(r.shape[1]):"null")+
++      ",\"elements\":"+std::to_string(r.elements)+",\"CPU_fnv1a64\":"+std::to_string(r.hash[0])+
++      ",\"hybrid_fnv1a64\":"+std::to_string(r.hash[1])+
++      ",\"CPU_kth_margin\":"+(r.score_stats_seen[0]?real_json(r.kth_margin[0]):"null")+
++      ",\"hybrid_kth_margin\":"+(r.score_stats_seen[1]?real_json(r.kth_margin[1]):"null")+
++      ",\"CPU_exact_score_ties\":"+(r.score_stats_seen[0]?std::to_string(r.exact_score_ties[0]):"null")+
++      ",\"hybrid_exact_score_ties\":"+(r.score_stats_seen[1]?std::to_string(r.exact_score_ties[1]):"null")+
++      ",\"CPU_topk_ids\":"+(r.topk_seen[0]?"["+std::to_string(r.topk[0][0])+","+std::to_string(r.topk[0][1])+","+std::to_string(r.topk[0][2])+","+std::to_string(r.topk[0][3])+"]":"null")+
++      ",\"hybrid_topk_ids\":"+(r.topk_seen[1]?"["+std::to_string(r.topk[1][0])+","+std::to_string(r.topk[1][1])+","+std::to_string(r.topk[1][2])+","+std::to_string(r.topk[1][3])+"]":"null")+
++      ",\"CPU_weight_values\":"+(r.weights_seen[0]?"["+real_json(r.weights[0][0])+","+real_json(r.weights[0][1])+","+real_json(r.weights[0][2])+","+real_json(r.weights[0][3])+"]":"null")+
++      ",\"hybrid_weight_values\":"+(r.weights_seen[1]?"["+real_json(r.weights[1][0])+","+real_json(r.weights[1][1])+","+real_json(r.weights[1][2])+","+real_json(r.weights[1][3])+"]":"null")+
++      ",\"first_difference\":"+(r.first_difference==UINT32_MAX?"null":std::to_string(r.first_difference))+
++      ",\"first_violation\":"+(r.first_violation==UINT32_MAX?"null":std::to_string(r.first_violation))+
++      ",\"violations\":"+std::to_string(r.violations)+",\"gap\":\""+r.gap+"\",\"max_abs\":";
++   char b[64];auto n=std::to_chars(b,b+sizeof(b),r.max_abs,std::chars_format::general,17);
++   if(n.ec!=std::errc{})throw std::runtime_error("graph numeric serialization");
++   s.append(b,n.ptr);s+='}';
++   if(s.size()>output_budget_)throw std::length_error("graph output budget");
++  }
++  s+="]}";if(s.size()>output_budget_)throw std::length_error("graph output budget");return s;
++ }
++};
++}
+diff --git a/include/xllama/gpu_layer_witness.h b/include/xllama/gpu_layer_witness.h
+index 66f6f0efde2053af1d6f4e53feb8aebf68b2757d..7bd66a8d96091d2cdd4652ada70f566cb8101f56 100644
+--- a/include/xllama/gpu_layer_witness.h
++++ b/include/xllama/gpu_layer_witness.h
+@@ -16,7 +16,7 @@ public:
+  static constexpr uint32_t positions=3,layers=40,width=2048;
+  static constexpr size_t row_bytes=width*sizeof(float),reference_bytes=positions*layers*row_bytes;
+  static constexpr size_t summary_cap=65536,charged_bytes=(1u<<20)+summary_cap;
+- struct Shape {bool f32=false,contiguous=false,buffer=false,data=false;uint64_t ne[4]{},nb[4]{};size_t bytes=0;};
++ struct Shape {bool f32=false,i32=false,contiguous=false,buffer=false,data=false;uint32_t type=0,op=0;uint64_t ne[4]{},nb[4]{};size_t bytes=0;};
+  struct Row {uint64_t cpu_hash=0,hybrid_hash=0;uint32_t bit_first=UINT32_MAX,tolerance_first=UINT32_MAX,max_abs_index=UINT32_MAX,violations=0;double max_abs=0;bool cpu=false,hybrid=false;};
+ private:
+  std::array<float,positions*layers*width> reference_{};
+diff --git a/include/xllama/gpu_optional_observer.h b/include/xllama/gpu_optional_observer.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..1f786ca34b80bccebbc5b3a4ec66be88c0602a8a
+--- /dev/null
++++ b/include/xllama/gpu_optional_observer.h
+@@ -0,0 +1,13 @@
++#pragma once
++#include <utility>
++
++namespace xllama::gpu_proof {
++// The ggml scheduler treats a false callback return as a stop request.
++// Optional diagnostics may latch unavailability, but must never supply that
++// return value or hide a required observer's refusal.
++template<class Observe,class Fail>
++void optional_observe(Observe&&observe,Fail&&fail)noexcept{
++ try{std::forward<Observe>(observe)();}
++ catch(...){std::forward<Fail>(fail)();}
++}
++}
+diff --git a/include/xllama/gpu_proof_controller.h b/include/xllama/gpu_proof_controller.h
+index ddfcacb94d40ab6771efbbd814fa3b1f1f19a9ce..88dce5fca9e67502476216879f5a01ac5d919090 100644
+--- a/include/xllama/gpu_proof_controller.h
++++ b/include/xllama/gpu_proof_controller.h
+@@ -6,6 +6,9 @@
+ #include "gpu_vector_witness.h"
+ #include "gpu_sweep_witness.h"
+ #include "gpu_selected_vector_witness.h"
++#include "gpu_cross_arm_witness.h"
++#include "gpu_graph_witness.h"
++#include "gpu_optional_observer.h"
+ #include "ggml-backend.h"
+ #include "ggml.h"
+ #include "first_answer_template.h"
+@@ -18,7 +21,8 @@ class Controller {
+  std::shared_ptr<ua50::ExpertGpu> gpu_;std::atomic<bool> stopped_{false};bool used_=false;
+  std::shared_ptr<Proof> proof_;std::shared_ptr<Trace> trace_;std::shared_ptr<LayerWitness> witness_;
+  std::shared_ptr<VectorWitness> vectors_;std::shared_ptr<SweepWitness> sweep_;std::shared_ptr<SelectedVectorWitness> selected_vectors_;
+- struct EvalMux {std::shared_ptr<LayerWitness> legacy;std::shared_ptr<SweepWitness> sweep;};std::shared_ptr<EvalMux> eval_;
++ std::shared_ptr<CrossArmWitness> cross_;std::shared_ptr<GraphWitness> graph_;
++ struct EvalMux {std::shared_ptr<LayerWitness> legacy;std::shared_ptr<SweepWitness> sweep;std::shared_ptr<GraphWitness> graph;};std::shared_ptr<EvalMux> eval_;
+  std::array<llama_token,128> prompt_{};size_t prompt_count_=0;uint32_t cpu_rows_=0,gpu_rows_=0;llama_token t0_=-1,t1_=-1,g0_=-1,g1_=-1;
+  std::function<void(const char*)> progress_;
+  void gate(const char*p){if(stopped_.load())throw std::runtime_error("hybrid proof stopped");if(!progress_)throw std::runtime_error("proof watchdog/phase callback absent");progress_(p);}
+@@ -27,18 +31,29 @@ class Controller {
+  static bool layer_eval(ggml_tensor*t,bool ask,void*user)noexcept{
+   auto*m=static_cast<EvalMux*>(user);if(!m||!m->legacy)return false;
+   try{
+-   if(!t){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();return false;}
++   if(!t){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();if(m->graph)m->graph->unavailable("NULL_TENSOR");return false;}
+    size_t name_length=0;while(name_length<GGML_MAX_NAME&&t->name[name_length])++name_length;
+-   if(name_length==GGML_MAX_NAME){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();return false;}
++   if(name_length==GGML_MAX_NAME){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();if(m->graph)m->graph->unavailable("NAME_EXTENT");return false;}
+    const auto name=std::string_view(t->name,name_length);
+-   if(ask){const bool legacy=m->legacy->ask(name);const bool sweep=m->sweep&&m->sweep->ask(name);return legacy||sweep;}
+-   LayerWitness::Shape shape;shape.f32=t->type==GGML_TYPE_F32;shape.contiguous=ggml_is_contiguous(t);shape.buffer=(t->view_src?t->view_src->buffer:t->buffer)!=nullptr;shape.data=t->data!=nullptr;shape.bytes=ggml_nbytes(t);
++   if(ask){
++    const bool legacy=m->legacy->ask(name);
++    bool sweep=false;
++    if(m->sweep)optional_observe([&]{sweep=m->sweep->ask(name);},[&]{m->sweep->callback_failure();});
++    bool graph=false;
++    if(m->graph)optional_observe([&]{graph=m->graph->ask(name);},[&]{m->graph->unavailable("ASK_FAILURE");});
++    return legacy||sweep||graph;
++   }
++   LayerWitness::Shape shape;shape.f32=t->type==GGML_TYPE_F32;shape.i32=t->type==GGML_TYPE_I32;shape.type=uint32_t(t->type);shape.op=uint32_t(t->op);shape.contiguous=ggml_is_contiguous(t);shape.buffer=(t->view_src?t->view_src->buffer:t->buffer)!=nullptr;shape.data=t->data!=nullptr;shape.bytes=ggml_nbytes(t);
+    for(int i=0;i<4;++i){shape.ne[i]=uint64_t(t->ne[i]);shape.nb[i]=t->nb[i];}
+-   const bool legacy=m->legacy->ask(name);const bool sweep=m->sweep&&m->sweep->ask(name);
++   const bool legacy=m->legacy->ask(name);
+    const auto reader=[t](void*dst,size_t bytes){ggml_backend_tensor_get(t,dst,0,bytes);return true;};
+    const bool accepted=legacy?m->legacy->observe(name,shape,reader):true;
+-   if(sweep)m->sweep->observe(name,shape,reader);return accepted;
+-  }catch(...){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();return false;}
++   if(m->sweep)optional_observe([&]{if(m->sweep->ask(name))m->sweep->observe(name,shape,reader);},
++                                [&]{m->sweep->callback_failure();});
++   if(m->graph)optional_observe([&]{if(m->graph->selected(name))m->graph->observe(name,shape,reader);},
++                                [&]{m->graph->unavailable("OBSERVE_FAILURE");});
++   return accepted;
++  }catch(...){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();if(m->graph)m->graph->unavailable("CALLBACK_FAILURE");return false;}
+  }
+  CpuExpertOptIn options(const CpuExpertOptIn&base,std::shared_ptr<ua50::ExpertGpu>gpu){
+   if(base.slots!=2||base.cache_ceiling!=(16u<<20)||base.context.n_ctx!=512||base.context.n_batch!=1||base.context.n_ubatch!=1||base.context.n_threads!=1||base.context.n_threads_batch!=1||base.model.n_gpu_layers!=0||base.model.main_gpu!=-1||base.context.op_offload||base.context.offload_kqv)throw std::invalid_argument("proof fixed requested envelope; no clamp");
+@@ -49,11 +64,12 @@ class Controller {
+   opt.route_trace=[trace=trace_](uint32_t r,uint64_t e,uint64_t off,uint64_t len){trace->key(r,e,off,len);};
+   opt.hybrid_catalog=[trace=trace_](uint32_t id,const ua50::Tensor&t,const char*n){trace->role(id,t,n);};
+   if(opt.hybrid_gpu){if(selected_vectors_)opt.vector_observer=selected_vectors_;else if(vectors_)opt.vector_observer=vectors_;}
+-  if(witness_){if(!eval_)eval_=std::make_shared<EvalMux>(EvalMux{witness_,sweep_});opt.context.cb_eval=&layer_eval;opt.context.cb_eval_user_data=eval_.get();opt.eval_callback_owner=eval_;}
++  if(cross_)opt.cross_arm_observer=cross_;
++  if(witness_){if(!eval_)eval_=std::make_shared<EvalMux>(EvalMux{witness_,sweep_,graph_});opt.context.cb_eval=&layer_eval;opt.context.cb_eval_user_data=eval_.get();opt.eval_callback_owner=eval_;}
+   return opt;
+  }
+  void decode(std::shared_ptr<CpuExpertSession>s,llama_token token,uint32_t position,uint32_t phase){
+-  gate("proof-before-decode");if(witness_)witness_->begin(phase,position);if(sweep_)sweep_->begin(phase,position);if(vectors_)vectors_->begin(phase,position);if(selected_vectors_)selected_vectors_->begin(phase,position);trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
++  gate("proof-before-decode");if(witness_)witness_->begin(phase,position);if(sweep_)sweep_->begin(phase,position);if(graph_)graph_->begin(phase,position,token);if(vectors_)vectors_->begin(phase,position);if(selected_vectors_)selected_vectors_->begin(phase,position);if(cross_)s->diagnostic_frame(phase,position,token);trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
+   // Every proof frame must execute the final MoE layer, including prefill tokens.
+   int32_t nseq=1;llama_seq_id sequence=0;llama_seq_id*sequence_ptr=&sequence;int8_t logits=1;llama_pos pos=llama_pos(position);
+   llama_batch b{};b.n_tokens=1;b.token=&token;b.pos=&pos;b.n_seq_id=&nseq;b.seq_id=&sequence_ptr;b.logits=&logits;
+@@ -64,7 +80,7 @@ class Controller {
+  static llama_token greedy(const float*row){llama_token best=0;for(size_t i=0;i<vocab;++i){if(!std::isfinite(row[i]))throw std::runtime_error("nonfinite native row");if(row[i]>row[size_t(best)])best=llama_token(i);}return best;}
+  void prefill(std::shared_ptr<CpuExpertSession>s,uint32_t phase){s->begin_fresh_turn();for(size_t i=0;i<prompt_count_;++i)decode(s,prompt_[i],uint32_t(i),phase);}
+ public:
+- Controller(std::shared_ptr<Proof>proof,std::shared_ptr<Trace>trace,std::shared_ptr<ua50::ExpertGpu>gpu,std::function<void(const char*)> progress,std::shared_ptr<VectorWitness> vectors={},std::shared_ptr<SweepWitness>sweep={},std::shared_ptr<SelectedVectorWitness>selected={}):gpu_(std::move(gpu)),proof_(std::move(proof)),trace_(std::move(trace)),vectors_(std::move(vectors)),sweep_(std::move(sweep)),selected_vectors_(std::move(selected)),progress_(std::move(progress)){
++ Controller(std::shared_ptr<Proof>proof,std::shared_ptr<Trace>trace,std::shared_ptr<ua50::ExpertGpu>gpu,std::function<void(const char*)> progress,std::shared_ptr<VectorWitness> vectors={},std::shared_ptr<SweepWitness>sweep={},std::shared_ptr<SelectedVectorWitness>selected={},std::shared_ptr<CrossArmWitness>cross={},std::shared_ptr<GraphWitness>graph={}):gpu_(std::move(gpu)),proof_(std::move(proof)),trace_(std::move(trace)),vectors_(std::move(vectors)),sweep_(std::move(sweep)),selected_vectors_(std::move(selected)),cross_(std::move(cross)),graph_(std::move(graph)),progress_(std::move(progress)){
+   if(!gpu_||!proof_||!trace_||!progress_)throw std::invalid_argument("proof complete ownership required");
+  }
+  ~Controller(){request_stop();drain();}
+@@ -79,7 +95,7 @@ public:
+    gate("cpu-reference-open");auto cpu_options=options(base,{});auto cpu=CpuExpertSession::open_if_requested(&cpu_options);if(!cpu)throw std::runtime_error("CPU reference unavailable");attach(cpu);
+    const auto*v=llama_model_get_vocab(cpu->model_view());if(!llama_vocab_get_add_bos(v))throw std::runtime_error("proof BOS policy");
+    auto rendered=first_answer::render(llama_model_chat_template(cpu->model_view(),nullptr),true,llama_vocab_bos(v));
+-   auto ids=cpu->tokenize(rendered);if(ids.empty()||ids.size()>128||ids.size()+2>512||ids[0]!=llama_vocab_bos(v)||std::count(ids.begin(),ids.end(),llama_vocab_bos(v))!=1||llama_vocab_n_tokens(v)!=128000)throw std::runtime_error("proof prompt/state admission");prompt_count_=ids.size();witness_->configure(uint32_t(prompt_count_));if(sweep_)sweep_->configure(uint32_t(prompt_count_));std::copy(ids.begin(),ids.end(),prompt_.begin());
++   auto ids=cpu->tokenize(rendered);if(ids.empty()||ids.size()>128||ids.size()+2>512||ids[0]!=llama_vocab_bos(v)||std::count(ids.begin(),ids.end(),llama_vocab_bos(v))!=1||llama_vocab_n_tokens(v)!=128000)throw std::runtime_error("proof prompt/state admission");prompt_count_=ids.size();witness_->configure(uint32_t(prompt_count_));if(sweep_)sweep_->configure(uint32_t(prompt_count_));if(graph_)graph_->configure(uint32_t(prompt_count_));if(cross_)cross_->configure(uint32_t(prompt_count_));std::copy(ids.begin(),ids.end(),prompt_.begin());
+    std::unique_ptr<llama_sampler,decltype(&llama_sampler_free)> sampler(llama_sampler_init_greedy(),llama_sampler_free);if(!sampler)throw std::bad_alloc();
+    prefill(cpu,1);cpu->capture_logits(proof_->reference(0),vocab);++cpu_rows_;t0_=cpu->sample(sampler.get());if(t0_!=greedy(proof_->reference(0)))throw std::runtime_error("native greedy/reference argmax mismatch");
+    if(llama_vocab_is_eog(v,t0_))throw std::runtime_error("EARLY_TERMINATOR reference coverage1of2");
+@@ -114,6 +130,8 @@ public:
+  std::string vector_witness_summary()const{return vectors_?vectors_->summary():"null";}
+  std::string sweep_witness_summary()const{return sweep_?sweep_->summary():"null";}
+  std::string selected_vector_summary()const{return selected_vectors_?selected_vectors_->summary():"null";}
++ std::string graph_summary()const{return graph_?graph_->summary():"null";}
++ std::string cross_arm_summary(uint64_t max_bytes)const{return cross_?cross_->summary(max_bytes):"null";}
+  void seal(bool normal){trace_->seal(normal&&terminal(),uint32_t(prompt_count_),t0_,t1_,proof_->passed());}
+  uint32_t cpu_rows()const{return cpu_rows_;}uint32_t gpu_rows()const{return gpu_rows_;}size_t prompt_count()const{return prompt_count_;}const llama_token*prompt_ids()const{return prompt_.data();}llama_token t0()const{return t0_;}llama_token t1()const{return t1_;}llama_token g0()const{return g0_;}llama_token g1()const{return g1_;}
+ };
+diff --git a/include/xllama/gpu_run_config.h b/include/xllama/gpu_run_config.h
+index fd3d19f307b7231c99f5e90339b46868a817ab4f..4c2c0a080337b351df7e9080556b29651fc90d29 100644
+--- a/include/xllama/gpu_run_config.h
++++ b/include/xllama/gpu_run_config.h
+@@ -3,21 +3,24 @@
+ #include "gpu_numeric_proof.h"
+ #include "first_answer_template.h"
+ #include "gpu_diagnostic_plan.h"
++#include "gpu_diagnostic_plan_v3.h"
+ #include <memory>
+ namespace xllama::gpu_run {
+ inline constexpr char engine_sha[]="2b904dcee7f3dfc51f05724a1e493b6fdc22b333410608ad8321e170a8b98bd4";
+-inline constexpr char capabilities[]=R"UA68({"CPU_threads":1,"GPU_timestamps":"not_collected_first_slice","activation_tag":"gpu-expert-proof-v1","batch":1,"collector_charge":2097152,"config_max_bytes":16384,"config_schema":"ua68-gpu-proof-config-v1","diagnostic_config_schema":"ua68-model2-diagnostics-v1","config_schema_v2":"ua68-gpu-proof-config-v2","context":512,"contract":"ua68-expert-sync-contract-v1","driver_probe":268435456,"experts":64,"gpu_outstanding":1,"gpu_slots":1,"host_cache_slots":2,"main_cap":262144,"model_pairs":256000,"model_rows":2,"model_sha256":"d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d","native_wall_seconds":1200,"no_fallback":true,"output_schema":"ua68-gpu-proof-output-v1","primitive_pairs":28672,"primitive_rows":16,"proof_owned_cap":4194304,"quants":["Q4_K","Q6_K"],"raw_rows_saved":false,"reserve":536870912,"roles":114,"run_prefix":"ua68-gpu-proof-v1.","stages":["primitive16","model2"],"summary_cap":65536,"threshold":{"absolute":0.001,"relative_to_cpu":0.001},"ticket_leaf":"ua68-gpu-proof-v1.ticket.json","ticket_max_bytes":4096,"ticket_schema":"ua68-gpu-proof-ticket-v1","trace_cap":524288,"trace_file_bytes":254432,"trace_schema":"UA68TRC1","tuple":"cpu_graph_d3d12_expert_sync","unsupported":["fused","GPU_cache","async","prefetch","threads_not_1","alternate_model","history","UI","context_not_512","performance_sweep"],"watchdog_seconds":180}
++inline constexpr char capabilities[]=R"UA68({"CPU_threads":1,"GPU_timestamps":"not_collected_first_slice","activation_tag":"gpu-expert-proof-v1","batch":1,"collector_charge":2097152,"config_max_bytes":16384,"config_schema":"ua68-gpu-proof-config-v1","diagnostic_config_schema":"ua68-model2-diagnostics-v1","config_schema_v2":"ua68-gpu-proof-config-v2","config_schema_v3":"ua68-gpu-proof-config-v3","diagnostic_config_schema_v2":"ua68-model2-diagnostics-v2","diagnostic_sidecar_schema_v3":"ua68-model2-consolidated-diagnostics-sidecar-v1","context":512,"contract":"ua68-expert-sync-contract-v1","driver_probe":268435456,"experts":64,"gpu_outstanding":1,"gpu_slots":1,"host_cache_slots":2,"main_cap":262144,"model_pairs":256000,"model_rows":2,"model_sha256":"d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d","native_wall_seconds":1200,"no_fallback":true,"output_schema":"ua68-gpu-proof-output-v1","primitive_pairs":28672,"primitive_rows":16,"proof_owned_cap":4194304,"quants":["Q4_K","Q6_K"],"raw_rows_saved":false,"reserve":536870912,"roles":114,"run_prefix":"ua68-gpu-proof-v1.","stages":["primitive16","model2"],"summary_cap":65536,"threshold":{"absolute":0.001,"relative_to_cpu":0.001},"ticket_leaf":"ua68-gpu-proof-v1.ticket.json","ticket_max_bytes":4096,"ticket_schema":"ua68-gpu-proof-ticket-v1","trace_cap":524288,"trace_file_bytes":254432,"trace_schema":"UA68TRC1","tuple":"cpu_graph_d3d12_expert_sync","unsupported":["fused","GPU_cache","async","prefetch","threads_not_1","alternate_model","history","UI","context_not_512","performance_sweep"],"watchdog_seconds":180}
+ )UA68";
+ struct Config {
+  std::string raw,id,adapter_luid,shader_sha,primitive_acceptance_sha;dev_run::Config cpu;size_t parser_charge=0;
+  std::shared_ptr<const gpu_diagnostic::Plan> diagnostics;
++ std::shared_ptr<const gpu_diagnostic::PlanV3> diagnostics_v3;
+  gpu_proof::Stage stage=gpu_proof::Stage::Primitive16;
+- size_t owned_bytes()const{return sizeof(*this)+raw.capacity()+id.capacity()+adapter_luid.capacity()+shader_sha.capacity()+primitive_acceptance_sha.capacity()+cpu.owned_bytes()+parser_charge;}
++ size_t owned_bytes()const{return sizeof(*this)+raw.capacity()+id.capacity()+adapter_luid.capacity()+shader_sha.capacity()+primitive_acceptance_sha.capacity()+cpu.owned_bytes()+parser_charge+(diagnostics_v3?diagnostics_v3->owned_bytes():0);}
+  std::string leaf(const char* suffix)const{dev_run::need(dev_run::run_id(id),"GPU run id");return "ua68-gpu-proof-v1."+id+"."+suffix;}
+ };
+ inline Config parse(std::string raw){
+  auto j=dev_run::Parser(raw).parse(16384);const bool v2=j.at("schema").type==dev_run::Json::Type::string&&j.at("schema").text=="ua68-gpu-proof-config-v2";
+- if(v2)j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256","diagnostics"});
++ const bool v3=j.at("schema").type==dev_run::Json::Type::string&&j.at("schema").text=="ua68-gpu-proof-config-v3";
++ if(v2||v3)j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256","diagnostics"});
+  else{j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256"});j.at("schema").eq("ua68-gpu-proof-config-v1");}
+  j.at("engine_contract_sha256").eq(engine_sha);
+  Config c;c.raw=std::move(raw);c.parser_charge=j.owned();dev_run::need(j.at("run_id").type==dev_run::Json::Type::string&&dev_run::run_id(j.at("run_id").text),"GPU run id");c.id=j.at("run_id").text;
+@@ -29,6 +32,10 @@ inline Config parse(std::string raw){
+  dev_run::need(c.adapter_luid.size()==17&&c.adapter_luid[8]==':'&&dev_run::hex(c.adapter_luid.substr(0,8),8)&&dev_run::hex(c.adapter_luid.substr(9),8)&&dev_run::hex(c.shader_sha,64),"GPU exact identity");
+  auto&pr=j.at("prerequisite_primitive_acceptance_sha256");if(c.stage==gpu_proof::Stage::Model2){dev_run::need(pr.type==dev_run::Json::Type::string&&dev_run::hex(pr.text,64),"model2 externally accepted primitive prerequisite");c.primitive_acceptance_sha=pr.text;}else dev_run::need(pr.type==dev_run::Json::Type::null,"primitive has no prerequisite override");
+  if(v2){dev_run::need(c.stage==gpu_proof::Stage::Model2,"diagnostics only on model2");c.diagnostics=std::make_shared<gpu_diagnostic::Plan>(gpu_diagnostic::parse(j.at("diagnostics")));}
++ if(v3){dev_run::need(c.stage==gpu_proof::Stage::Model2,"diagnostics only on model2");
++  c.diagnostics_v3=std::make_shared<gpu_diagnostic::PlanV3>(gpu_diagnostic::parse_v3(j.at("diagnostics")));
++  c.diagnostics=std::shared_ptr<const gpu_diagnostic::Plan>(c.diagnostics_v3,&c.diagnostics_v3->base);
++ }
+  return c;
+ }
+ struct Ticket {std::string raw,selection,id,config_sha;uint64_t expires=0;size_t parser_charge=0;};
+diff --git a/src/bridge/cpu_expert_session.cpp b/src/bridge/cpu_expert_session.cpp
+index 8a1fac410846f73fa1b3d3cced530a65c8990a7e..5908d0c03c94a92929c1f37fcdc994207abfdd97 100644
+--- a/src/bridge/cpu_expert_session.cpp
++++ b/src/bridge/cpu_expert_session.cpp
+@@ -51,6 +51,9 @@ std::shared_ptr<CpuExpertSession> CpuExpertSession::open_if_requested(const CpuE
+   if(opt->vector_observer){auto*m=dynamic_cast<llama_model_base*>(out->model_.get());
+    if(!opt->hybrid_gpu||!m||!m->expert_provider())throw std::runtime_error("vector observer requires hybrid provider");
+    m->expert_provider()->set_vector_observer(opt->vector_observer);}
++  if(opt->cross_arm_observer){auto*m=dynamic_cast<llama_model_base*>(out->model_.get());
++   if(!m||!m->expert_provider())throw std::runtime_error("cross-arm observer requires provider");
++   m->expert_provider()->set_cross_arm_observer(opt->cross_arm_observer);}
+   if(opt->cache_events){auto* m=dynamic_cast<llama_model_base*>(out->model_.get());
+    if(!m || !m->expert_provider())throw std::runtime_error("cache events provider missing");
+    m->expert_provider()->enable_timing();}
+@@ -66,6 +69,10 @@ std::shared_ptr<CpuExpertSession> CpuExpertSession::open_if_requested(const CpuE
+  }catch(...){out->latch_failure("expert opening refused");out->state_.store(State::Invalid);out->close();throw;}
+ }
+ CpuExpertSession::~CpuExpertSession(){(void)close();}
++void CpuExpertSession::diagnostic_frame(uint32_t phase,uint32_t position,int32_t token) noexcept{
++ if(!model_||!context_)return;auto*m=dynamic_cast<llama_model_base*>(model_.get());
++ if(m&&m->expert_provider())m->expert_provider()->diagnostic_frame(phase,position,token);
++}
+ void CpuExpertSession::begin_fresh_turn(){
+  auto keep_alive=shared_from_this();State expected=State::Ready;
+  if(!state_.compare_exchange_strong(expected,State::Decoding))throw std::logic_error("invalid expert turn owner");
+diff --git a/uwp/gpu-proof-pilot.inc b/uwp/gpu-proof-pilot.inc
+index 9f029a8eb654d6ac520f2a746e88435ff3e577db..8faf8b9b6d11898dbeca1dcbbe7f09596d0552e1 100644
+--- a/uwp/gpu-proof-pilot.inc
++++ b/uwp/gpu-proof-pilot.inc
+@@ -7,6 +7,7 @@ void run_expert_gpu_proof_configured(){
+  std::shared_ptr<GpuProofInput> input;std::shared_ptr<ua50::ExpertGpu> gpu;std::shared_ptr<gpu_proof::Controller> controller;
+  std::shared_ptr<gpu_proof::Proof> proof;std::shared_ptr<gpu_proof::Trace> trace;std::shared_ptr<gpu_proof::VectorWitness> vectors;
+  std::shared_ptr<gpu_proof::SweepWitness> sweep;std::shared_ptr<gpu_proof::SelectedVectorWitness> selected_vectors;
++ std::shared_ptr<gpu_proof::GraphWitness> graph;std::shared_ptr<gpu_proof::CrossArmWitness> cross;
+  std::optional<ua50::uwp::WindowsInputCandidate> guard;ModelWriteGate::Permit writer;CpuExpertOptIn opt;
+  std::array<CpuExpertEffective,2> actual_effective{};std::array<ua50::Counters,2> host_counts{};size_t live_phase=0;uint64_t sha_calls=0,sha_requested=0,sha_returned=0,sha_elapsed_ns=0;
+  bool pre_sha=false,post_sha=false,normal=false,claim=false;std::string cause,package;ua50::GpuSnapshot gpu_effective;ua50::GpuCounts gpu_counts;
+@@ -28,9 +29,13 @@ void run_expert_gpu_proof_configured(){
+   state->phase("outer-held-preSHA",probe_allowance);guard=source();pre_sha=true;state->held=guard->file;{std::lock_guard<std::mutex> l(state->mutex);state->control=guard->control;}
+   state->phase("GPU-driver-initialization",probe_allowance);
+   ExpertGpuAdmission admission{input->config.adapter_luid,input->config.shader_sha,[state](const ua50::GpuSnapshot&,uint64_t pending){state->phase("GPU-resource-admission",pending);}};
+-  gpu=make_expert_gpu_d3d12(admission);gpu_effective=gpu->snapshot();state->phase("proof-storage-admission",add(add(4u<<20,gpu_proof::Trace::required_owned_bytes()),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,input->config.diagnostics?input->config.diagnostics->memory_budget:gpu_proof::VectorWitness::charged_bytes):0));
++  gpu=make_expert_gpu_d3d12(admission);gpu_effective=gpu->snapshot();
++  const uint64_t diagnostics_memory=input->config.diagnostics_v3?
++   add(input->config.diagnostics_v3->serializer_charge,add(input->config.diagnostics_v3->base.memory_budget,add(input->config.diagnostics_v3->graph_memory,input->config.diagnostics_v3->cross_memory))):
++   input->config.diagnostics?input->config.diagnostics->memory_budget:gpu_proof::VectorWitness::charged_bytes;
++  state->phase("proof-storage-admission",add(add(4u<<20,gpu_proof::Trace::required_owned_bytes()),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,diagnostics_memory):0));
+   proof=std::make_shared<gpu_proof::Proof>(input->config.stage);trace=std::make_shared<gpu_proof::Trace>(GetCurrentProcessId(),input->config.stage==gpu_proof::Stage::Primitive16?3:4,input->config.id,input->config_sha,input->ticket_sha,gpu_run::engine_sha,gpu_effective.shader_sha256);
+-  opt.enabled=true;opt.plan_profile=CpuExpertOptIn::PlanProfile::FinishedAnswer512;opt.slots=2;opt.cache_ceiling=16u<<20;opt.stage_ceiling=4u<<20;opt.numerical_proof_owned_bytes=4u<<20;opt.instrumentation_owned_bytes=add(add(input->owned_bytes(),262144+4096),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,input->config.diagnostics?input->config.diagnostics->memory_budget:gpu_proof::VectorWitness::charged_bytes):0);
++  opt.enabled=true;opt.plan_profile=CpuExpertOptIn::PlanProfile::FinishedAnswer512;opt.slots=2;opt.cache_ceiling=16u<<20;opt.stage_ceiling=4u<<20;opt.numerical_proof_owned_bytes=4u<<20;opt.instrumentation_owned_bytes=add(add(input->owned_bytes(),262144+4096),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,diagnostics_memory):0);
+   opt.model.main_gpu=-1;opt.model.n_gpu_layers=0;opt.model.split_mode=LLAMA_SPLIT_MODE_NONE;opt.model.load_mode=LLAMA_LOAD_MODE_NONE;opt.model.lazy_mode=LLAMA_LAZY_MODE_OFF;opt.model.use_extra_bufts=false;
+   opt.context.n_ctx=512;opt.context.n_batch=1;opt.context.n_ubatch=1;opt.context.n_seq_max=1;opt.context.n_outputs_max=1;opt.context.n_outputs_max_per_seq=1;opt.context.n_threads=1;opt.context.n_threads_batch=1;opt.context.offload_kqv=false;opt.context.op_offload=false;opt.context.flash_attn_type=LLAMA_FLASH_ATTN_TYPE_DISABLED;opt.context.type_k=GGML_TYPE_F16;opt.context.type_v=GGML_TYPE_F16;
+   opt.model.progress_callback=[](float,void*p)->bool{return !static_cast<Pilot*>(p)->abort->load();};opt.model.progress_callback_user_data=state.get();
+@@ -63,14 +68,18 @@ void run_expert_gpu_proof_configured(){
+     return dev_sha(std::string(static_cast<const char*>(p),n));
+    });
+   }
+-  controller=std::make_shared<gpu_proof::Controller>(proof,trace,gpu,progress,vectors,sweep,selected_vectors);{std::lock_guard<std::mutex>l(state->mutex);state->gpu_controller=controller;}
++  if(input->config.diagnostics_v3){const auto&p=*input->config.diagnostics_v3;
++   if(!p.graph.empty())graph=std::make_shared<gpu_proof::GraphWitness>(p.graph,p.graph_abs_ppm,p.graph_rel_ppm,p.graph_memory,p.graph_work,p.graph_time_ms,p.graph_output,p.graph_workload_axis);
++   if(!p.cross_arm.empty())cross=std::make_shared<gpu_proof::CrossArmWitness>(p.cross_arm,p.cross_abs_ppm,p.cross_rel_ppm,p.cross_work,p.cross_time_ms,p.raw_private);
++  }
++  controller=std::make_shared<gpu_proof::Controller>(proof,trace,gpu,progress,vectors,sweep,selected_vectors,cross,graph);{std::lock_guard<std::mutex>l(state->mutex);state->gpu_controller=controller;}
+   if(input->config.stage==gpu_proof::Stage::Primitive16)controller->primitive16(opt);else controller->model2(opt);
+   state->gpu_progress_ns.store(0);state->phase("outer-held-postSHA");auto validator=make_held_sha256_validator({bytes,sha},[state]{return state->abort->load();},state->deadline,hash_observer);auto verified=validator(guard->file,bytes);guard->validate_binding(guard->file);post_sha=verified.bytes_checked==bytes&&verified.sha256==sha;
+   state->finish_monitor();if(state->abort->load())throw std::runtime_error("final monitor stop; retain numeric partial");
+   controller->finish_normal();if(!proof->passed())fail("NUMERICAL_GATE_FAILED_OR_INCOMPLETE; inspect bounded coverage/witness");normal=proof->passed()&&controller->terminal()&&post_sha&&actual_effective[0].context==512&&(input->config.stage==gpu_proof::Stage::Primitive16||actual_effective[1].context==512);
+  }catch(const std::exception&e){fail(e.what());}catch(...){fail("GPU proof unknown failure");}
+  state->finish_monitor();if(state->abort->load())fail("final monitor stopped; no normal commit");
+- std::string layer_witness_json="null",vector_witness_json="null",sweep_json="null",selected_json="null";if(controller){if(!normal){controller->request_stop();controller->drain();}if(input&&input->config.stage==gpu_proof::Stage::Model2){try{layer_witness_json=controller->layer_witness_summary();}catch(const std::exception&e){fail(e.what());}try{vector_witness_json=controller->vector_witness_summary();}catch(const std::exception&e){log_output(marker+" FIRST_VECTOR_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}try{sweep_json=controller->sweep_witness_summary();selected_json=controller->selected_vector_summary();}catch(const std::exception&e){log_output(marker+" CONFIGURABLE_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
++ std::string layer_witness_json="null",vector_witness_json="null",sweep_json="null",selected_json="null",graph_json="null",cross_json="null";if(controller){if(!normal){controller->request_stop();controller->drain();}if(input&&input->config.stage==gpu_proof::Stage::Model2){try{layer_witness_json=controller->layer_witness_summary();}catch(const std::exception&e){fail(e.what());}try{vector_witness_json=controller->vector_witness_summary();}catch(const std::exception&e){log_output(marker+" FIRST_VECTOR_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}try{sweep_json=controller->sweep_witness_summary();selected_json=controller->selected_vector_summary();}catch(const std::exception&e){log_output(marker+" CONFIGURABLE_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}try{graph_json=controller->graph_summary();cross_json=controller->cross_arm_summary(input->config.diagnostics_v3?input->config.diagnostics_v3->cross_output:4096);}catch(const std::exception&e){log_output(marker+" V3_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
+  if(gpu){gpu->drain();try{gpu_counts=gpu->counts();gpu_effective=gpu->snapshot();if(gpu->error()[0])fail(gpu->error());}catch(const std::exception&e){fail(e.what());}}
+  if(normal&&input){
+   const uint64_t hashes=input->config.stage==gpu_proof::Stage::Primitive16?3:4;
+@@ -129,7 +138,7 @@ void run_expert_gpu_proof_configured(){
+    DWORD written=0;if(!WriteFile(side.value,sidecar.data(),DWORD(sidecar.size()),&written,nullptr)||written!=sidecar.size()||!FlushFileBuffers(side.value))throw std::runtime_error("first vector sidecar commit");side.close();
+    log_output(marker+" FIRST_VECTOR_WITNESS_COMMITTED diagnostic_only\n");
+   }catch(const std::exception&e){log_output(marker+" FIRST_VECTOR_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
+-  if(input->config.diagnostics&&sweep_json!="null"&&selected_json!="null")try{
++  if(input->config.diagnostics&&!input->config.diagnostics_v3&&sweep_json!="null"&&selected_json!="null")try{
+    state->phase("configurable-diagnostics-sidecar",input->config.diagnostics->output_budget);
+    const std::string raw_trace(reinterpret_cast<const char*>(trace->data()),trace->file_bytes);
+    const std::string sidecar="{\"schema\":\"ua68-model2-configurable-diagnostics-sidecar-v1\",\"diagnostic_only\":true,\"external_signed_artifact_binding_required\":true,\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"output_sha256\":"+quote(dev_sha(json))+",\"trace_sha256\":"+quote(dev_sha(raw_trace))+",\"overview\":"+sweep_json+",\"vectors\":"+selected_json+"}";
+@@ -139,6 +148,16 @@ void run_expert_gpu_proof_configured(){
+    DWORD written=0;if(!WriteFile(side.value,sidecar.data(),DWORD(sidecar.size()),&written,nullptr)||written!=sidecar.size()||!FlushFileBuffers(side.value))throw std::runtime_error("configurable diagnostics sidecar commit");side.close();
+    log_output(marker+" CONFIGURABLE_DIAGNOSTICS_COMMITTED diagnostic_only\n");
+   }catch(const std::exception&e){log_output(marker+" CONFIGURABLE_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
++  if(input->config.diagnostics_v3&&sweep_json!="null"&&selected_json!="null")try{
++   state->phase("consolidated-diagnostics-sidecar",input->config.diagnostics_v3->base.output_budget+input->config.diagnostics_v3->graph_output+input->config.diagnostics_v3->cross_output);
++   const std::string raw_trace(reinterpret_cast<const char*>(trace->data()),trace->file_bytes);
++   const std::string sidecar="{\"schema\":\"ua68-model2-consolidated-diagnostics-sidecar-v1\",\"diagnostic_only\":true,\"external_signed_artifact_binding_required\":true,\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"output_sha256\":"+quote(dev_sha(json))+",\"trace_sha256\":"+quote(dev_sha(raw_trace))+",\"overview\":"+sweep_json+",\"vectors\":"+selected_json+",\"graph\":"+graph_json+",\"cross_arm\":"+cross_json+"}";
++   if(sidecar.size()>(2u<<20))throw std::length_error("consolidated diagnostics sidecar cap");
++   DevHandle side(CreateFile2(input->path("diagnostics.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr));
++   if(side.value==INVALID_HANDLE_VALUE)throw std::runtime_error("consolidated diagnostics sidecar CREATE_NEW");
++   DWORD written=0;if(!WriteFile(side.value,sidecar.data(),DWORD(sidecar.size()),&written,nullptr)||written!=sidecar.size()||!FlushFileBuffers(side.value))throw std::runtime_error("consolidated diagnostics sidecar commit");side.close();
++   log_output(marker+" CONSOLIDATED_DIAGNOSTICS_COMMITTED diagnostic_only\n");
++  }catch(const std::exception&e){log_output(marker+" CONSOLIDATED_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
+ 
+   log_output(marker+(normal?" OUTPUT_COMMITTED normal owner/file/writer closed\n":" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));
+  }catch(const std::exception&e){fail(e.what());log_output(marker+" OUTPUT_FAILED: "+e.what()+"\n");}

@@ -1,0 +1,240 @@
+diff --git a/ggml/src/ggml-cpu/ggml-cpu.c b/ggml/src/ggml-cpu/ggml-cpu.c
+index ec177591fdc7e890461e78ca678dd3585dd02e6e..44f4c89db42d27d5cc56ff11e780876e56824e35 100644
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -1481,6 +1481,59 @@ struct mmid_row_mapping {
+     int32_t i2;
+ };
+ 
++// Diagnostic copies occur only after the packed-Q8 worker barrier and the
++// external expert acquire barrier. No pointer outlives either workspace/lease.
++static void ggml_ua50_diagnostic_rows(const struct ggml_tensor * expert,
++                                      const struct ggml_tensor * src1,
++                                      const struct ggml_tensor * dst,const struct ggml_tensor * ids,
++                                      const struct mmid_row_mapping * rows,
++                                      int64_t count,const void * packed,
++                                      size_t row_size,bool output) {
++    if (!ggml_ua50_has_cross_arm_observer(expert)) return;
++    if (count < 0 || count > 4 || src1->type != GGML_TYPE_F32 ||
++        src1->nb[0] != sizeof(float) || src1->ne[3] != 1 ||
++        expert->ne[0] <= 0 || expert->ne[0] % 256 ||
++        src1->ne[1] <= 0 || src1->ne[1] > 4 || src1->ne[2] <= 0 || src1->ne[2] > 129 ||
++        ids->ne[0] <= 0 || ids->ne[0] > 4 ||
++        row_size != ggml_row_size(GGML_TYPE_Q8_K, expert->ne[0])) {
++        ggml_ua50_diagnostic_unavailable(expert,"DIAGNOSTIC_SHAPE"); return;
++    }
++    const uint64_t f32_bytes=ggml_nbytes(src1),q8_bytes=ggml_row_size(GGML_TYPE_Q8_K,src1->ne[0]);
++    const uint64_t dst_bytes=ggml_nbytes(dst);
++    for (int64_t j=0;j<count;++j) {
++        const int64_t slot=rows[j].i1,input_row=rows[j].i2;
++        if (slot<0 || slot>=ids->ne[0] || input_row<0 || input_row>=src1->ne[2] ||
++            src1->ne[0]!=expert->ne[0] || q8_bytes!=row_size ||
++            (uint64_t)(slot%src1->ne[1])>UINT64_MAX/src1->nb[1] ||
++            (uint64_t)input_row>UINT64_MAX/src1->nb[2] ||
++            (uint64_t)(slot%src1->ne[1])>UINT64_MAX/row_size ||
++            (uint64_t)input_row>UINT64_MAX/(uint64_t)src1->ne[1] ||
++            (uint64_t)slot>UINT64_MAX/dst->nb[1] ||
++            (uint64_t)input_row>UINT64_MAX/dst->nb[2]) {
++            ggml_ua50_diagnostic_unavailable(expert,"DIAGNOSTIC_ROW_EXTENT"); return;
++        }
++        const uint64_t i11=(uint64_t)(slot%src1->ne[1]);
++        const uint64_t foff=i11*src1->nb[1]+(uint64_t)input_row*src1->nb[2];
++        const uint64_t qrow=i11+(uint64_t)input_row*(uint64_t)src1->ne[1];
++        const uint64_t qoff=qrow*row_size;
++        const uint64_t doff=(uint64_t)slot*dst->nb[1]+(uint64_t)input_row*dst->nb[2];
++        if (foff>f32_bytes || (uint64_t)src1->ne[0]*sizeof(float)>f32_bytes-foff ||
++            qoff>q8_bytes*(uint64_t)src1->ne[1]*(uint64_t)src1->ne[2] ||
++            row_size>q8_bytes*(uint64_t)src1->ne[1]*(uint64_t)src1->ne[2]-qoff ||
++            doff>dst_bytes || (uint64_t)expert->ne[1]*sizeof(float)>dst_bytes-doff) {
++            ggml_ua50_diagnostic_unavailable(expert,"DIAGNOSTIC_BYTE_EXTENT"); return;
++        }
++        if (output) {
++            const float * values=(const float *)((const char *)dst->data+doff);
++            ggml_ua50_diagnostic_output(expert,(uint32_t)slot,(uint32_t)input_row,values,(uint64_t)expert->ne[1]);
++        } else {
++            const float * f32=(const float *)((const char *)src1->data+foff);
++            const void * q8=(const char *)packed+qoff;
++            ggml_ua50_diagnostic_input(expert,(uint32_t)slot,(uint32_t)input_row,f32,(uint64_t)expert->ne[0],q8,row_size);
++        }
++    }
++}
++
+ static void ggml_compute_forward_mul_mat_id_one_chunk(
+     struct ggml_tensor * dst,
+     const struct ggml_tensor * src0,
+@@ -1705,6 +1758,9 @@ static void ggml_compute_forward_mul_mat_id(
+         const void * wdata = (src1->type == vec_dot_type) ? src1->data : params->wdata;
+         const size_t row_size = ggml_row_size(vec_dot_type, ne10);
+ 
++        if (external_expert && ith == 0)
++            ggml_ua50_diagnostic_rows(src0,src1,dst,ids,&MMID_MATRIX_ROW(cur_a,0),cne1,wdata,row_size,false);
++
+         // Explicit UA68 bridge: CPU still owns routing/Q8_K packing. No scheduler lie/fallback.
+         if (external_expert && ggml_ua50_has_gpu(src0)) {
+             bool published = false;
+@@ -1723,6 +1779,7 @@ static void ggml_compute_forward_mul_mat_id(
+                 ggml_ua50_release(src0);
+                 return; // no CPU fallback after opt-in/refusal
+             }
++            ggml_ua50_diagnostic_rows(src0,src1,dst,ids,&MMID_MATRIX_ROW(cur_a,0),cne1,wdata,row_size,true);
+             // Actual graph copy is guarded by the executor publication mutex; stop cannot race past it.
+             ggml_ua50_release(src0);
+             continue;
+@@ -1777,7 +1834,10 @@ static void ggml_compute_forward_mul_mat_id(
+         }
+         if (external_expert) {
+             ggml_barrier(params->threadpool); // ALL chunks/reads complete before eviction
+-            if (ith == 0) ggml_ua50_release(src0);
++            if (ith == 0) {
++                ggml_ua50_diagnostic_rows(src0,src1,dst,ids,&MMID_MATRIX_ROW(cur_a,0),cne1,wdata,row_size,true);
++                ggml_ua50_release(src0);
++            }
+             ggml_barrier(params->threadpool); // release completes before next acquire
+         }
+     }
+diff --git a/src/models/lfm2.cpp b/src/models/lfm2.cpp
+index 07b71ccd3a60f87a74f543d5bf637c8a67d9fa9f..edc7c398d25aa6db9fe0b3ead57fdfca3489ced5 100644
+--- a/src/models/lfm2.cpp
++++ b/src/models/lfm2.cpp
+@@ -266,15 +266,19 @@ llama_model_lfm2::graph<iswa>::graph(const llama_model & model, const llm_graph_
+         }
+ 
+         cur = ggml_add(ctx0, prev_cur, cur);
++        cb(cur, "model.layers.{}.pre_ffn_residual", il);
+ 
+         auto * ffn_norm_out = build_norm(cur, model.layers[il].ffn_norm, NULL, LLM_NORM_RMS, il);
+         cb(ffn_norm_out, "model.layers.{}.ffn_norm", il);
+ 
+         ggml_tensor * ffn_out =
+             is_moe_layer ? build_moe_feed_forward(ffn_norm_out, il) : build_dense_feed_forward(ffn_norm_out, il);
+-        cb(ffn_norm_out, "model.layers.{}.ffn_out", il);
++        if (!is_moe_layer) {
++            cb(ffn_out, "model.layers.{}.dense_ffn_out", il);
++        }
+ 
+         cur = ggml_add(ctx0, cur, ffn_out);
++        cb(cur, "model.layers.{}.post_ffn_residual", il);
+ 
+         cur = build_cvec(cur, il);
+         cb(cur, "l_out", il);
+diff --git a/src/ua50/cross_arm_observer.h b/src/ua50/cross_arm_observer.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..916db136696b83d6bdb22ac071862a6a3a7be30a
+--- /dev/null
++++ b/src/ua50/cross_arm_observer.h
+@@ -0,0 +1,18 @@
++#pragma once
++#include <cstddef>
++#include <cstdint>
++
++namespace ua50 {
++// Diagnostic-only observer. Each call is synchronous, while the expert lease,
++// packed workspace and graph output remain live. Implementations must copy any
++// value they retain and must never throw across the C/ggml worker boundary.
++struct CrossArmObserver {
++    virtual ~CrossArmObserver() = default;
++    virtual void frame(uint32_t phase,uint32_t position,int32_t token) noexcept = 0;
++    virtual void input(uint32_t role,uint32_t expert,uint32_t slot,uint32_t input_row,
++                       const float * f32,size_t k,const unsigned char * q8,size_t q8_bytes) noexcept = 0;
++    virtual void output(uint32_t role,uint32_t expert,uint32_t slot,uint32_t input_row,
++                        const float * values,size_t n) noexcept = 0;
++    virtual void unavailable(const char * reason) noexcept = 0;
++};
++}
+diff --git a/src/ua50/ggml-ua50.h b/src/ua50/ggml-ua50.h
+index 308e24b930fee987e02d78a78ee25fefee400a17..3f7e644597481ce7123cb79255ec26ef530589f9 100644
+--- a/src/ua50/ggml-ua50.h
++++ b/src/ua50/ggml-ua50.h
+@@ -15,6 +15,13 @@ void ggml_ua50_release(const struct ggml_tensor * tensor);
+ bool ggml_ua50_has_gpu(const struct ggml_tensor * tensor);
+ // Already packed CPU Q8_K input. Returned rows are never published on failure.
+ bool ggml_ua50_gpu_vector(const struct ggml_tensor * tensor,const void * q8,uint64_t bytes,float *destination,uint64_t elements);
++// Synchronous, optional diagnostic copies at the already-held expert lease.
++bool ggml_ua50_has_cross_arm_observer(const struct ggml_tensor * tensor);
++void ggml_ua50_diagnostic_unavailable(const struct ggml_tensor * tensor,const char * reason);
++void ggml_ua50_diagnostic_input(const struct ggml_tensor * tensor,uint32_t slot,uint32_t input_row,
++                                const float * f32,uint64_t k,const void * q8,uint64_t q8_bytes);
++void ggml_ua50_diagnostic_output(const struct ggml_tensor * tensor,uint32_t slot,uint32_t input_row,
++                                 const float * output,uint64_t n);
+ const char * ggml_ua50_error(const struct ggml_tensor * tensor);
+ #ifdef __cplusplus
+ }
+diff --git a/src/ua50/native_provider.cpp b/src/ua50/native_provider.cpp
+index 09f4012e3a8cdb33bc0f0500071e49a6b298f80e..4b0fd2bfbd1462b2979b0731c684bea50ea8ec0e 100644
+--- a/src/ua50/native_provider.cpp
++++ b/src/ua50/native_provider.cpp
+@@ -130,6 +130,28 @@ void NativeProvider::release() noexcept {
+  if(gpu_){gpu_->drain();if(!gpu_->terminal())std::terminate();}
+  active_.reset(); active_tensor_=nullptr;
+ }
++void NativeProvider::diagnostic_input(const ggml_tensor*t,uint32_t slot,uint32_t row,
++                                      const float*f32,size_t k,const unsigned char*q8,size_t bytes) noexcept{
++ if(!cross_arm_observer_)return;
++ if(active_tensor_!=t||!f32||!q8){cross_arm_observer_->unavailable("LEASE_OR_INPUT");return;}
++ for(size_t i=0;i<count_;++i)if(records_[i].tensor==t){
++  const auto&d=records_[i].layout;
++  if(k!=d.columns||bytes!=k/256*292||active_expert_>=d.experts){cross_arm_observer_->unavailable("ROLE_INPUT_SHAPE");return;}
++  cross_arm_observer_->input(d.id,uint32_t(active_expert_),slot,row,f32,k,q8,bytes);return;
++ }
++ cross_arm_observer_->unavailable("UNREGISTERED_ROLE");
++}
++void NativeProvider::diagnostic_output(const ggml_tensor*t,uint32_t slot,uint32_t row,
++                                       const float*values,size_t n) noexcept{
++ if(!cross_arm_observer_)return;
++ if(active_tensor_!=t||!values){cross_arm_observer_->unavailable("LEASE_OR_OUTPUT");return;}
++ for(size_t i=0;i<count_;++i)if(records_[i].tensor==t){
++  const auto&d=records_[i].layout;
++  if(n!=d.rows){cross_arm_observer_->unavailable("ROLE_OUTPUT_SHAPE");return;}
++  cross_arm_observer_->output(d.id,uint32_t(active_expert_),slot,row,values,n);return;
++ }
++ cross_arm_observer_->unavailable("UNREGISTERED_ROLE");
++}
+ bool NativeProvider::gpu_vector(const ggml_tensor*t,const void*q,size_t bytes,float*dst,size_t n) noexcept {
+  if(error_[0]||!gpu_)return false;
+  try{
+@@ -169,3 +191,12 @@ extern "C" const char * ggml_ua50_error(const ggml_tensor * t) { auto * p=owner(
+ 
+ extern "C" bool ggml_ua50_has_gpu(const ggml_tensor*t){auto*p=owner(t);return p&&p->has_gpu();}
+ extern "C" bool ggml_ua50_gpu_vector(const ggml_tensor*t,const void*q,uint64_t bytes,float*dst,uint64_t n){auto*p=owner(t);return p&&bytes<=SIZE_MAX&&n<=SIZE_MAX&&p->gpu_vector(t,q,size_t(bytes),dst,size_t(n));}
++extern "C" bool ggml_ua50_has_cross_arm_observer(const ggml_tensor*t){auto*p=owner(t);return p&&p->has_cross_arm_observer();}
++extern "C" void ggml_ua50_diagnostic_unavailable(const ggml_tensor*t,const char*reason){auto*p=owner(t);if(p)p->diagnostic_unavailable(reason);}
++extern "C" void ggml_ua50_diagnostic_input(const ggml_tensor*t,uint32_t slot,uint32_t row,const float*f32,uint64_t k,const void*q8,uint64_t bytes){
++ auto*p=owner(t);if(p){if(k>SIZE_MAX||bytes>SIZE_MAX)p->diagnostic_input(t,slot,row,nullptr,0,nullptr,0);
++ else p->diagnostic_input(t,slot,row,f32,size_t(k),static_cast<const unsigned char*>(q8),size_t(bytes));}
++}
++extern "C" void ggml_ua50_diagnostic_output(const ggml_tensor*t,uint32_t slot,uint32_t row,const float*values,uint64_t n){
++ auto*p=owner(t);if(p)p->diagnostic_output(t,slot,row,values,n<=SIZE_MAX?size_t(n):0);
++}
+diff --git a/src/ua50/native_provider.h b/src/ua50/native_provider.h
+index a45ed85daf9aca8ee728522d03f4dbcc810eaaed..7a7d4d2c744aa5d404d71b4828615d4e8435a5be 100644
+--- a/src/ua50/native_provider.h
++++ b/src/ua50/native_provider.h
+@@ -3,6 +3,7 @@
+ #include "ggml-backend-impl.h"
+ #include "expert_cache.h"
+ #include "expert_gpu.h"
++#include "cross_arm_observer.h"
+ #include <array>
+ #include <memory>
+ #include <functional>
+@@ -20,6 +21,7 @@ class NativeProvider {
+     Cache::Lease active_;
+     std::shared_ptr<ExpertGpu> gpu_;
+     std::shared_ptr<VectorObserver> vector_observer_;
++    std::shared_ptr<CrossArmObserver> cross_arm_observer_;
+     uint64_t active_expert_=0;
+     const ggml_tensor * active_tensor_=nullptr;
+     char error_[256]{};
+@@ -43,6 +45,12 @@ public:
+     void release() noexcept;
+     void set_gpu(std::shared_ptr<ExpertGpu> g){if(active_tensor_||cache_||!g)throw std::logic_error("GPU install before finalize only");gpu_=std::move(g);}
+     void set_vector_observer(std::shared_ptr<VectorObserver> v){if(active_tensor_||!gpu_||!v)throw std::logic_error("vector witness setup on busy/nonhybrid provider");vector_observer_=std::move(v);}
++    void set_cross_arm_observer(std::shared_ptr<CrossArmObserver> v){if(active_tensor_||!v)throw std::logic_error("cross-arm witness setup on busy provider");cross_arm_observer_=std::move(v);}
++    void diagnostic_frame(uint32_t phase,uint32_t position,int32_t token) noexcept {if(cross_arm_observer_)cross_arm_observer_->frame(phase,position,token);}
++    void diagnostic_input(const ggml_tensor*,uint32_t slot,uint32_t row,const float*,size_t,const unsigned char*,size_t) noexcept;
++    void diagnostic_output(const ggml_tensor*,uint32_t slot,uint32_t row,const float*,size_t) noexcept;
++    bool has_cross_arm_observer()const noexcept{return bool(cross_arm_observer_);}
++    void diagnostic_unavailable(const char*reason)noexcept{if(cross_arm_observer_)cross_arm_observer_->unavailable(reason);}
+     bool has_gpu()const noexcept{return bool(gpu_);}
+     bool gpu_vector(const ggml_tensor*,const void*,size_t,float*,size_t) noexcept;
+     void set_trace(std::function<void(uint32_t,uint64_t,uint64_t,uint64_t)> trace) {

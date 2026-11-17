@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_CONFIGURABLE_MODEL2_DIAGNOSTICS_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_CONSOLIDATED_MODEL2_DIAGNOSTICS_SOURCE_CANDIDATE",
   "parent_patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
   "parent12_reused_not_replayed": true,
   "patches": [
@@ -158,6 +158,18 @@
       "target": "llama",
       "bytes": 1050,
       "sha256": "c89ab086d4b3439f5006b6b93d3d52b545848ede52d94ae429f81e47e7639636"
+    },
+    {
+      "file": "patch/model2-consolidated-diagnostics-root.patch",
+      "target": "xllama",
+      "bytes": 78109,
+      "sha256": "1709c789d762a61faca7f4ac128fa9d5ddfee24e3283bdc9a0e8b3db088c0e90"
+    },
+    {
+      "file": "patch/model2-consolidated-diagnostics-native.patch",
+      "target": "llama",
+      "bytes": 14178,
+      "sha256": "55645ba8e0a229dec774f5e7227a34b52e4a39595c895658e4fce54d20eae7d8"
     }
   ],
   "parent14_reused_not_replayed": true,
@@ -169,5 +181,7 @@
   "parent22_patch_lock_sha256": "b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48",
   "parent22_reused_not_replayed": true,
   "parent24_patch_lock_sha256": "9b9659dc28c63383aa89c10eafc9a8c625ee6d5d659030941c808f4303d9c372",
-  "parent24_reused_not_replayed": true
+  "parent24_reused_not_replayed": true,
+  "parent26_patch_lock_sha256": "f035c9cd3b672ac2b441eecd65d171ef2175c33ea9c34045644d61c0d85957e0",
+  "parent26_reused_not_replayed": true
 }

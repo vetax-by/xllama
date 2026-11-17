@@ -331,6 +331,72 @@
       "include": "ggml.h"
     },
     {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 2,
+      "style": "\"",
+      "include": "ua50/cross_arm_observer.h"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 3,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 4,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 5,
+      "style": "<",
+      "include": "charconv"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 6,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 7,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 8,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 9,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 10,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 11,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/gpu_cross_arm_witness.h",
+      "line": 12,
+      "style": "<",
+      "include": "vector"
+    },
+    {
       "from": "include/xllama/gpu_diagnostic_plan.h",
       "line": 2,
       "style": "\"",
@@ -369,6 +435,120 @@
     {
       "from": "include/xllama/gpu_diagnostic_plan.h",
       "line": 8,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan_v3.h",
+      "line": 2,
+      "style": "\"",
+      "include": "gpu_diagnostic_plan.h"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan_v3.h",
+      "line": 3,
+      "style": "\"",
+      "include": "gpu_graph_witness.h"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan_v3.h",
+      "line": 4,
+      "style": "\"",
+      "include": "gpu_cross_arm_witness.h"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan_v3.h",
+      "line": 5,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan_v3.h",
+      "line": 6,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan_v3.h",
+      "line": 7,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 2,
+      "style": "\"",
+      "include": "gpu_layer_witness.h"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 3,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 4,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 5,
+      "style": "<",
+      "include": "charconv"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 6,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 7,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 8,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 9,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 10,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 11,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 12,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 13,
+      "style": "<",
+      "include": "string_view"
+    },
+    {
+      "from": "include/xllama/gpu_graph_witness.h",
+      "line": 14,
       "style": "<",
       "include": "vector"
     },
@@ -511,6 +691,12 @@
       "include": "string_view"
     },
     {
+      "from": "include/xllama/gpu_optional_observer.h",
+      "line": 2,
+      "style": "<",
+      "include": "utility"
+    },
+    {
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 2,
       "style": "\"",
@@ -556,29 +742,47 @@
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 9,
       "style": "\"",
-      "include": "ggml-backend.h"
+      "include": "gpu_cross_arm_witness.h"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 10,
       "style": "\"",
-      "include": "ggml.h"
+      "include": "gpu_graph_witness.h"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 11,
       "style": "\"",
-      "include": "first_answer_template.h"
+      "include": "gpu_optional_observer.h"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 12,
+      "style": "\"",
+      "include": "ggml-backend.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 13,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 14,
+      "style": "\"",
+      "include": "first_answer_template.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 15,
       "style": "<",
       "include": "atomic"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
-      "line": 13,
+      "line": 16,
       "style": "<",
       "include": "memory"
     },
@@ -633,6 +837,12 @@
     {
       "from": "include/xllama/gpu_run_config.h",
       "line": 6,
+      "style": "\"",
+      "include": "gpu_diagnostic_plan_v3.h"
+    },
+    {
+      "from": "include/xllama/gpu_run_config.h",
+      "line": 7,
       "style": "<",
       "include": "memory"
     },
@@ -1592,19 +1802,19 @@
     },
     {
       "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
-      "line": 2572,
+      "line": 2632,
       "style": "\"",
       "include": "windows.h"
     },
     {
       "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
-      "line": 2663,
+      "line": 2723,
       "style": "<",
       "include": "sys/types.h"
     },
     {
       "from": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
-      "line": 2664,
+      "line": 2724,
       "style": "<",
       "include": "sys/resource.h"
     },
@@ -2419,6 +2629,30 @@
       "include": "vector"
     },
     {
+      "from": "llama.cpp/src/models/lfm2.cpp",
+      "line": 1,
+      "style": "\"",
+      "include": "models.h"
+    },
+    {
+      "from": "llama.cpp/src/models/lfm2.cpp",
+      "line": 2,
+      "style": "\"",
+      "include": "../llama-memory-hybrid-iswa.h"
+    },
+    {
+      "from": "llama.cpp/src/models/lfm2.cpp",
+      "line": 3,
+      "style": "\"",
+      "include": "../llama-memory-hybrid.h"
+    },
+    {
+      "from": "llama.cpp/src/models/lfm2.cpp",
+      "line": 5,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
       "from": "llama.cpp/src/ua50/cache_trace.h",
       "line": 2,
       "style": "\"",
@@ -2453,6 +2687,18 @@
       "line": 7,
       "style": "<",
       "include": "algorithm"
+    },
+    {
+      "from": "llama.cpp/src/ua50/cross_arm_observer.h",
+      "line": 2,
+      "style": "<",
+      "include": "cstddef"
+    },
+    {
+      "from": "llama.cpp/src/ua50/cross_arm_observer.h",
+      "line": 3,
+      "style": "<",
+      "include": "cstdint"
     },
     {
       "from": "llama.cpp/src/ua50/expert_cache.h",
@@ -2631,18 +2877,24 @@
     {
       "from": "llama.cpp/src/ua50/native_provider.h",
       "line": 6,
-      "style": "<",
-      "include": "array"
+      "style": "\"",
+      "include": "cross_arm_observer.h"
     },
     {
       "from": "llama.cpp/src/ua50/native_provider.h",
       "line": 7,
       "style": "<",
-      "include": "memory"
+      "include": "array"
     },
     {
       "from": "llama.cpp/src/ua50/native_provider.h",
       "line": 8,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "llama.cpp/src/ua50/native_provider.h",
+      "line": 9,
       "style": "<",
       "include": "functional"
     },
