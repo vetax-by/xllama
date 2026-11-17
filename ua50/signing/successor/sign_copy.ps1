@@ -51,7 +51,7 @@ if ((Hash $sourcePath) -ne $ExpectedSourceReceiptSha256.ToLowerInvariant()) { th
 $source = Get-Content -LiteralPath $sourcePath -Raw | ConvertFrom-Json
 if ($source.track -ne $ExpectedTrack -or $source.xllama -ne '4db51522c850e62d0bb24234dfeb48e55f4017d7' -or $source.llama -ne 'd81235049384534c167caea52b85a694f6103d14') { throw 'source track/base mismatch' }
 if ($ExpectedTrack -eq 'patch') {
-    if ($source.reviewed_patch_lock -ne 'b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48' -or $source.selected_shipping_files_verified -ne 80) { throw 'UA50 successor b427/80 source receipt required' }
+    if ($source.reviewed_patch_lock -ne '9b9659dc28c63383aa89c10eafc9a8c625ee6d5d659030941c808f4303d9c372' -or $source.selected_shipping_files_verified -ne 81) { throw 'UA50 successor 9b96/81 source receipt required' }
 } elseif ($source.reviewed_patch_lock -or $source.selected_shipping_files_verified -ne 0) { throw 'baseline must remain unpatched' }
 if (-not [IO.Path]::IsPathRooted($SdkBin) -or -not [IO.Path]::IsPathRooted($PrivateWork) -or -not [IO.Path]::IsPathRooted($Output)) { throw 'explicit absolute SDK/private/output paths required' }
 $makeappx = Join-Path $SdkBin 'makeappx.exe'
