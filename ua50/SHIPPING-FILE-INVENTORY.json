@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_MODEL2_LAYER_WITNESS_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_MODEL2_FIRST_VECTOR_WITNESS_SOURCE_CANDIDATE",
   "selected_source_files": [
     {
       "file": "CMakeLists.txt",
@@ -12,8 +12,8 @@
       "file": "include/xllama/cpu_expert_session.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_expert_session.h",
-      "bytes": 6015,
-      "sha256": "4a8532da1bd868e10aeef63ea613b940d3f8adf2cb9358cdfc81f7659745e682"
+      "bytes": 6119,
+      "sha256": "d5157b401a8ba63222f44e46f253330a128e3ecd2cae9c0eb5a1ac6c78afbbd8"
     },
     {
       "file": "include/xllama/cpu_pilot_binding.h",
@@ -131,8 +131,8 @@
       "file": "include/xllama/gpu_proof_controller.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_proof_controller.h",
-      "bytes": 10986,
-      "sha256": "879e1e5763dd3467d6384339a17b0f94bdca6fb686f96937a3290d270219837f"
+      "bytes": 11354,
+      "sha256": "ade69b356d6b2603dfccfc220f4e161c24ac8718a1575b799eccd2a4cfb290f3"
     },
     {
       "file": "include/xllama/gpu_proof_trace.h",
@@ -147,6 +147,13 @@
       "target_path": "include/xllama/gpu_run_config.h",
       "bytes": 5431,
       "sha256": "93fbe8f0928b99c605e029b582f35dc42a4e60f707fc170ddffd30e99abc851c"
+    },
+    {
+      "file": "include/xllama/gpu_vector_witness.h",
+      "target": "xllama",
+      "target_path": "include/xllama/gpu_vector_witness.h",
+      "bytes": 6187,
+      "sha256": "518b2df255c5d30876ab0691e7d6eb11cd6e6557b44bce911ea4cf58adace0e6"
     },
     {
       "file": "include/xllama/session.h",
@@ -285,8 +292,8 @@
       "file": "llama.cpp/src/ua50/expert_gpu.h",
       "target": "llama",
       "target_path": "src/ua50/expert_gpu.h",
-      "bytes": 7213,
-      "sha256": "e8aae9b5170455537a4eb47fbeeb76d997d1e6c98a3d65547bdbf7d9ebf65837"
+      "bytes": 8112,
+      "sha256": "3f6eadc3118d61c20d7199003d96e98f17c9bdfb9884e62f28ae15b87b95b866"
     },
     {
       "file": "llama.cpp/src/ua50/ggml-ua50.h",
@@ -299,15 +306,15 @@
       "file": "llama.cpp/src/ua50/native_provider.cpp",
       "target": "llama",
       "target_path": "src/ua50/native_provider.cpp",
-      "bytes": 10599,
-      "sha256": "16c3b6c622d42df54ab580a6e8e502e9364297824d3433201f8ab773106cd215"
+      "bytes": 11416,
+      "sha256": "b0d458bb58c3fbef6188f9924f83a17f478316b152b4fd457630066c33972707"
     },
     {
       "file": "llama.cpp/src/ua50/native_provider.h",
       "target": "llama",
       "target_path": "src/ua50/native_provider.h",
-      "bytes": 3319,
-      "sha256": "dd326487d77ae3a39e7e335f6d8eaadb040705e9678c8cbedbfb6a78f0e44a8a"
+      "bytes": 3572,
+      "sha256": "56885e08db7bb3d7ca3bc67ed650ba6c7b25a4e5fbcaa5fccc86be6f80a5f63f"
     },
     {
       "file": "llama.cpp/src/ua50/owned_expert_load.h",
@@ -348,8 +355,8 @@
       "file": "src/bridge/cpu_expert_session.cpp",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_session.cpp",
-      "bytes": 19889,
-      "sha256": "cfe1ba7e5f2b930a0e435e01880efc8b7360d1bbf10606d9e41b042b0e987a53"
+      "bytes": 20164,
+      "sha256": "4cb58d7d1820ed4b331027a867ba76ed90fe5480964e2e11f6dea3c3fac53f3a"
     },
     {
       "file": "src/bridge/d3d12_compute.cpp",
@@ -523,8 +530,8 @@
       "file": "uwp/gpu-proof-pilot.inc",
       "target": "xllama",
       "target_path": "uwp/gpu-proof-pilot.inc",
-      "bytes": 22190,
-      "sha256": "4f7ce4894c9dee7264d673562f9263aca11229335358ad6575fddafcadb38afb"
+      "bytes": 24261,
+      "sha256": "5876dcb072862e109600ad46594747b888a8bb43c826549f6894e2ddaefc5590"
     },
     {
       "file": "uwp/inference-bridge.h",

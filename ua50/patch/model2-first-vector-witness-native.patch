@@ -1,0 +1,75 @@
+--- a/src/ua50/expert_gpu.h
++++ b/src/ua50/expert_gpu.h
+@@ -34,6 +34,23 @@
+  Quant quant;uint32_t role,expert,k,n;const unsigned char* weights;size_t weight_bytes;
+  const unsigned char* q8;size_t q8_bytes;
+ };
++// Diagnostic observer sees only the exact held hybrid input and post-fence result.
++// It must not retain pointers beyond observe(); source admission owns its lifetime.
++class VectorObserver {
++public:
++ virtual ~VectorObserver()=default;
++ virtual bool select(const ExpertVector&) noexcept=0;
++ virtual void observe(const ExpertVector&,const float*cpu,const float*gpu)=0;
++ virtual void unavailable() noexcept=0;
++};
++template<class F> bool diagnostic_oracle(VectorObserver*observer,const ExpertVector&request,F&&compute)noexcept{
++ if(!observer||!observer->select(request))return false;
++ try{compute();return true;}catch(...){observer->unavailable();return false;}
++}
++inline void diagnostic_result(VectorObserver*observer,bool selected,const ExpertVector&request,const float*cpu,const float*gpu)noexcept{
++ if(!selected)return;
++ try{observer->observe(request,cpu,gpu);}catch(...){observer->unavailable();}
++}
+ inline void check_vector(const ExpertVector& x){
+  const bool shape=(x.k==2048&&x.n==1536&&x.quant==Quant::q4_k)||
+   (x.k==1536&&x.n==2048&&(x.quant==Quant::q4_k||x.quant==Quant::q6_k));
+--- a/src/ua50/native_provider.h
++++ b/src/ua50/native_provider.h
+@@ -19,6 +19,7 @@
+     std::unique_ptr<Cache> cache_;
+     Cache::Lease active_;
+     std::shared_ptr<ExpertGpu> gpu_;
++    std::shared_ptr<VectorObserver> vector_observer_;
+     uint64_t active_expert_=0;
+     const ggml_tensor * active_tensor_=nullptr;
+     char error_[256]{};
+@@ -41,6 +42,7 @@
+     bool acquire(const ggml_tensor *,uint64_t) noexcept;
+     void release() noexcept;
+     void set_gpu(std::shared_ptr<ExpertGpu> g){if(active_tensor_||cache_||!g)throw std::logic_error("GPU install before finalize only");gpu_=std::move(g);}
++    void set_vector_observer(std::shared_ptr<VectorObserver> v){if(active_tensor_||!gpu_||!v)throw std::logic_error("vector witness setup on busy/nonhybrid provider");vector_observer_=std::move(v);}
+     bool has_gpu()const noexcept{return bool(gpu_);}
+     bool gpu_vector(const ggml_tensor*,const void*,size_t,float*,size_t) noexcept;
+     void set_trace(std::function<void(uint32_t,uint64_t,uint64_t,uint64_t)> trace) {
+--- a/src/ua50/native_provider.cpp
++++ b/src/ua50/native_provider.cpp
+@@ -2,6 +2,7 @@
+ #include <cstdio>
+ #include <cstring>
+ #include <exception>
++#include "ggml-cpu.h"
+ 
+ namespace {
+ using ua50::NativeProvider;
+@@ -134,7 +135,19 @@
+  try{
+   if(active_tensor_!=t||!q)throw std::logic_error("GPU vector without active host lease");
+   for(size_t i=0;i<count_;++i)if(records_[i].tensor==t){const auto&d=records_[i].layout;
+-   const float* result=gpu_->execute({d.quant,d.id,uint32_t(active_expert_),uint32_t(d.columns),uint32_t(d.rows),active_.data(),active_.size(),static_cast<const unsigned char*>(q),bytes});
++   const ExpertVector request{d.quant,d.id,uint32_t(active_expert_),uint32_t(d.columns),uint32_t(d.rows),active_.data(),active_.size(),static_cast<const unsigned char*>(q),bytes};
++   check_vector(request);
++   std::array<float,2048> oracle;
++   const bool selected=diagnostic_oracle(vector_observer_.get(),request,[&]{
++    const auto*trait=ggml_get_type_traits_cpu(t->type);
++    if(!trait||trait->vec_dot_type!=GGML_TYPE_Q8_K||!trait->vec_dot||t->nb[1]!=d.nb01||
++       d.rows>oracle.size()||d.nb01>SIZE_MAX/d.rows||d.nb01*d.rows!=request.weight_bytes)
++      throw std::runtime_error("vector witness CPU oracle layout refused");
++    for(size_t row=0;row<request.n;++row)
++      trait->vec_dot(int(request.k),oracle.data()+row,0,request.weights+row*d.nb01,0,request.q8,0,1);
++   });
++   const float* result=gpu_->execute(request);
++   if(selected){if(gpu_->terminal()&&result)diagnostic_result(vector_observer_.get(),true,request,oracle.data(),result);else vector_observer_->unavailable();}
+    if(n!=d.rows||!gpu_->publish(result,dst,n))throw std::runtime_error("GPU stopped/nonfinite graph publication refused");return true;}
+   throw std::logic_error("GPU vector unregistered role");
+  }catch(const std::exception&e){if(!error_[0])std::snprintf(error_,sizeof(error_),"%s",e.what());}

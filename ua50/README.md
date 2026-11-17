@@ -7,8 +7,8 @@ The patch rationale, implementation and evidence limits have one home:
 
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
-- Current 22-patch model2 layer witness source lock SHA-256:
-  `b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48`.
+- Current 24-patch model2 first vector diagnostic source lock SHA-256:
+  `9b9659dc28c63383aa89c10eafc9a8c625ee6d5d659030941c808f4303d9c372`.
 - The prior 17-patch lock `921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe`
   remains the binding for Windows run 43825061482; that build did not contain the followup fixes.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
@@ -22,7 +22,7 @@ the ten historical entries. Two further configurable-runner patches add a
 strict typed developer entrypoint, explicit successor records and bounded I/O
 aggregates; those twelve entries are retained. Two additional root/native GPU bridge patches
 bring the historical GPU route to fourteen entries. One further root identity patch
-brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches brought the historical route to seventeen entries and 77 selected shipping files. Two source-only followup patches now bring the recipe to nineteen entries and 79 selected postimages: the root patch fixes the `EnsureModelAsync` return type and signed prompt-cap comparison, and the pinned llama.cpp patch fixes the unsigned layer comparison. A twentieth patch adds byte-safe trace retrieval and per-run permit storage. The twenty-first patch requests logits on every model2 proof decode so final-layer MoE routes remain observable on nonfinal prefill tokens. Signed 1510 then passed the 456-route gate but closed with native numerical and route mismatch; that run is spent and model2 remains unaccepted. A twenty-second root patch adds a bounded model2-only layer-output witness and optional SHA-bound diagnostic sidecar. It retains the accepted main result schema, the strict 456-route and numerical gates, and all earlier patch bytes. The recipe now selects 80 postimages and 673 direct includes. The witness change has independent source/host synthetic review only; it has no Windows or native result. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
+brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches brought the historical route to seventeen entries and 77 selected shipping files. Two source-only followup patches now bring the recipe to nineteen entries and 79 selected postimages: the root patch fixes the `EnsureModelAsync` return type and signed prompt-cap comparison, and the pinned llama.cpp patch fixes the unsigned layer comparison. A twentieth patch adds byte-safe trace retrieval and per-run permit storage. The twenty-first patch requests logits on every model2 proof decode so final-layer MoE routes remain observable on nonfinal prefill tokens. Signed 1510 then passed the 456-route gate but closed with native numerical and route mismatch; that run is spent and model2 remains unaccepted. A twenty-second root patch adds a bounded model2-only layer-output witness and optional SHA-bound diagnostic sidecar. It retains the accepted main result schema, the strict 456-route and numerical gates, and all earlier patch bytes. That 22-patch source produced the saved unsigned run 43988466126 and signed 1512. Signed 1512 model2 closed with a numerical refusal; its saved optional layer sidecar localized an early tolerance crossing, but did not establish a causal instruction. The run is spent and model2 remains unaccepted. Two further root/native patches add an optional first-position 12-vector diagnostic using the same held hybrid Q8 input and weight lease, a CPU vec_dot oracle, and post-fence GPU output. Diagnostic failure latches sidecar unavailable while core GPU publication and prior proof gates retain their behavior. The recipe now selects 81 postimages and 686 direct includes. These new two patches have independent source/host synthetic review only; they have no Windows or native result. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -48,7 +48,7 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-Existing successor signing receipts bind earlier artifacts, including the signed 1510 package. This new 22-patch witness source cannot pass those old exact receipt guards. A future signed successor requires a new unsigned artifact, independent artifact QA and a derived signing input. This preparation does not select or sign a package.
+Existing successor signing receipts bind earlier artifacts, including the signed 1510 package. This new 24-patch diagnostic source cannot pass those old exact receipt guards. A future signed successor requires a new unsigned artifact, independent artifact QA and a derived signing input. This preparation does not select or sign a package.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -59,16 +59,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48
+python operator/ua50/prepare_sources.py product operator/ua50 patch 9b9659dc28c63383aa89c10eafc9a8c625ee6d5d659030941c808f4303d9c372
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, twenty-two ordered patch files and source/import inventories. Old
+exact lock, twenty-four ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 80 selected shipping postimages,
+the pinned route once and checks all 81 selected shipping postimages,
 including shipping `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 
@@ -279,4 +279,8 @@ The derived twentieth root patch provides bounded binary trace retrieval and a f
 
 The twenty-second patch adds an opt-in model2-only callback for the first three positions and forty named `l_out` layers. It retains a fixed CPU reference buffer, compares hybrid outputs immediately, and fails closed on wrong order, shape, stride, missing rows or callback failure even if the scheduler reports success. Memory is separately charged to the model2 plan. The existing primitive16 and generation paths, held SHA, 456-route, numerical and terminal gates are unchanged.
 
-The accepted `ua68-gpu-proof-output-v1` main JSON remains byte-compatible. An optional `layer-witness.json` diagnostic sidecar carries run/config/ticket identity plus SHA-256 of the exact saved main and trace bytes. Missing or invalid diagnostic bytes cannot become a proof receipt. No raw activations or weights are written to the sidecar. A private strict sidecar checker and fake callback tests passed source-only review; neither authenticates native correctness. The signed 1510 model2 refusal remains the last device result. New Windows artifact QA and a fresh same-artifact prerequisite chain are required before another model2 selection.
+The accepted `ua68-gpu-proof-output-v1` main JSON remains byte-compatible. An optional `layer-witness.json` diagnostic sidecar carries run/config/ticket identity plus SHA-256 of the exact saved main and trace bytes. Missing or invalid diagnostic bytes cannot become a proof receipt. No raw activations or weights are written to the sidecar. The 22-patch source was built and signed as 1512. Its model2 attempt closed with native numerical refusal; the saved diagnostic sidecar localized observed differences without proving their cause. That run is spent. The new 24-patch source requires Windows artifact QA and fresh same-artifact prerequisites before another model2 selection.
+
+## Bounded first vector diagnostic source candidate
+
+Patches 23 and 24 observe only the first twelve ordered model2 hybrid expert vectors at position zero. Gate/up use Q4_K with k=2048,n=1536; down uses Q6_K with k=1536,n=2048. The live route supplies expert IDs. The CPU oracle reads the same held hybrid Q8 input and weight lease; the comparison reads the completed GPU output after its terminal fence. The optional sidecar contains bounded metrics and digests, not raw tensors or weights, and binds the exact saved main and trace bytes. Its native identifiers are claims; signed artifact and source-lock authority still require independent external evidence. An absent or invalid sidecar never becomes a model2 receipt. The existing main schema, held SHA, 456-route, numerical and terminal gates remain unchanged. Host synthetic checks do not prove the shipping DXIL, actual model parity, or future device eligibility.

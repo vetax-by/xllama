@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_MODEL2_LAYER_WITNESS_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_MODEL2_FIRST_VECTOR_WITNESS_SOURCE_CANDIDATE",
   "parent_patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
   "parent12_reused_not_replayed": true,
   "patches": [
@@ -134,6 +134,18 @@
       "target": "xllama",
       "bytes": 27826,
       "sha256": "1a685272c621b5c08ddd414a85ac1d991051bab70fb3967fd4ca222081c94c50"
+    },
+    {
+      "file": "patch/model2-first-vector-witness-root.patch",
+      "target": "xllama",
+      "bytes": 22251,
+      "sha256": "ca20547f034a7b8d0f152c8bdbeb5be99560b1082ddaf5f3a9f3bc4510dda83d"
+    },
+    {
+      "file": "patch/model2-first-vector-witness-native.patch",
+      "target": "llama",
+      "bytes": 4256,
+      "sha256": "6165a42786265d6a6cecf17dc12f7f001e66c768742e2c11b0056650f16c493f"
     }
   ],
   "parent14_reused_not_replayed": true,
@@ -141,5 +153,7 @@
   "parent20_patch_lock_sha256": "62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7",
   "parent20_reused_not_replayed": true,
   "parent21_patch_lock_sha256": "fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027",
-  "parent21_reused_not_replayed": true
+  "parent21_reused_not_replayed": true,
+  "parent22_patch_lock_sha256": "b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48",
+  "parent22_reused_not_replayed": true
 }
