@@ -3,11 +3,11 @@
   "upstream": "gianlucamazza/xllama",
   "upstream_commit": "4db51522c850e62d0bb24234dfeb48e55f4017d7",
   "llama_commit": "d81235049384534c167caea52b85a694f6103d14",
-  "patch_lock_sha256": "fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027",
-  "source_bundle_sha256": "54a3ce534da7db4d7870389c6f953535ab8dce268f7f51a7ab5ce443752f9a4e",
+  "patch_lock_sha256": "b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48",
+  "source_bundle_sha256": "9e8085a88d9208193b814ccf75e3e0fd97addbd0db3909c0064f1e18ace2caa5",
   "operator_sha256": "0247cc86154f3bc78b91600c5b3f6208f522939d528827ef3259f7b2fc260540",
-  "qualification": "Current 21-patch model2 proof route source candidate. The signed 1508 artifact and native model2 refusal used the previous 20-patch lock; no successor Windows compile, signing, install or native model2 acceptance is claimed.",
-  "public_metadata_adjustment": "Accepted 19 parent patch bytes are reused in order; one uncompiled trace/per-run root patch yields 20 ordered patches and 79 selected postimages with unchanged 661 direct includes. It changes permit storage/admission without changing retained wire schema or decoder contract SHA. Private decoder, lifecycle, CLI, operators, fixtures, receipts and outputs are excluded.",
+  "qualification": "Current 22-patch model2 layer witness source candidate. Signed 1510 contained the preceding 21 patches and its model2 run closed with route and numerical mismatch; that spent run remains refused. The 22nd witness patch has source and host synthetic checks only, with no Windows build, signed artifact, device run or native model2 acceptance.",
+  "public_metadata_adjustment": "The first 21 patch entries are retained byte-exact. A model2-only layer witness root patch adds one header, for 22 ordered patches, 80 selected postimages and 673 direct include rows. The accepted main output schema and historical validator are unchanged; an optional separately SHA-bound diagnostic sidecar does not grant native acceptance. Private fake tests and validators are excluded.",
   "historical_cpu_provenance": {
     "repository": "vetax-by/xllama",
     "upstream": "gianlucamazza/xllama",
@@ -328,5 +328,15 @@
     "strict_route_guard": "456 unchanged",
     "source_review_sha256": "997016191fb26eaaf44d2e16434e7dc40df482c7f037f94a38e35ade78522463",
     "verification_scope": "source_recipe_and_host_synthetic_only; successor_unsigned_Windows_build_and_native_proof_pending"
+  },
+  "model2_layer_witness_source_candidate": {
+    "parent_patch_lock_sha256": "fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027",
+    "ordered_patches": 22,
+    "selected_shipping_files": 80,
+    "direct_include_rows": 673,
+    "private_source_manifest_sha256": "bae21886c5e707b7c25becc20811bfb82bdbd00903b2db55b16e7b39f52bab92",
+    "private_source_review_sha256": "11713752b1a3aad51da24a710e30bbbb06ba92942a55ef2b824b4341415168d2",
+    "signed_1510_model2_accepted": false,
+    "verification_scope": "source_recipe_and_host_fake_only; Windows compile/artifact/native pending"
   }
 }

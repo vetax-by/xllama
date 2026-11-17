@@ -1,0 +1,291 @@
+--- a/include/xllama/cpu_expert_session.h
++++ b/include/xllama/cpu_expert_session.h
+@@ -37,6 +37,7 @@
+  size_t instrumentation_owned_bytes=0;
+  std::function<void(const CpuExpertEffective&)> effective_observer;
+  std::function<void(uint32_t,const ua50::Tensor&,const char*)> hybrid_catalog;
++ std::shared_ptr<void> eval_callback_owner; // retains an opt-in scheduler callback through context teardown
+ };
+ class CpuExpertSession final:public std::enable_shared_from_this<CpuExpertSession> {
+ public:
+@@ -75,6 +76,7 @@
+  std::atomic<State> state_{State::Opening};std::atomic<bool> stop_{false};
+  std::atomic<bool>* turn_abort_=nullptr; // serialized decode scope; callback only while llama_decode runs
+  std::function<void(const char*)> phase_check_;
++ std::shared_ptr<void> eval_callback_owner_;
+  std::function<void(const char*,const ua50::Counters&)> cache_events_;
+  void cache_event(const char*);
+  size_t applied_cache_ceiling_=0;
+--- a/include/xllama/gpu_proof_controller.h
++++ b/include/xllama/gpu_proof_controller.h
+@@ -2,6 +2,9 @@
+ #include "cpu_expert_session.h"
+ #include "gpu_numeric_proof.h"
+ #include "gpu_proof_trace.h"
++#include "gpu_layer_witness.h"
++#include "ggml-backend.h"
++#include "ggml.h"
+ #include "first_answer_template.h"
+ #include <atomic>
+ #include <memory>
+@@ -10,12 +13,25 @@
+ class Controller {
+  std::shared_ptr<CpuExpertSession> current_;
+  std::shared_ptr<ua50::ExpertGpu> gpu_;std::atomic<bool> stopped_{false};bool used_=false;
+- std::shared_ptr<Proof> proof_;std::shared_ptr<Trace> trace_;
++ std::shared_ptr<Proof> proof_;std::shared_ptr<Trace> trace_;std::shared_ptr<LayerWitness> witness_;
+  std::array<llama_token,128> prompt_{};size_t prompt_count_=0;uint32_t cpu_rows_=0,gpu_rows_=0;llama_token t0_=-1,t1_=-1,g0_=-1,g1_=-1;
+  std::function<void(const char*)> progress_;
+  void gate(const char*p){if(stopped_.load())throw std::runtime_error("hybrid proof stopped");if(!progress_)throw std::runtime_error("proof watchdog/phase callback absent");progress_(p);}
+  void attach(std::shared_ptr<CpuExpertSession> s){if(std::atomic_load(&current_))throw std::logic_error("two simultaneous proof contexts");std::atomic_store(&current_,std::move(s));}
+  void close_current(){auto s=std::atomic_load(&current_);if(!s)return;if(!s->close())throw std::logic_error("proof owner not terminal");if(s->first_failure_after_drain()[0])throw std::runtime_error(s->first_failure_after_drain());std::atomic_store(&current_,std::shared_ptr<CpuExpertSession>{});}
++ static bool layer_eval(ggml_tensor*t,bool ask,void*user)noexcept{
++  auto*w=static_cast<LayerWitness*>(user);if(!w)return false;
++  try{
++   if(!t){w->callback_failure();return false;}
++   size_t name_length=0;while(name_length<GGML_MAX_NAME&&t->name[name_length])++name_length;
++   if(name_length==GGML_MAX_NAME){w->callback_failure();return false;}
++   const auto name=std::string_view(t->name,name_length);
++   if(ask)return w->ask(name);
++   LayerWitness::Shape shape;shape.f32=t->type==GGML_TYPE_F32;shape.contiguous=ggml_is_contiguous(t);shape.buffer=(t->view_src?t->view_src->buffer:t->buffer)!=nullptr;shape.data=t->data!=nullptr;shape.bytes=ggml_nbytes(t);
++   for(int i=0;i<4;++i){shape.ne[i]=uint64_t(t->ne[i]);shape.nb[i]=t->nb[i];}
++   return w->observe(name,shape,[t](void*dst,size_t bytes){ggml_backend_tensor_get(t,dst,0,bytes);return true;});
++  }catch(...){w->callback_failure();return false;}
++ }
+  CpuExpertOptIn options(const CpuExpertOptIn&base,std::shared_ptr<ua50::ExpertGpu>gpu){
+   if(base.slots!=2||base.cache_ceiling!=(16u<<20)||base.context.n_ctx!=512||base.context.n_batch!=1||base.context.n_ubatch!=1||base.context.n_threads!=1||base.context.n_threads_batch!=1||base.model.n_gpu_layers!=0||base.model.main_gpu!=-1||base.context.op_offload||base.context.offload_kqv)throw std::invalid_argument("proof fixed requested envelope; no clamp");
+   auto opt=base;opt.hybrid_gpu=std::move(gpu);opt.numerical_proof_owned_bytes=Proof::required_owned_bytes();
+@@ -24,14 +40,16 @@
+   opt.instrumentation_owned_bytes=ua50::add(opt.instrumentation_owned_bytes,ua50::add(Trace::required_owned_bytes(),sizeof(Controller)+4096));
+   opt.route_trace=[trace=trace_](uint32_t r,uint64_t e,uint64_t off,uint64_t len){trace->key(r,e,off,len);};
+   opt.hybrid_catalog=[trace=trace_](uint32_t id,const ua50::Tensor&t,const char*n){trace->role(id,t,n);};
++  if(witness_){opt.context.cb_eval=&layer_eval;opt.context.cb_eval_user_data=witness_.get();opt.eval_callback_owner=witness_;}
+   return opt;
+  }
+  void decode(std::shared_ptr<CpuExpertSession>s,llama_token token,uint32_t position,uint32_t phase){
+-  gate("proof-before-decode");trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
++  gate("proof-before-decode");if(witness_)witness_->begin(phase,position);trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
+   // Every proof frame must execute the final MoE layer, including prefill tokens.
+   int32_t nseq=1;llama_seq_id sequence=0;llama_seq_id*sequence_ptr=&sequence;int8_t logits=1;llama_pos pos=llama_pos(position);
+   llama_batch b{};b.n_tokens=1;b.token=&token;b.pos=&pos;b.n_seq_id=&nseq;b.seq_id=&sequence_ptr;b.logits=&logits;
+-  if(s->decode(b)!=0)throw std::runtime_error("proof native decode failed; no continuation");
++  const int decode_status=s->decode(b);if(witness_)witness_->finish_or_throw(decode_status);
++  if(decode_status!=0)throw std::runtime_error("proof native decode failed; no continuation");
+   trace_->end(phase==2?gpu_->counts():ua50::GpuCounts{});gate("proof-after-decode");
+  }
+  static llama_token greedy(const float*row){llama_token best=0;for(size_t i=0;i<vocab;++i){if(!std::isfinite(row[i]))throw std::runtime_error("nonfinite native row");if(row[i]>row[size_t(best)])best=llama_token(i);}return best;}
+@@ -48,10 +66,11 @@
+  void model2(const CpuExpertOptIn&base){
+   if(used_)throw std::logic_error("proof controller one-use");used_=true;
+   try{
++   witness_=std::make_shared<LayerWitness>();
+    gate("cpu-reference-open");auto cpu_options=options(base,{});auto cpu=CpuExpertSession::open_if_requested(&cpu_options);if(!cpu)throw std::runtime_error("CPU reference unavailable");attach(cpu);
+    const auto*v=llama_model_get_vocab(cpu->model_view());if(!llama_vocab_get_add_bos(v))throw std::runtime_error("proof BOS policy");
+    auto rendered=first_answer::render(llama_model_chat_template(cpu->model_view(),nullptr),true,llama_vocab_bos(v));
+-   auto ids=cpu->tokenize(rendered);if(ids.empty()||ids.size()>128||ids.size()+2>512||ids[0]!=llama_vocab_bos(v)||std::count(ids.begin(),ids.end(),llama_vocab_bos(v))!=1||llama_vocab_n_tokens(v)!=128000)throw std::runtime_error("proof prompt/state admission");prompt_count_=ids.size();std::copy(ids.begin(),ids.end(),prompt_.begin());
++   auto ids=cpu->tokenize(rendered);if(ids.empty()||ids.size()>128||ids.size()+2>512||ids[0]!=llama_vocab_bos(v)||std::count(ids.begin(),ids.end(),llama_vocab_bos(v))!=1||llama_vocab_n_tokens(v)!=128000)throw std::runtime_error("proof prompt/state admission");prompt_count_=ids.size();witness_->configure(uint32_t(prompt_count_));std::copy(ids.begin(),ids.end(),prompt_.begin());
+    std::unique_ptr<llama_sampler,decltype(&llama_sampler_free)> sampler(llama_sampler_init_greedy(),llama_sampler_free);if(!sampler)throw std::bad_alloc();
+    prefill(cpu,1);cpu->capture_logits(proof_->reference(0),vocab);++cpu_rows_;t0_=cpu->sample(sampler.get());if(t0_!=greedy(proof_->reference(0)))throw std::runtime_error("native greedy/reference argmax mismatch");
+    if(llama_vocab_is_eog(v,t0_))throw std::runtime_error("EARLY_TERMINATOR reference coverage1of2");
+@@ -62,6 +81,7 @@
+    if(hids!=ids||hybrid->context_length()!=512)throw std::runtime_error("reference/hybrid logical input state mismatch");
+    prefill(hybrid,2);hybrid->capture_logits(proof_->working(),vocab);++gpu_rows_;proof_->compare(4,0,0,0,0,uint32_t(prompt_count_-1),proof_->reference(0),proof_->working(),vocab);g0_=hybrid->sample(sampler.get());proof_->greedy(g0_==t0_&&greedy(proof_->working())==t0_);
+    decode(hybrid,t0_,uint32_t(prompt_count_),2);hybrid->capture_logits(proof_->working(),vocab);++gpu_rows_;proof_->compare(4,1,0,0,0,uint32_t(prompt_count_),proof_->reference(1),proof_->working(),vocab);g1_=hybrid->sample(sampler.get());proof_->greedy(g1_==t1_&&greedy(proof_->working())==t1_);
++   if(!witness_->complete())throw std::runtime_error("model2 layer witness incomplete");
+    gate("model-proof-compute-complete"); // final owner retained through postSHA+monitor join
+   }catch(...){request_stop();drain();throw;}
+  }
+@@ -81,6 +101,7 @@
+   }catch(...){request_stop();drain();throw;}
+  }
+  void finish_normal(){close_current();gpu_->drain();if(!terminal())throw std::runtime_error("proof terminal missing");}
++ std::string layer_witness_summary()const{return witness_?witness_->summary():"null";}
+  void seal(bool normal){trace_->seal(normal&&terminal(),uint32_t(prompt_count_),t0_,t1_,proof_->passed());}
+  uint32_t cpu_rows()const{return cpu_rows_;}uint32_t gpu_rows()const{return gpu_rows_;}size_t prompt_count()const{return prompt_count_;}const llama_token*prompt_ids()const{return prompt_.data();}llama_token t0()const{return t0_;}llama_token t1()const{return t1_;}llama_token g0()const{return g0_;}llama_token g1()const{return g1_;}
+ };
+--- a/src/bridge/cpu_expert_session.cpp
++++ b/src/bridge/cpu_expert_session.cpp
+@@ -17,10 +17,11 @@
+ std::shared_ptr<CpuExpertSession> CpuExpertSession::open_if_requested(const CpuExpertOptIn*opt){
+  if(!opt || !opt->enabled)return {}; // ordinary caller factory path remains untouched
+  if(!opt->admitted_source || !opt->admit_budget)throw std::invalid_argument("explicit source and app budget admission required");
++ if((opt->context.cb_eval||opt->context.cb_eval_user_data)&&(!opt->context.cb_eval||opt->context.cb_eval_user_data!=opt->eval_callback_owner.get()))throw std::invalid_argument("owned eval callback binding required");
+  if(!opt->context.n_ctx || opt->context.offload_kqv || opt->context.op_offload || opt->context.flash_attn_type!=LLAMA_FLASH_ATTN_TYPE_DISABLED || opt->context.n_threads<=0 || opt->context.n_threads_batch<=0)throw std::invalid_argument("explicit CPU/context policy required");
+  auto out=std::shared_ptr<CpuExpertSession>(new CpuExpertSession());
+  try{
+-  out->phase_check_=opt->phase_check;out->cache_events_=opt->cache_events;
++  out->phase_check_=opt->phase_check;out->cache_events_=opt->cache_events;out->eval_callback_owner_=opt->eval_callback_owner;
+   if(out->phase_check_)out->phase_check_("before-source");
+   auto candidate=opt->admitted_source();
+   if(!candidate.file || !candidate.file_anchor || !candidate.admission_anchor || !candidate.validate_binding || !candidate.control || !candidate.make_reader || !candidate.admission.bytes || candidate.admission.sha256.size()!=64 || candidate.admission.identity.empty())throw std::invalid_argument("incomplete Windows admission");
+@@ -111,7 +112,7 @@
+  // Snapshot after actual graph/I/O drain, before provider destruction. Callback
+  // failure cannot skip owning teardown and will prevent complete trace sealing.
+  try{cache_event("terminal");}catch(...){latch_failure("cache terminal telemetry failed");}
+- context_.reset();model_.reset();std::atomic_store(&gpu_,std::shared_ptr<ua50::ExpertGpu>{}); // provider/Reader destroyed before admission/file anchors
++ context_.reset();eval_callback_owner_.reset();model_.reset();std::atomic_store(&gpu_,std::shared_ptr<ua50::ExpertGpu>{}); // callback owner outlives context; provider/Reader before admission/file anchors
+  std::atomic_store(&input_,std::shared_ptr<ua50::uwp::WindowsInputCandidate>{});input.reset();
+  state_.store(State::Closed,std::memory_order_release);return true;
+ }
+--- a/uwp/gpu-proof-pilot.inc
++++ b/uwp/gpu-proof-pilot.inc
+@@ -27,9 +27,9 @@
+   state->phase("outer-held-preSHA",probe_allowance);guard=source();pre_sha=true;state->held=guard->file;{std::lock_guard<std::mutex> l(state->mutex);state->control=guard->control;}
+   state->phase("GPU-driver-initialization",probe_allowance);
+   ExpertGpuAdmission admission{input->config.adapter_luid,input->config.shader_sha,[state](const ua50::GpuSnapshot&,uint64_t pending){state->phase("GPU-resource-admission",pending);}};
+-  gpu=make_expert_gpu_d3d12(admission);gpu_effective=gpu->snapshot();state->phase("proof-storage-admission",add(4u<<20,gpu_proof::Trace::required_owned_bytes()));
++  gpu=make_expert_gpu_d3d12(admission);gpu_effective=gpu->snapshot();state->phase("proof-storage-admission",add(add(4u<<20,gpu_proof::Trace::required_owned_bytes()),input->config.stage==gpu_proof::Stage::Model2?gpu_proof::LayerWitness::charged_bytes:0));
+   proof=std::make_shared<gpu_proof::Proof>(input->config.stage);trace=std::make_shared<gpu_proof::Trace>(GetCurrentProcessId(),input->config.stage==gpu_proof::Stage::Primitive16?3:4,input->config.id,input->config_sha,input->ticket_sha,gpu_run::engine_sha,gpu_effective.shader_sha256);
+-  opt.enabled=true;opt.plan_profile=CpuExpertOptIn::PlanProfile::FinishedAnswer512;opt.slots=2;opt.cache_ceiling=16u<<20;opt.stage_ceiling=4u<<20;opt.numerical_proof_owned_bytes=4u<<20;opt.instrumentation_owned_bytes=input->owned_bytes()+262144+4096;
++  opt.enabled=true;opt.plan_profile=CpuExpertOptIn::PlanProfile::FinishedAnswer512;opt.slots=2;opt.cache_ceiling=16u<<20;opt.stage_ceiling=4u<<20;opt.numerical_proof_owned_bytes=4u<<20;opt.instrumentation_owned_bytes=add(add(input->owned_bytes(),262144+4096),input->config.stage==gpu_proof::Stage::Model2?gpu_proof::LayerWitness::charged_bytes:0);
+   opt.model.main_gpu=-1;opt.model.n_gpu_layers=0;opt.model.split_mode=LLAMA_SPLIT_MODE_NONE;opt.model.load_mode=LLAMA_LOAD_MODE_NONE;opt.model.lazy_mode=LLAMA_LAZY_MODE_OFF;opt.model.use_extra_bufts=false;
+   opt.context.n_ctx=512;opt.context.n_batch=1;opt.context.n_ubatch=1;opt.context.n_seq_max=1;opt.context.n_outputs_max=1;opt.context.n_outputs_max_per_seq=1;opt.context.n_threads=1;opt.context.n_threads_batch=1;opt.context.offload_kqv=false;opt.context.op_offload=false;opt.context.flash_attn_type=LLAMA_FLASH_ATTN_TYPE_DISABLED;opt.context.type_k=GGML_TYPE_F16;opt.context.type_v=GGML_TYPE_F16;
+   opt.model.progress_callback=[](float,void*p)->bool{return !static_cast<Pilot*>(p)->abort->load();};opt.model.progress_callback_user_data=state.get();
+@@ -55,7 +55,7 @@
+   controller->finish_normal();if(!proof->passed())fail("NUMERICAL_GATE_FAILED_OR_INCOMPLETE; inspect bounded coverage/witness");normal=proof->passed()&&controller->terminal()&&post_sha&&actual_effective[0].context==512&&(input->config.stage==gpu_proof::Stage::Primitive16||actual_effective[1].context==512);
+  }catch(const std::exception&e){fail(e.what());}catch(...){fail("GPU proof unknown failure");}
+  state->finish_monitor();if(state->abort->load())fail("final monitor stopped; no normal commit");
+- if(controller){if(!normal){controller->request_stop();controller->drain();}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
++ std::string layer_witness_json="null";if(controller){if(!normal){controller->request_stop();controller->drain();}if(input&&input->config.stage==gpu_proof::Stage::Model2){try{layer_witness_json=controller->layer_witness_summary();}catch(const std::exception&e){fail(e.what());}}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
+  if(gpu){gpu->drain();try{gpu_counts=gpu->counts();gpu_effective=gpu->snapshot();if(gpu->error()[0])fail(gpu->error());}catch(const std::exception&e){fail(e.what());}}
+  if(normal&&input){
+   const uint64_t hashes=input->config.stage==gpu_proof::Stage::Primitive16?3:4;
+@@ -89,8 +89,22 @@
+   const auto routes=trace->compare_model_routes(uint32_t(pcount));
+   json+="],\"routes_equal\":"+(input->config.stage==gpu_proof::Stage::Primitive16?std::string("null"):routes.available?(routes.equal?std::string("true"):std::string("false")):std::string("null"))+",\"first_route_divergence\":";
+   if(routes.available&&!routes.equal)json+="{\"frame\":"+std::to_string(routes.frame)+",\"key_in_frame\":"+std::to_string(routes.key)+",\"cpu_key\":"+std::to_string(routes.cpu_key)+",\"gpu_key\":"+std::to_string(routes.gpu_key)+"}";else json+="null";
+-  json+=",\"SHA_elapsed_ns\":"+std::to_string(sha_elapsed_ns)+",\"storage_coverage\":{\"provider_reader\":\"cache_success_commit_counters_only\",\"partial_reader_bytes_available\":false,\"metadata_load_file_io\":\"unobserved\",\"SHA\":\"all_instrumented_fread_EOF_and_errors\"},\"CPU_Q8_pack_ns\":null,\"physical_SSD_metrics\":null,\"raw_rows_saved\":false,\"offline_rawrow_replay\":false,\"native_consumption_epoch_exported\":false}";
++  json+=",\"SHA_elapsed_ns\":"+std::to_string(sha_elapsed_ns)+",\"storage_coverage\":{\"provider_reader\":\"cache_success_commit_counters_only\",\"partial_reader_bytes_available\":false,\"metadata_load_file_io\":\"unobserved\",\"SHA\":\"all_instrumented_fread_EOF_and_errors\"},\"CPU_Q8_pack_ns\":null,\"physical_SSD_metrics\":null,\"raw_rows_saved\":false,\"offline_rawrow_replay\":false,\"native_consumption_epoch_exported\":false";
++  json+="}";
+   if(json.size()>262144||json.capacity()>(2u<<20)||output==INVALID_HANDLE_VALUE)throw std::length_error("GPU combined main cap/output");n=0;if(!WriteFile(output,json.data(),DWORD(json.size()),&n,nullptr)||n!=json.size()||!FlushFileBuffers(output))throw std::runtime_error("GPU main commit failed");if(!CloseHandle(output)){output=INVALID_HANDLE_VALUE;throw std::runtime_error("GPU main close failed");}output=INVALID_HANDLE_VALUE;
++  // Optional model2 diagnostic sidecar. Main output bytes/schema and acceptance stay unchanged.
++  // A reader must verify BOTH saved raw SHA hashes before using this diagnostic.
++  if(input->config.stage==gpu_proof::Stage::Model2&&layer_witness_json!="null")try{
++   state->phase("layer-witness-sidecar",2u<<20);
++   const std::string raw_trace(reinterpret_cast<const char*>(trace->data()),trace->file_bytes);
++   const std::string sidecar="{\"schema\":\"ua68-model2-layer-witness-sidecar-v1\",\"diagnostic_only\":true,\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"output_sha256\":"+quote(dev_sha(json)) + ",\"trace_sha256\":"+quote(dev_sha(raw_trace)) + ",\"witness\":"+layer_witness_json+"}";
++   if(sidecar.size()>131072)throw std::length_error("layer witness sidecar cap");
++   DevHandle side(CreateFile2(input->path("layer-witness.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr));
++   if(side.value==INVALID_HANDLE_VALUE)throw std::runtime_error("layer witness sidecar CREATE_NEW");
++   DWORD written=0;if(!WriteFile(side.value,sidecar.data(),DWORD(sidecar.size()),&written,nullptr)||written!=sidecar.size()||!FlushFileBuffers(side.value))throw std::runtime_error("layer witness sidecar commit");side.close();
++   log_output(marker+" LAYER_WITNESS_COMMITTED diagnostic_only\n");
++  }catch(const std::exception&e){log_output(marker+" LAYER_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
++
+   log_output(marker+(normal?" OUTPUT_COMMITTED normal owner/file/writer closed\n":" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));
+  }catch(const std::exception&e){fail(e.what());log_output(marker+" OUTPUT_FAILED: "+e.what()+"\n");}
+  if(trace_file!=INVALID_HANDLE_VALUE)CloseHandle(trace_file);if(output!=INVALID_HANDLE_VALUE)CloseHandle(output);
+--- /dev/null
++++ b/include/xllama/gpu_layer_witness.h
+@@ -0,0 +1,112 @@
++#pragma once
++#include <array>
++#include <charconv>
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++#include <limits>
++#include <stdexcept>
++#include <string>
++#include <string_view>
++
++namespace xllama::gpu_proof {
++// Model2-only diagnostic. All raw layer values stay in this bounded owner.
++class LayerWitness final {
++public:
++ static constexpr uint32_t positions=3,layers=40,width=2048;
++ static constexpr size_t row_bytes=width*sizeof(float),reference_bytes=positions*layers*row_bytes;
++ static constexpr size_t summary_cap=65536,charged_bytes=(1u<<20)+summary_cap;
++ struct Shape {bool f32=false,contiguous=false,buffer=false,data=false;uint64_t ne[4]{},nb[4]{};size_t bytes=0;};
++ struct Row {uint64_t cpu_hash=0,hybrid_hash=0;uint32_t bit_first=UINT32_MAX,tolerance_first=UINT32_MAX,max_abs_index=UINT32_MAX,violations=0;double max_abs=0;bool cpu=false,hybrid=false;};
++private:
++ std::array<float,positions*layers*width> reference_{};
++ std::array<float,width> scratch_{};
++ std::array<Row,positions*layers> rows_{};
++ uint32_t expected_frames_=0,next_[2]{},phase_=0,position_=0,seen_=0;
++ bool configured_=false,in_decode_=false,active_=false;
++ const char*error_=nullptr;
++ static uint64_t fnv(const void*data,size_t bytes)noexcept{
++  auto*p=static_cast<const unsigned char*>(data);uint64_t h=14695981039346656037ull;
++  for(size_t i=0;i<bytes;++i){h^=p[i];h*=1099511628211ull;}return h;
++ }
++ static uint32_t bits(float v)noexcept{uint32_t x;std::memcpy(&x,&v,4);return x;}
++ void fail(const char*s)noexcept{if(!error_)error_=s;}
++ static int layer(std::string_view name)noexcept{
++  if(name.size()<7||name.substr(0,6)!="l_out-")return -1;
++  if(name.size()>7&&name[6]=='0')return -1;
++  int n=0;for(size_t i=6;i<name.size();++i){if(name[i]<'0'||name[i]>'9')return -1;n=n*10+name[i]-'0';if(n>=int(layers))return -1;}
++  return n;
++ }
++ static void real(std::string&out,double v){char b[64];auto r=std::to_chars(b,b+sizeof(b),v,std::chars_format::general,17);if(r.ec!=std::errc{})throw std::runtime_error("layer witness numeric serialization");out.append(b,r.ptr);}
++public:
++ LayerWitness()=default;
++ LayerWitness(const LayerWitness&)=delete;LayerWitness&operator=(const LayerWitness&)=delete;
++ void configure(uint32_t prompt_count){
++  if(configured_||prompt_count<positions||prompt_count>128)throw std::invalid_argument("layer witness prompt envelope");
++  expected_frames_=prompt_count+1;configured_=true;
++ }
++ void begin(uint32_t phase,uint32_t position){
++  if(!configured_||error_||in_decode_||(phase!=1&&phase!=2)||position>=expected_frames_||position!=next_[phase-1]||(phase==2&&next_[0]!=expected_frames_))throw std::logic_error("layer witness phase/position order");
++  phase_=phase;position_=position;seen_=0;active_=position<positions;in_decode_=true;
++ }
++ bool ask(std::string_view name)noexcept{
++  if(!in_decode_||error_||!active_)return false;
++  if(name.substr(0,5)!="l_out")return false;
++  if(layer(name)<0){fail("layer witness name");return false;}
++  return true;
++ }
++ void callback_failure()noexcept{fail("layer witness native callback failure");}
++ template<class Reader> bool observe(std::string_view name,const Shape&shape,Reader&&read)noexcept{
++  try{
++   if(!in_decode_||!active_||error_)throw std::logic_error("layer witness callback lifetime");
++   const int il=layer(name);if(il<0||uint32_t(il)!=seen_)throw std::logic_error("layer witness layer order/name");
++   if(!shape.f32||!shape.contiguous||!shape.buffer||!shape.data||shape.bytes!=row_bytes||shape.ne[0]!=width||shape.ne[1]!=1||shape.ne[2]!=1||shape.ne[3]!=1||shape.nb[0]!=sizeof(float)||shape.nb[1]!=row_bytes||shape.nb[2]!=row_bytes||shape.nb[3]!=row_bytes)throw std::invalid_argument("layer witness type/shape/stride");
++   if(!read(scratch_.data(),row_bytes))throw std::runtime_error("layer witness tensor read");
++   const size_t index=size_t(position_)*layers+size_t(il);auto&r=rows_[index];
++   for(float v:scratch_)if(!std::isfinite(v))throw std::runtime_error("layer witness nonfinite");
++   if(phase_==1){
++    if(r.cpu)throw std::logic_error("layer witness duplicate CPU");
++    std::memcpy(reference_.data()+index*width,scratch_.data(),row_bytes);r.cpu_hash=fnv(scratch_.data(),row_bytes);r.cpu=true;
++   }else{
++    if(!r.cpu||r.hybrid)throw std::logic_error("layer witness missing CPU/duplicate hybrid");
++    r.hybrid_hash=fnv(scratch_.data(),row_bytes);const float*cpu=reference_.data()+index*width;
++    for(uint32_t i=0;i<width;++i){
++     if(r.bit_first==UINT32_MAX&&bits(cpu[i])!=bits(scratch_[i]))r.bit_first=i;
++     const double error=std::abs(double(scratch_[i])-double(cpu[i]));
++     const double tolerance=.001+.001*std::abs(double(cpu[i]));
++     if(!std::isfinite(error)||!std::isfinite(tolerance))throw std::runtime_error("layer witness finite difference");
++     if(error>r.max_abs){r.max_abs=error;r.max_abs_index=i;}
++     if(error>tolerance){if(r.tolerance_first==UINT32_MAX)r.tolerance_first=i;++r.violations;}
++    }
++    r.hybrid=true;
++   }
++   ++seen_;return true;
++  }catch(const std::exception&e){
++   // Never throw through ggml's C callback. Messages here are fixed literals.
++   if(std::strstr(e.what(),"name"))fail("layer witness name/order");
++   else if(std::strstr(e.what(),"shape"))fail("layer witness type/shape/stride");
++   else if(std::strstr(e.what(),"nonfinite"))fail("layer witness nonfinite");
++   else fail("layer witness callback/read/order");
++  }catch(...){fail("layer witness callback unknown");}
++  return false;
++ }
++ void finish_or_throw(int decode_status){
++  if(!in_decode_)throw std::logic_error("layer witness finish lifetime");
++  if(decode_status||error_||(active_&&seen_!=layers)||(!active_&&seen_))throw std::runtime_error(error_?error_:"layer witness missing layers/decode");
++  ++next_[phase_-1];in_decode_=false;active_=false;
++ }
++ bool complete()const noexcept{return configured_&&!in_decode_&&!error_&&next_[0]==expected_frames_&&next_[1]==expected_frames_;}
++ const char*error()const noexcept{return error_;}
++ std::string summary()const{
++  std::string out;out.reserve(32768);out+="{\"schema\":\"ua68-model2-layer-witness-v1\",\"complete\":";
++  out+=complete()?"true":"false";out+=",\"expected_frames_per_phase\":"+std::to_string(expected_frames_)+",\"CPU_frames\":"+std::to_string(next_[0])+",\"hybrid_frames\":"+std::to_string(next_[1]);
++  auto first=[this](bool tolerance){for(uint32_t p=0;p<positions;++p)for(uint32_t il=0;il<layers;++il){const auto&r=rows_[size_t(p)*layers+il];const auto index=tolerance?r.tolerance_first:r.bit_first;if(index!=UINT32_MAX)return std::string("{\"position\":")+std::to_string(p)+",\"layer\":"+std::to_string(il)+",\"element\":"+std::to_string(index)+"}";}return std::string("null");};
++  out+=",\"first_bit_difference\":"+first(false)+",\"first_tolerance_violation\":"+first(true)+",\"rows\":[";
++  bool comma=false;for(uint32_t p=0;p<positions;++p)for(uint32_t il=0;il<layers;++il){const auto&r=rows_[size_t(p)*layers+il];if(!r.cpu&&!r.hybrid)continue;if(comma)out+=",";comma=true;
++   out+="{\"position\":"+std::to_string(p)+",\"layer\":"+std::to_string(il)+",\"CPU_seen\":"+(r.cpu?"true":"false")+",\"hybrid_seen\":"+(r.hybrid?"true":"false")+",\"CPU_fnv1a64\":"+std::to_string(r.cpu_hash)+",\"hybrid_fnv1a64\":"+std::to_string(r.hybrid_hash)+",\"first_bit_difference\":";
++   out+=r.bit_first==UINT32_MAX?"null":std::to_string(r.bit_first);out+=",\"first_tolerance_violation\":";out+=r.tolerance_first==UINT32_MAX?"null":std::to_string(r.tolerance_first);out+=",\"violations\":"+std::to_string(r.violations)+",\"max_abs\":";real(out,r.max_abs);out+=",\"max_abs_index\":";out+=r.max_abs_index==UINT32_MAX?"null":std::to_string(r.max_abs_index);out+="}";
++  }out+="]}";if(out.size()>summary_cap)throw std::length_error("layer witness summary cap");return out;
++ }
++};
++static_assert(sizeof(LayerWitness)<(1u<<20),"model2 witness owner exceeds one MiB");
++}

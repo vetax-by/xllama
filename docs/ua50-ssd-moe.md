@@ -294,7 +294,7 @@ patch in its exact order on a separate clean base tree. The configurable
 CPU successor retains the ten historical entries and adds its root and native
 patches. The GPU proof successor adds one root and one native patch after those
 twelve entries. The identity-only successor appends one root patch after the GPU
-root/native pair. Two further generation patches give the current seventeen ordered patches and 77 shipping postimages. Do not additionally apply intermediate development patches or apply a
+root/native pair. Two further generation patches gave the historical seventeen ordered patches and 77 shipping postimages. The current route adds two followup fixes, trace retrieval and per-run permit storage, the model2 logits correction, and a bounded model2 layer witness: 22 ordered patches and 80 selected postimages. Do not additionally apply intermediate development patches or apply a
 cumulative patch twice.
 
 The historical session `.inc` files and the additional GPU `.inc` files are
@@ -460,4 +460,10 @@ A fixed offline usability casepack is authored privately; every model outcome re
 
 ## Model2 proof route successor source candidate
 
-The signed 1508 model2 attempt closed with a native refusal at the first CPU prefill frame: 444 of 456 expected routes; the final block’s three MoE roles were absent. The accepted 20-patch recipe remains the source of that result. The derived 21st patch requests logits on every proof decode, including nonfinal prefill tokens, so the final MoE layer participates in each traced frame. The strict 456-route gate, numerical comparisons, receipt bindings and generation path are unchanged. Host source and synthetic checks support the patch; a new Windows artifact, signed update, fresh same-artifact prerequisites and actual model2 proof are still required. The spent 1508 claim is not retried.
+The signed 1508 model2 attempt closed with a native refusal at the first CPU prefill frame: 444 of 456 expected routes; the final block’s three MoE roles were absent. The accepted 20-patch recipe remains the source of that result. The derived 21st patch requests logits on every proof decode, including nonfinal prefill tokens, so the final MoE layer participates in each traced frame. The strict 456-route gate, numerical comparisons, receipt bindings and generation path are unchanged. This patch was later built and installed as signed 1510. Its model2 run reached 456 routes per frame but closed with numerical and route mismatch; model2 is not accepted. Both 1508 and 1510 run claims are spent.
+
+## Bounded model2 layer witness successor source candidate
+
+The signed 1510 model2 attempt reached full 456-key coverage but closed with route divergence and numerical violations. Its run and ticket are spent; generation remains gated. The next source-only patch captures the first three CPU and hybrid one-token positions at forty named LFM2 `l_out` layers. A fixed CPU reference buffer and bounded per-layer summaries record first bit and tolerance differences without saving activations or weights. Invalid callback order, shape or missing rows refuse the diagnostic; callback failure is checked after decode even if the scheduler reports success.
+
+The existing main `ua68-gpu-proof-output-v1` schema and its validator remain unchanged. An optional diagnostic sidecar binds exact saved main and trace SHA-256, run, config and ticket. This sidecar is not a receipt or numerical acceptance. Held SHA, 456-route, numerical, terminal and caller-closure requirements remain. The private host fake tests and source review do not verify the actual ggml tensor shape, Windows compilation, model2 parity or device behavior. A new inspected artifact and fresh same-artifact prerequisites would be separate gates.

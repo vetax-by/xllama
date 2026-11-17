@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_TRACE_PER_RUN_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_MODEL2_LAYER_WITNESS_SOURCE_CANDIDATE",
   "selected_source_files": [
     {
       "file": "CMakeLists.txt",
@@ -12,8 +12,8 @@
       "file": "include/xllama/cpu_expert_session.h",
       "target": "xllama",
       "target_path": "include/xllama/cpu_expert_session.h",
-      "bytes": 5861,
-      "sha256": "94e8400f9412a5e8161c9d094835ae85d3ca112c3de7ddd611ecdc09b943e9f8"
+      "bytes": 6015,
+      "sha256": "4a8532da1bd868e10aeef63ea613b940d3f8adf2cb9358cdfc81f7659745e682"
     },
     {
       "file": "include/xllama/cpu_pilot_binding.h",
@@ -107,6 +107,13 @@
       "sha256": "c4769290afecfd260a603cfc9f6cf7e00938e275146d4717304f92236b180a17"
     },
     {
+      "file": "include/xllama/gpu_layer_witness.h",
+      "target": "xllama",
+      "target_path": "include/xllama/gpu_layer_witness.h",
+      "bytes": 7787,
+      "sha256": "eec27ea77d69403575b887fa5d4211e3bff85ee7d670732fbc5dd19c32effe91"
+    },
+    {
       "file": "include/xllama/gpu_numeric_proof.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_numeric_proof.h",
@@ -124,8 +131,8 @@
       "file": "include/xllama/gpu_proof_controller.h",
       "target": "xllama",
       "target_path": "include/xllama/gpu_proof_controller.h",
-      "bytes": 9435,
-      "sha256": "6ee8fcd17526549006212a7bc1a7b1d0a9a8b2dfd7538881cfe7eca0bdbf05cf"
+      "bytes": 10986,
+      "sha256": "879e1e5763dd3467d6384339a17b0f94bdca6fb686f96937a3290d270219837f"
     },
     {
       "file": "include/xllama/gpu_proof_trace.h",
@@ -341,8 +348,8 @@
       "file": "src/bridge/cpu_expert_session.cpp",
       "target": "xllama",
       "target_path": "src/bridge/cpu_expert_session.cpp",
-      "bytes": 19569,
-      "sha256": "d32b8cbe851db4534468be3d77c76d28858b7f903a1a6ee9a80309caf3894b89"
+      "bytes": 19889,
+      "sha256": "cfe1ba7e5f2b930a0e435e01880efc8b7360d1bbf10606d9e41b042b0e987a53"
     },
     {
       "file": "src/bridge/d3d12_compute.cpp",
@@ -516,8 +523,8 @@
       "file": "uwp/gpu-proof-pilot.inc",
       "target": "xllama",
       "target_path": "uwp/gpu-proof-pilot.inc",
-      "bytes": 20289,
-      "sha256": "7ac8a7a5ed3874b3749ecd1b1d1afd58c0e2816c4e1cb3784ade2ef8f9486376"
+      "bytes": 22190,
+      "sha256": "4f7ce4894c9dee7264d673562f9263aca11229335358ad6575fddafcadb38afb"
     },
     {
       "file": "uwp/inference-bridge.h",

@@ -349,6 +349,60 @@
       "include": "functional"
     },
     {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 2,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 3,
+      "style": "<",
+      "include": "charconv"
+    },
+    {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 4,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 6,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 7,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 8,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 9,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/gpu_layer_witness.h",
+      "line": 10,
+      "style": "<",
+      "include": "string_view"
+    },
+    {
       "from": "include/xllama/gpu_numeric_proof.h",
       "line": 2,
       "style": "<",
@@ -436,17 +490,35 @@
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 5,
       "style": "\"",
-      "include": "first_answer_template.h"
+      "include": "gpu_layer_witness.h"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 6,
+      "style": "\"",
+      "include": "ggml-backend.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 7,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 8,
+      "style": "\"",
+      "include": "first_answer_template.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 9,
       "style": "<",
       "include": "atomic"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
-      "line": 7,
+      "line": 10,
       "style": "<",
       "include": "memory"
     },

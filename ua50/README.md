@@ -7,8 +7,8 @@ The patch rationale, implementation and evidence limits have one home:
 
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
-- Current 21-patch model2 proof route lock SHA-256:
-  `fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027`.
+- Current 22-patch model2 layer witness source lock SHA-256:
+  `b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48`.
 - The prior 17-patch lock `921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe`
   remains the binding for Windows run 43825061482; that build did not contain the followup fixes.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
@@ -22,7 +22,7 @@ the ten historical entries. Two further configurable-runner patches add a
 strict typed developer entrypoint, explicit successor records and bounded I/O
 aggregates; those twelve entries are retained. Two additional root/native GPU bridge patches
 bring the historical GPU route to fourteen entries. One further root identity patch
-brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches brought the historical route to seventeen entries and 77 selected shipping files. Two source-only followup patches now bring the recipe to nineteen entries and 79 selected postimages: the root patch fixes the `EnsureModelAsync` return type and signed prompt-cap comparison, and the pinned llama.cpp patch fixes the unsigned layer comparison. A twentieth patch adds byte-safe trace retrieval and per-run permit storage. The twenty-first patch requests logits on every model2 proof decode so final-layer MoE routes remain observable on nonfinal prefill tokens. The strict 456-route trace gate is unchanged. Both patches retain 79 selected postimages and 661 direct includes. The twenty-first patch has source and host synthetic review only; it has no Windows or native result. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
+brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches brought the historical route to seventeen entries and 77 selected shipping files. Two source-only followup patches now bring the recipe to nineteen entries and 79 selected postimages: the root patch fixes the `EnsureModelAsync` return type and signed prompt-cap comparison, and the pinned llama.cpp patch fixes the unsigned layer comparison. A twentieth patch adds byte-safe trace retrieval and per-run permit storage. The twenty-first patch requests logits on every model2 proof decode so final-layer MoE routes remain observable on nonfinal prefill tokens. Signed 1510 then passed the 456-route gate but closed with native numerical and route mismatch; that run is spent and model2 remains unaccepted. A twenty-second root patch adds a bounded model2-only layer-output witness and optional SHA-bound diagnostic sidecar. It retains the accepted main result schema, the strict 456-route and numerical gates, and all earlier patch bytes. The recipe now selects 80 postimages and 673 direct includes. The witness change has independent source/host synthetic review only; it has no Windows or native result. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -48,11 +48,7 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-The existing successor signing workflow and helpers remain bound to the signed
-1508 pair and its prior 20-patch source receipt. The new 21-patch source cannot
-pass those exact old receipt guards. A future signed successor requires its own
-new unsigned artifact, independent artifact QA and a derived signing input.
-This preparation does not select or sign a package.
+Existing successor signing receipts bind earlier artifacts, including the signed 1510 package. This new 22-patch witness source cannot pass those old exact receipt guards. A future signed successor requires a new unsigned artifact, independent artifact QA and a derived signing input. This preparation does not select or sign a package.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -63,16 +59,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027
+python operator/ua50/prepare_sources.py product operator/ua50 patch b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, twenty-one ordered patch files and source/import inventories. Old
+exact lock, twenty-two ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 79 selected shipping postimages,
+the pinned route once and checks all 80 selected shipping postimages,
 including shipping `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 
@@ -271,10 +267,16 @@ A separate selected signing run produced patched 1.7.0.1506 and stock forward-re
 
 ## Configurable single-turn generation successor
 
-The current two-patch addition exposes a separate bounded developer surface in the existing optional LAN server. The normal chat route is unchanged. See [the generation contract and evidence limits](../docs/ua50-ssd-moe.md#configurable-single-turn-generation-successor) before using it. Supported source branches do not establish a working console release.
+The historical two-patch generation addition exposes a separate bounded developer surface in the existing optional LAN server. The normal chat route is unchanged. See [the generation contract and evidence limits](../docs/ua50-ssd-moe.md#configurable-single-turn-generation-successor) before using it. Supported source branches do not establish a working console release.
 
-The current saved local author check completed two syntax checks and one portable fixture compile/run under ASan and UBSan. It did not compile the Windows LAN, pilot or native GPU branches. The executed commands match the Root plan, but a selection-message race meant the preliminary authority chain was used; the superseding final resource gate refused the existing claim. This is qualified saved author evidence, with no repeat run or retroactive final-gate admission. The 17-patch source review passed. [Windows run 43825061482](https://github.com/vetax-by/xllama/actions/runs/43825061482) subsequently passed compile, link and unsigned packaging; independent saved-artifact review passed for that exact 17-patch package. The two later followup patches have source-only verification and need a new Windows compile when that gate is separately selected. Neither artifact review nor source verification establishes native generation, GPU correctness, model usability, memory fit or speed.
+The historical saved local author check completed two syntax checks and one portable fixture compile/run under ASan and UBSan. It did not compile the Windows LAN, pilot or native GPU branches. The executed commands match the Root plan, but a selection-message race meant the preliminary authority chain was used; the superseding final resource gate refused the existing claim. This is qualified saved author evidence, with no repeat run or retroactive final-gate admission. The 17-patch source review passed. [Windows run 43825061482](https://github.com/vetax-by/xllama/actions/runs/43825061482) subsequently passed compile, link and unsigned packaging; independent saved-artifact review passed for that exact 17-patch package. The two followup patches were later built in the signed 1508 and 1510 lineages; those artifacts do not include the current witness patch. Neither artifact review nor source verification establishes native generation, GPU correctness, model usability, memory fit or speed.
 
 The earlier identity revision did produce an inspected unsigned Windows artifact and a separately inspected signed 1506/1507 pair. Those retained packages were not installed; no native identity query or GPU numerical proof was accepted. That historical artifact does not contain these generation changes.
 
-The derived twentieth root patch is a source candidate for bounded binary trace retrieval and a fresh per-run permit leaf. It changes storage/admission behavior while retaining the generation wire schema and decoder contract hash; see [trace and permit successor](../docs/ua50-ssd-moe.md#trace-retrieval-and-per-run-permit-successor-source-candidate). It has not been compiled for Windows and is absent from run 43825061482. A private receipt verifier, owner-bound permit stager and caller closure are required for later device runs; they are not part of this public recipe.
+The derived twentieth root patch provides bounded binary trace retrieval and a fresh per-run permit leaf. It changes storage/admission behavior while retaining the generation wire schema and decoder contract hash; see [trace and permit successor](../docs/ua50-ssd-moe.md#trace-retrieval-and-per-run-permit-successor-source-candidate). It is absent from historical run 43825061482, but was later included in signed 1508 and 1510. A private receipt verifier, owner-bound permit stager and caller closure are required for later device runs; they are not part of this public recipe.
+
+## Bounded model2 layer-output witness source candidate
+
+The twenty-second patch adds an opt-in model2-only callback for the first three positions and forty named `l_out` layers. It retains a fixed CPU reference buffer, compares hybrid outputs immediately, and fails closed on wrong order, shape, stride, missing rows or callback failure even if the scheduler reports success. Memory is separately charged to the model2 plan. The existing primitive16 and generation paths, held SHA, 456-route, numerical and terminal gates are unchanged.
+
+The accepted `ua68-gpu-proof-output-v1` main JSON remains byte-compatible. An optional `layer-witness.json` diagnostic sidecar carries run/config/ticket identity plus SHA-256 of the exact saved main and trace bytes. Missing or invalid diagnostic bytes cannot become a proof receipt. No raw activations or weights are written to the sidecar. A private strict sidecar checker and fake callback tests passed source-only review; neither authenticates native correctness. The signed 1510 model2 refusal remains the last device result. New Windows artifact QA and a fresh same-artifact prerequisite chain are required before another model2 selection.
