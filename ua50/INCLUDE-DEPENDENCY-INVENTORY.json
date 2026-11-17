@@ -331,6 +331,48 @@
       "include": "ggml.h"
     },
     {
+      "from": "include/xllama/gpu_diagnostic_plan.h",
+      "line": 2,
+      "style": "\"",
+      "include": "dev_run_config.h"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan.h",
+      "line": 3,
+      "style": "<",
+      "include": "algorithm"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan.h",
+      "line": 4,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan.h",
+      "line": 6,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan.h",
+      "line": 7,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/gpu_diagnostic_plan.h",
+      "line": 8,
+      "style": "<",
+      "include": "vector"
+    },
+    {
       "from": "include/xllama/gpu_identity.h",
       "line": 2,
       "style": "\"",
@@ -502,29 +544,41 @@
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 7,
       "style": "\"",
-      "include": "ggml-backend.h"
+      "include": "gpu_sweep_witness.h"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 8,
       "style": "\"",
-      "include": "ggml.h"
+      "include": "gpu_selected_vector_witness.h"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 9,
       "style": "\"",
-      "include": "first_answer_template.h"
+      "include": "ggml-backend.h"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
       "line": 10,
+      "style": "\"",
+      "include": "ggml.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 11,
+      "style": "\"",
+      "include": "first_answer_template.h"
+    },
+    {
+      "from": "include/xllama/gpu_proof_controller.h",
+      "line": 12,
       "style": "<",
       "include": "atomic"
     },
     {
       "from": "include/xllama/gpu_proof_controller.h",
-      "line": 11,
+      "line": 13,
       "style": "<",
       "include": "memory"
     },
@@ -569,6 +623,144 @@
       "line": 4,
       "style": "\"",
       "include": "first_answer_template.h"
+    },
+    {
+      "from": "include/xllama/gpu_run_config.h",
+      "line": 5,
+      "style": "\"",
+      "include": "gpu_diagnostic_plan.h"
+    },
+    {
+      "from": "include/xllama/gpu_run_config.h",
+      "line": 6,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 2,
+      "style": "\"",
+      "include": "gpu_diagnostic_plan.h"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 3,
+      "style": "\"",
+      "include": "ua50/expert_gpu.h"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 4,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 5,
+      "style": "<",
+      "include": "charconv"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 6,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 7,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 8,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 9,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 10,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/gpu_selected_vector_witness.h",
+      "line": 11,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 2,
+      "style": "\"",
+      "include": "gpu_diagnostic_plan.h"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 3,
+      "style": "\"",
+      "include": "gpu_layer_witness.h"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 4,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 5,
+      "style": "<",
+      "include": "charconv"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 6,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 7,
+      "style": "<",
+      "include": "cmath"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 8,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 9,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 10,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 11,
+      "style": "<",
+      "include": "string_view"
+    },
+    {
+      "from": "include/xllama/gpu_sweep_witness.h",
+      "line": 12,
+      "style": "<",
+      "include": "vector"
     },
     {
       "from": "include/xllama/gpu_vector_witness.h",

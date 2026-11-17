@@ -1,0 +1,17 @@
+diff --git a/src/ua50/expert_gpu.h b/src/ua50/expert_gpu.h
+index cbb509531f0079eed06c92b8cf4dbbc238d16b46..e6e27def6e19e9c8ba05b15549cdd5cae6ad5683 100644
+--- a/src/ua50/expert_gpu.h
++++ b/src/ua50/expert_gpu.h
+@@ -42,10 +42,11 @@ public:
+  virtual bool select(const ExpertVector&) noexcept=0;
+  virtual void observe(const ExpertVector&,const float*cpu,const float*gpu)=0;
+  virtual void unavailable() noexcept=0;
++ virtual void oracle_completed() noexcept {} // Optional diagnostic timer boundary before GPU execute/fence.
+ };
+ template<class F> bool diagnostic_oracle(VectorObserver*observer,const ExpertVector&request,F&&compute)noexcept{
+  if(!observer||!observer->select(request))return false;
+- try{compute();return true;}catch(...){observer->unavailable();return false;}
++ try{compute();observer->oracle_completed();return true;}catch(...){observer->unavailable();return false;}
+ }
+ inline void diagnostic_result(VectorObserver*observer,bool selected,const ExpertVector&request,const float*cpu,const float*gpu)noexcept{
+  if(!selected)return;

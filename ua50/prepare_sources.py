@@ -45,11 +45,11 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = '9b9659dc28c63383aa89c10eafc9a8c625ee6d5d659030941c808f4303d9c372'
+CURRENT_PATCH_LOCK = 'f035c9cd3b672ac2b441eecd65d171ef2175c33ea9c34045644d61c0d85957e0'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current model2 first vector witness lock admitted; older locks refused')
+        raise ValueError('only current configurable model2 diagnostics lock admitted; older locks refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
@@ -71,14 +71,18 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/model2-proof-logits-root.patch', 'xllama'),
             ('patch/model2-layer-witness-root.patch', 'xllama'),
             ('patch/model2-first-vector-witness-root.patch', 'xllama'),
-            ('patch/model2-first-vector-witness-native.patch', 'llama')]:
-        raise ValueError('exact accepted parent twenty-two plus first-vector patches required')
+            ('patch/model2-first-vector-witness-native.patch', 'llama'),
+            ('patch/model2-configurable-diagnostics-root.patch', 'xllama'),
+            ('patch/model2-configurable-diagnostics-native.patch', 'llama')]:
+        raise ValueError('exact accepted parent twenty-four plus configurable diagnostics patches required')
     if lock.get('parent20_patch_lock_sha256') != '62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7' or lock.get('parent20_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent20 required')
     if lock.get('parent21_patch_lock_sha256') != 'fa3ce18df56361f2b78ce8eda57fdb8c87ff0d21792693b4be928415b33c0027' or lock.get('parent21_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent21 required')
     if lock.get('parent22_patch_lock_sha256') != 'b427a60d9a17df6e1c2a7b60c8c4e1ee5e392a47e7ceb2105eea208b2241ee48' or lock.get('parent22_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent22 required')
+    if lock.get('parent24_patch_lock_sha256') != '9b9659dc28c63383aa89c10eafc9a8c625ee6d5d659030941c808f4303d9c372' or lock.get('parent24_reused_not_replayed') is not True:
+        raise ValueError('exact accepted parent24 required')
     if lock.get('parent14_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent14 required')
     for entry in lock['patches']:
@@ -87,7 +91,7 @@ def admitted_runtime_lock(operator, lock_sha):
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = '96d2b9395f78a293edda9cb06c05e2e18ed969918aee7b7f51431bfb77c61437'
+SHIPPING_INVENTORY_SHA = 'aad42fc7684979c88119724f1bfced8cb1eabcdd6c21d4a0d8b8b0f13997645c'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):
@@ -98,11 +102,11 @@ def admitted_shipping_inventory(operator):
     if hashlib.sha256(imports).hexdigest() != COMPILER_INVENTORY_SHA:
         raise ValueError('compiler/import declarations changed')
     includes = (operator / 'INCLUDE-DEPENDENCY-INVENTORY.json').read_bytes()
-    if hashlib.sha256(includes).hexdigest() != '0b7c07223b9118d61b3c044748243cb7c5248b2a2981dd670359e931de98c759' or len(json.loads(includes)['direct_includes_only']) != 686:
-        raise ValueError('exact current 686 direct source includes required')
+    if hashlib.sha256(includes).hexdigest() != '59e6d4793f7b4163dada2279f86144ae5c4411eb5118d38cff3f00fbdda1e14d' or len(json.loads(includes)['direct_includes_only']) != 718:
+        raise ValueError('exact current 718 direct source includes required')
     entries = json.loads(raw)['selected_source_files']
-    if len(entries) != 81:
-        raise ValueError('exact eighty-one selected shipping files required')
+    if len(entries) != 84:
+        raise ValueError('exact eighty-four selected shipping files required')
     seen = set()
     for entry in entries:
         target, path = entry['target'], entry['target_path']

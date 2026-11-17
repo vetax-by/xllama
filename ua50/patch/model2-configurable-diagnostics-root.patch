@@ -1,0 +1,548 @@
+diff --git a/include/xllama/gpu_diagnostic_plan.h b/include/xllama/gpu_diagnostic_plan.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..019416e0b4ea921565d86aa8a90d5a888a3209be
+--- /dev/null
++++ b/include/xllama/gpu_diagnostic_plan.h
+@@ -0,0 +1,100 @@
++#pragma once
++#include "dev_run_config.h"
++#include <algorithm>
++#include <array>
++#include <cstdint>
++#include <stdexcept>
++#include <string>
++#include <vector>
++
++namespace xllama::gpu_diagnostic {
++// This plan controls observation only. It has no access to proof thresholds or GPU execution.
++struct Axis {
++ enum class Mode {all,workload,range,set}; Mode mode=Mode::all;
++ uint32_t first=0,last=0,stride=1;
++ std::vector<uint32_t> values;
++ bool contains(uint32_t v,uint32_t limit)const noexcept{
++  if(v>=limit)return false;
++  if(mode==Mode::all)return true;
++  if(mode==Mode::workload)return v>=first&&(v-first)%stride==0;
++  if(mode==Mode::range)return v>=first&&v<last&&(v-first)%stride==0;
++  return std::binary_search(values.begin(),values.end(),v);
++ }
++ uint32_t count(uint32_t limit)const noexcept{
++  uint32_t n=0;for(uint32_t v=0;v<limit;++v)if(contains(v,limit))++n;return n;
++ }
++};
++inline Axis axis(const dev_run::Json&j,uint32_t limit,bool allow_workload=false){
++ using J=dev_run::Json; j.keys({"mode","first","last_exclusive","stride","values"});
++ Axis a;const auto&m=j.at("mode");dev_run::need(m.type==J::Type::string,"diagnostic axis mode type");
++ const auto&f=j.at("first"),&l=j.at("last_exclusive"),&s=j.at("stride"),&v=j.at("values");
++ dev_run::need(v.type==J::Type::array,"diagnostic axis values type");
++ if(m.text=="all"){
++  dev_run::need(f.type==J::Type::null&&l.type==J::Type::null&&s.type==J::Type::null&&v.array.empty(),"diagnostic all axis shape");
++  a.mode=Axis::Mode::all;
++ }else if(m.text=="workload"){
++  dev_run::need(allow_workload&&l.type==J::Type::null&&v.array.empty(),"diagnostic workload axis shape");
++  a.mode=Axis::Mode::workload;a.first=uint32_t(f.range(0,limit-1));a.stride=uint32_t(s.range(1,limit));
++ }else if(m.text=="range"){
++  dev_run::need(v.array.empty(),"diagnostic range values");a.mode=Axis::Mode::range;
++  a.first=uint32_t(f.range(0,limit-1));a.last=uint32_t(l.range(a.first+1,limit));a.stride=uint32_t(s.range(1,limit));
++ }else if(m.text=="set"){
++  dev_run::need(f.type==J::Type::null&&l.type==J::Type::null&&s.type==J::Type::null&&!v.array.empty()&&v.array.size()<=limit,"diagnostic set shape");
++  a.mode=Axis::Mode::set;for(const auto&e:v.array){const auto x=uint32_t(e.range(0,limit-1));dev_run::need(a.values.empty()||x>a.values.back(),"diagnostic duplicate/unsorted set");a.values.push_back(x);}
++ }else throw std::invalid_argument("diagnostic axis unsupported");
++ return a;
++}
++struct VectorKey {uint32_t position=0,role=0,expert=0;};
++struct Plan {
++ enum class Arms {paired,cpu_only,hybrid_only};Arms arms=Arms::paired;
++ static constexpr uint32_t max_positions=129,max_layers=40,max_vectors=16;
++ static constexpr uint64_t memory_ceiling=64ull<<20,output_ceiling=2ull<<20,work_ceiling=120000000;
++ static constexpr uint32_t time_ceiling_ms=120000;
++ Axis positions,layers;
++ std::vector<VectorKey> vectors;
++ uint64_t memory_budget=0,output_budget=0,reference_work_budget=0;
++ uint32_t time_budget_ms=0,max_records=0,element_start=0,element_stride=1,element_count=2048,top_k=0;
++ uint32_t analysis_abs_ppm=1000,analysis_rel_ppm=1000;
++ bool exact=true,stop_on_first=false;
++ uint64_t selected_pairs_upper()const noexcept{return uint64_t(positions.count(max_positions))*layers.count(max_layers);}
++ uint64_t sweep_work_upper()const noexcept{return selected_pairs_upper()*(4096u+(exact?element_count:0));}
++ uint64_t vector_work_upper()const noexcept{return uint64_t(vectors.size())*(2048u*2048u+2048u);}
++ uint64_t required_reference_bytes()const noexcept{return exact?selected_pairs_upper()*2048*4:0;}
++};
++inline Plan parse(const dev_run::Json&j){
++ using J=dev_run::Json;
++ j.keys({"schema","overview","vectors","sampling","analysis","output","budgets"});
++ j.at("schema").eq("ua68-model2-diagnostics-v1");Plan p;
++ const auto&o=j.at("overview");o.keys({"positions","layers","arms","point","compare","collection"});
++ p.positions=axis(o.at("positions"),Plan::max_positions,true);p.layers=axis(o.at("layers"),Plan::max_layers);
++ const auto&arms=o.at("arms");dev_run::need(arms.type==J::Type::string,"diagnostic arms type");
++ if(arms.text=="paired")p.arms=Plan::Arms::paired;else if(arms.text=="cpu_only")p.arms=Plan::Arms::cpu_only;else if(arms.text=="hybrid_only")p.arms=Plan::Arms::hybrid_only;else throw std::invalid_argument("diagnostic arms unsupported");
++ o.at("point").eq("l_out");const auto&cmp=o.at("compare");dev_run::need(cmp.type==J::Type::string,"diagnostic compare type");
++ if(cmp.text=="exact_f32")p.exact=true;else if(cmp.text=="hash_finite")p.exact=false;else throw std::invalid_argument("diagnostic compare unsupported");
++ dev_run::need(!p.exact||p.arms==Plan::Arms::paired,"exact compare needs paired arms");
++ const auto&coll=o.at("collection");dev_run::need(coll.type==J::Type::string,"diagnostic collection type");
++ if(coll.text=="collect_selected")p.stop_on_first=false;else if(coll.text=="stop_diagnostic_on_first_violation")p.stop_on_first=true;else throw std::invalid_argument("diagnostic collection unsupported");
++ dev_run::need(!p.stop_on_first||p.exact,"diagnostic stop requires numeric compare");
++ const auto&vectors=j.at("vectors");dev_run::need(vectors.type==J::Type::array&&vectors.array.size()<=Plan::max_vectors,"diagnostic vector count");
++ for(const auto&x:vectors.array){x.keys({"phase","position","role","expert"});x.at("phase").eq(int64_t(2));VectorKey k;
++  k.position=uint32_t(x.at("position").range(0,128));k.role=uint32_t(x.at("role").range(0,113));k.expert=uint32_t(x.at("expert").range(0,63));
++  for(const auto&prior:p.vectors)dev_run::need(prior.position!=k.position||prior.role!=k.role||prior.expert!=k.expert,"diagnostic vector duplicate");p.vectors.push_back(k);
++ }
++ const auto&sample=j.at("sampling");sample.keys({"element_start","element_stride","element_count"});
++ p.element_start=uint32_t(sample.at("element_start").range(0,2047));p.element_stride=uint32_t(sample.at("element_stride").range(1,2048));p.element_count=uint32_t(sample.at("element_count").range(1,2048));
++ dev_run::need(uint64_t(p.element_start)+uint64_t(p.element_count-1)*p.element_stride<2048,"diagnostic sample extent");
++ const auto&analysis=j.at("analysis");analysis.keys({"absolute_ppm","relative_ppm"});p.analysis_abs_ppm=uint32_t(analysis.at("absolute_ppm").range(0,1000000));p.analysis_rel_ppm=uint32_t(analysis.at("relative_ppm").range(0,1000000));
++ const auto&out=j.at("output");out.keys({"top_k"});p.top_k=uint32_t(out.at("top_k").range(0,16));
++ const auto&b=j.at("budgets");b.keys({"max_records","max_output_bytes","max_extra_memory_bytes","max_reference_work","max_time_ms"});
++ p.max_records=uint32_t(b.at("max_records").range(1,Plan::max_positions*Plan::max_layers+Plan::max_vectors));
++ p.output_budget=b.at("max_output_bytes").range(4096,Plan::output_ceiling);p.memory_budget=b.at("max_extra_memory_bytes").range(1u<<20,Plan::memory_ceiling);
++ p.reference_work_budget=b.at("max_reference_work").range(1,Plan::work_ceiling);p.time_budget_ms=uint32_t(b.at("max_time_ms").range(1000,Plan::time_ceiling_ms));
++ const uint64_t pair_count=p.selected_pairs_upper();
++ dev_run::need(pair_count+p.vectors.size()<=p.max_records,"diagnostic records budget preflight");
++ dev_run::need(p.required_reference_bytes()+2u*(2048u*4u)+4u*1024u*1024u<=p.memory_budget,"diagnostic memory budget preflight");
++ dev_run::need(p.sweep_work_upper()+p.vector_work_upper()<=p.reference_work_budget,"diagnostic work budget preflight");
++ // A 320-byte row upper estimate includes schema, IDs, hashes and summary values.
++ dev_run::need(pair_count*320+p.vectors.size()*512+4096<=p.output_budget,"diagnostic output budget preflight");
++ return p;
++}
++}
+diff --git a/include/xllama/gpu_proof_controller.h b/include/xllama/gpu_proof_controller.h
+index 545d9eeb7396ffb8fc05287d70ad9854478125a7..ddfcacb94d40ab6771efbbd814fa3b1f1f19a9ce 100644
+--- a/include/xllama/gpu_proof_controller.h
++++ b/include/xllama/gpu_proof_controller.h
+@@ -4,6 +4,8 @@
+ #include "gpu_proof_trace.h"
+ #include "gpu_layer_witness.h"
+ #include "gpu_vector_witness.h"
++#include "gpu_sweep_witness.h"
++#include "gpu_selected_vector_witness.h"
+ #include "ggml-backend.h"
+ #include "ggml.h"
+ #include "first_answer_template.h"
+@@ -15,24 +17,28 @@ class Controller {
+  std::shared_ptr<CpuExpertSession> current_;
+  std::shared_ptr<ua50::ExpertGpu> gpu_;std::atomic<bool> stopped_{false};bool used_=false;
+  std::shared_ptr<Proof> proof_;std::shared_ptr<Trace> trace_;std::shared_ptr<LayerWitness> witness_;
+- std::shared_ptr<VectorWitness> vectors_;
++ std::shared_ptr<VectorWitness> vectors_;std::shared_ptr<SweepWitness> sweep_;std::shared_ptr<SelectedVectorWitness> selected_vectors_;
++ struct EvalMux {std::shared_ptr<LayerWitness> legacy;std::shared_ptr<SweepWitness> sweep;};std::shared_ptr<EvalMux> eval_;
+  std::array<llama_token,128> prompt_{};size_t prompt_count_=0;uint32_t cpu_rows_=0,gpu_rows_=0;llama_token t0_=-1,t1_=-1,g0_=-1,g1_=-1;
+  std::function<void(const char*)> progress_;
+  void gate(const char*p){if(stopped_.load())throw std::runtime_error("hybrid proof stopped");if(!progress_)throw std::runtime_error("proof watchdog/phase callback absent");progress_(p);}
+  void attach(std::shared_ptr<CpuExpertSession> s){if(std::atomic_load(&current_))throw std::logic_error("two simultaneous proof contexts");std::atomic_store(&current_,std::move(s));}
+  void close_current(){auto s=std::atomic_load(&current_);if(!s)return;if(!s->close())throw std::logic_error("proof owner not terminal");if(s->first_failure_after_drain()[0])throw std::runtime_error(s->first_failure_after_drain());std::atomic_store(&current_,std::shared_ptr<CpuExpertSession>{});}
+  static bool layer_eval(ggml_tensor*t,bool ask,void*user)noexcept{
+-  auto*w=static_cast<LayerWitness*>(user);if(!w)return false;
++  auto*m=static_cast<EvalMux*>(user);if(!m||!m->legacy)return false;
+   try{
+-   if(!t){w->callback_failure();return false;}
++   if(!t){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();return false;}
+    size_t name_length=0;while(name_length<GGML_MAX_NAME&&t->name[name_length])++name_length;
+-   if(name_length==GGML_MAX_NAME){w->callback_failure();return false;}
++   if(name_length==GGML_MAX_NAME){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();return false;}
+    const auto name=std::string_view(t->name,name_length);
+-   if(ask)return w->ask(name);
++   if(ask){const bool legacy=m->legacy->ask(name);const bool sweep=m->sweep&&m->sweep->ask(name);return legacy||sweep;}
+    LayerWitness::Shape shape;shape.f32=t->type==GGML_TYPE_F32;shape.contiguous=ggml_is_contiguous(t);shape.buffer=(t->view_src?t->view_src->buffer:t->buffer)!=nullptr;shape.data=t->data!=nullptr;shape.bytes=ggml_nbytes(t);
+    for(int i=0;i<4;++i){shape.ne[i]=uint64_t(t->ne[i]);shape.nb[i]=t->nb[i];}
+-   return w->observe(name,shape,[t](void*dst,size_t bytes){ggml_backend_tensor_get(t,dst,0,bytes);return true;});
+-  }catch(...){w->callback_failure();return false;}
++   const bool legacy=m->legacy->ask(name);const bool sweep=m->sweep&&m->sweep->ask(name);
++   const auto reader=[t](void*dst,size_t bytes){ggml_backend_tensor_get(t,dst,0,bytes);return true;};
++   const bool accepted=legacy?m->legacy->observe(name,shape,reader):true;
++   if(sweep)m->sweep->observe(name,shape,reader);return accepted;
++  }catch(...){m->legacy->callback_failure();if(m->sweep)m->sweep->callback_failure();return false;}
+  }
+  CpuExpertOptIn options(const CpuExpertOptIn&base,std::shared_ptr<ua50::ExpertGpu>gpu){
+   if(base.slots!=2||base.cache_ceiling!=(16u<<20)||base.context.n_ctx!=512||base.context.n_batch!=1||base.context.n_ubatch!=1||base.context.n_threads!=1||base.context.n_threads_batch!=1||base.model.n_gpu_layers!=0||base.model.main_gpu!=-1||base.context.op_offload||base.context.offload_kqv)throw std::invalid_argument("proof fixed requested envelope; no clamp");
+@@ -42,23 +48,23 @@ class Controller {
+   opt.instrumentation_owned_bytes=ua50::add(opt.instrumentation_owned_bytes,ua50::add(Trace::required_owned_bytes(),sizeof(Controller)+4096));
+   opt.route_trace=[trace=trace_](uint32_t r,uint64_t e,uint64_t off,uint64_t len){trace->key(r,e,off,len);};
+   opt.hybrid_catalog=[trace=trace_](uint32_t id,const ua50::Tensor&t,const char*n){trace->role(id,t,n);};
+-  if(opt.hybrid_gpu&&vectors_)opt.vector_observer=vectors_;
+-  if(witness_){opt.context.cb_eval=&layer_eval;opt.context.cb_eval_user_data=witness_.get();opt.eval_callback_owner=witness_;}
++  if(opt.hybrid_gpu){if(selected_vectors_)opt.vector_observer=selected_vectors_;else if(vectors_)opt.vector_observer=vectors_;}
++  if(witness_){if(!eval_)eval_=std::make_shared<EvalMux>(EvalMux{witness_,sweep_});opt.context.cb_eval=&layer_eval;opt.context.cb_eval_user_data=eval_.get();opt.eval_callback_owner=eval_;}
+   return opt;
+  }
+  void decode(std::shared_ptr<CpuExpertSession>s,llama_token token,uint32_t position,uint32_t phase){
+-  gate("proof-before-decode");if(witness_)witness_->begin(phase,position);if(vectors_)vectors_->begin(phase,position);trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
++  gate("proof-before-decode");if(witness_)witness_->begin(phase,position);if(sweep_)sweep_->begin(phase,position);if(vectors_)vectors_->begin(phase,position);if(selected_vectors_)selected_vectors_->begin(phase,position);trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
+   // Every proof frame must execute the final MoE layer, including prefill tokens.
+   int32_t nseq=1;llama_seq_id sequence=0;llama_seq_id*sequence_ptr=&sequence;int8_t logits=1;llama_pos pos=llama_pos(position);
+   llama_batch b{};b.n_tokens=1;b.token=&token;b.pos=&pos;b.n_seq_id=&nseq;b.seq_id=&sequence_ptr;b.logits=&logits;
+-  const int decode_status=s->decode(b);if(witness_)witness_->finish_or_throw(decode_status);if(vectors_)vectors_->finish();
++  const int decode_status=s->decode(b);if(witness_)witness_->finish_or_throw(decode_status);if(sweep_)sweep_->finish(decode_status);if(vectors_)vectors_->finish();if(selected_vectors_)selected_vectors_->finish(phase,position);
+   if(decode_status!=0)throw std::runtime_error("proof native decode failed; no continuation");
+   trace_->end(phase==2?gpu_->counts():ua50::GpuCounts{});gate("proof-after-decode");
+  }
+  static llama_token greedy(const float*row){llama_token best=0;for(size_t i=0;i<vocab;++i){if(!std::isfinite(row[i]))throw std::runtime_error("nonfinite native row");if(row[i]>row[size_t(best)])best=llama_token(i);}return best;}
+  void prefill(std::shared_ptr<CpuExpertSession>s,uint32_t phase){s->begin_fresh_turn();for(size_t i=0;i<prompt_count_;++i)decode(s,prompt_[i],uint32_t(i),phase);}
+ public:
+- Controller(std::shared_ptr<Proof>proof,std::shared_ptr<Trace>trace,std::shared_ptr<ua50::ExpertGpu>gpu,std::function<void(const char*)> progress,std::shared_ptr<VectorWitness> vectors={}):gpu_(std::move(gpu)),proof_(std::move(proof)),trace_(std::move(trace)),vectors_(std::move(vectors)),progress_(std::move(progress)){
++ Controller(std::shared_ptr<Proof>proof,std::shared_ptr<Trace>trace,std::shared_ptr<ua50::ExpertGpu>gpu,std::function<void(const char*)> progress,std::shared_ptr<VectorWitness> vectors={},std::shared_ptr<SweepWitness>sweep={},std::shared_ptr<SelectedVectorWitness>selected={}):gpu_(std::move(gpu)),proof_(std::move(proof)),trace_(std::move(trace)),vectors_(std::move(vectors)),sweep_(std::move(sweep)),selected_vectors_(std::move(selected)),progress_(std::move(progress)){
+   if(!gpu_||!proof_||!trace_||!progress_)throw std::invalid_argument("proof complete ownership required");
+  }
+  ~Controller(){request_stop();drain();}
+@@ -73,7 +79,7 @@ public:
+    gate("cpu-reference-open");auto cpu_options=options(base,{});auto cpu=CpuExpertSession::open_if_requested(&cpu_options);if(!cpu)throw std::runtime_error("CPU reference unavailable");attach(cpu);
+    const auto*v=llama_model_get_vocab(cpu->model_view());if(!llama_vocab_get_add_bos(v))throw std::runtime_error("proof BOS policy");
+    auto rendered=first_answer::render(llama_model_chat_template(cpu->model_view(),nullptr),true,llama_vocab_bos(v));
+-   auto ids=cpu->tokenize(rendered);if(ids.empty()||ids.size()>128||ids.size()+2>512||ids[0]!=llama_vocab_bos(v)||std::count(ids.begin(),ids.end(),llama_vocab_bos(v))!=1||llama_vocab_n_tokens(v)!=128000)throw std::runtime_error("proof prompt/state admission");prompt_count_=ids.size();witness_->configure(uint32_t(prompt_count_));std::copy(ids.begin(),ids.end(),prompt_.begin());
++   auto ids=cpu->tokenize(rendered);if(ids.empty()||ids.size()>128||ids.size()+2>512||ids[0]!=llama_vocab_bos(v)||std::count(ids.begin(),ids.end(),llama_vocab_bos(v))!=1||llama_vocab_n_tokens(v)!=128000)throw std::runtime_error("proof prompt/state admission");prompt_count_=ids.size();witness_->configure(uint32_t(prompt_count_));if(sweep_)sweep_->configure(uint32_t(prompt_count_));std::copy(ids.begin(),ids.end(),prompt_.begin());
+    std::unique_ptr<llama_sampler,decltype(&llama_sampler_free)> sampler(llama_sampler_init_greedy(),llama_sampler_free);if(!sampler)throw std::bad_alloc();
+    prefill(cpu,1);cpu->capture_logits(proof_->reference(0),vocab);++cpu_rows_;t0_=cpu->sample(sampler.get());if(t0_!=greedy(proof_->reference(0)))throw std::runtime_error("native greedy/reference argmax mismatch");
+    if(llama_vocab_is_eog(v,t0_))throw std::runtime_error("EARLY_TERMINATOR reference coverage1of2");
+@@ -106,6 +112,8 @@ public:
+  void finish_normal(){close_current();gpu_->drain();if(!terminal())throw std::runtime_error("proof terminal missing");}
+  std::string layer_witness_summary()const{return witness_?witness_->summary():"null";}
+  std::string vector_witness_summary()const{return vectors_?vectors_->summary():"null";}
++ std::string sweep_witness_summary()const{return sweep_?sweep_->summary():"null";}
++ std::string selected_vector_summary()const{return selected_vectors_?selected_vectors_->summary():"null";}
+  void seal(bool normal){trace_->seal(normal&&terminal(),uint32_t(prompt_count_),t0_,t1_,proof_->passed());}
+  uint32_t cpu_rows()const{return cpu_rows_;}uint32_t gpu_rows()const{return gpu_rows_;}size_t prompt_count()const{return prompt_count_;}const llama_token*prompt_ids()const{return prompt_.data();}llama_token t0()const{return t0_;}llama_token t1()const{return t1_;}llama_token g0()const{return g0_;}llama_token g1()const{return g1_;}
+ };
+diff --git a/include/xllama/gpu_run_config.h b/include/xllama/gpu_run_config.h
+index 2bcc63970827f1ce3ec7bbdc5ea89e4be5733e65..fd3d19f307b7231c99f5e90339b46868a817ab4f 100644
+--- a/include/xllama/gpu_run_config.h
++++ b/include/xllama/gpu_run_config.h
+@@ -2,18 +2,24 @@
+ #include "dev_run_config.h"
+ #include "gpu_numeric_proof.h"
+ #include "first_answer_template.h"
++#include "gpu_diagnostic_plan.h"
++#include <memory>
+ namespace xllama::gpu_run {
+ inline constexpr char engine_sha[]="2b904dcee7f3dfc51f05724a1e493b6fdc22b333410608ad8321e170a8b98bd4";
+-inline constexpr char capabilities[]=R"UA68({"CPU_threads":1,"GPU_timestamps":"not_collected_first_slice","activation_tag":"gpu-expert-proof-v1","batch":1,"collector_charge":2097152,"config_max_bytes":16384,"config_schema":"ua68-gpu-proof-config-v1","context":512,"contract":"ua68-expert-sync-contract-v1","driver_probe":268435456,"experts":64,"gpu_outstanding":1,"gpu_slots":1,"host_cache_slots":2,"main_cap":262144,"model_pairs":256000,"model_rows":2,"model_sha256":"d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d","native_wall_seconds":1200,"no_fallback":true,"output_schema":"ua68-gpu-proof-output-v1","primitive_pairs":28672,"primitive_rows":16,"proof_owned_cap":4194304,"quants":["Q4_K","Q6_K"],"raw_rows_saved":false,"reserve":536870912,"roles":114,"run_prefix":"ua68-gpu-proof-v1.","stages":["primitive16","model2"],"summary_cap":65536,"threshold":{"absolute":0.001,"relative_to_cpu":0.001},"ticket_leaf":"ua68-gpu-proof-v1.ticket.json","ticket_max_bytes":4096,"ticket_schema":"ua68-gpu-proof-ticket-v1","trace_cap":524288,"trace_file_bytes":254432,"trace_schema":"UA68TRC1","tuple":"cpu_graph_d3d12_expert_sync","unsupported":["fused","GPU_cache","async","prefetch","threads_not_1","alternate_model","history","UI","context_not_512","performance_sweep"],"watchdog_seconds":180}
++inline constexpr char capabilities[]=R"UA68({"CPU_threads":1,"GPU_timestamps":"not_collected_first_slice","activation_tag":"gpu-expert-proof-v1","batch":1,"collector_charge":2097152,"config_max_bytes":16384,"config_schema":"ua68-gpu-proof-config-v1","diagnostic_config_schema":"ua68-model2-diagnostics-v1","config_schema_v2":"ua68-gpu-proof-config-v2","context":512,"contract":"ua68-expert-sync-contract-v1","driver_probe":268435456,"experts":64,"gpu_outstanding":1,"gpu_slots":1,"host_cache_slots":2,"main_cap":262144,"model_pairs":256000,"model_rows":2,"model_sha256":"d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d","native_wall_seconds":1200,"no_fallback":true,"output_schema":"ua68-gpu-proof-output-v1","primitive_pairs":28672,"primitive_rows":16,"proof_owned_cap":4194304,"quants":["Q4_K","Q6_K"],"raw_rows_saved":false,"reserve":536870912,"roles":114,"run_prefix":"ua68-gpu-proof-v1.","stages":["primitive16","model2"],"summary_cap":65536,"threshold":{"absolute":0.001,"relative_to_cpu":0.001},"ticket_leaf":"ua68-gpu-proof-v1.ticket.json","ticket_max_bytes":4096,"ticket_schema":"ua68-gpu-proof-ticket-v1","trace_cap":524288,"trace_file_bytes":254432,"trace_schema":"UA68TRC1","tuple":"cpu_graph_d3d12_expert_sync","unsupported":["fused","GPU_cache","async","prefetch","threads_not_1","alternate_model","history","UI","context_not_512","performance_sweep"],"watchdog_seconds":180}
+ )UA68";
+ struct Config {
+  std::string raw,id,adapter_luid,shader_sha,primitive_acceptance_sha;dev_run::Config cpu;size_t parser_charge=0;
++ std::shared_ptr<const gpu_diagnostic::Plan> diagnostics;
+  gpu_proof::Stage stage=gpu_proof::Stage::Primitive16;
+  size_t owned_bytes()const{return sizeof(*this)+raw.capacity()+id.capacity()+adapter_luid.capacity()+shader_sha.capacity()+primitive_acceptance_sha.capacity()+cpu.owned_bytes()+parser_charge;}
+  std::string leaf(const char* suffix)const{dev_run::need(dev_run::run_id(id),"GPU run id");return "ua68-gpu-proof-v1."+id+"."+suffix;}
+ };
+ inline Config parse(std::string raw){
+- auto j=dev_run::Parser(raw).parse(16384);j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256"});j.at("schema").eq("ua68-gpu-proof-config-v1");j.at("engine_contract_sha256").eq(engine_sha);
++ auto j=dev_run::Parser(raw).parse(16384);const bool v2=j.at("schema").type==dev_run::Json::Type::string&&j.at("schema").text=="ua68-gpu-proof-config-v2";
++ if(v2)j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256","diagnostics"});
++ else{j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256"});j.at("schema").eq("ua68-gpu-proof-config-v1");}
++ j.at("engine_contract_sha256").eq(engine_sha);
+  Config c;c.raw=std::move(raw);c.parser_charge=j.owned();dev_run::need(j.at("run_id").type==dev_run::Json::Type::string&&dev_run::run_id(j.at("run_id").text),"GPU run id");c.id=j.at("run_id").text;
+  const auto& stage=j.at("stage");dev_run::need(stage.type==dev_run::Json::Type::string,"GPU stage");if(stage.text=="primitive16")c.stage=gpu_proof::Stage::Primitive16;else if(stage.text=="model2")c.stage=gpu_proof::Stage::Model2;else throw std::invalid_argument("GPU stage unsupported");
+  auto&base=j.at("base_cpu_json");dev_run::need(base.type==dev_run::Json::Type::string,"explicit immutable CPU envelope required");c.cpu=dev_run::parse_config(base.text);
+@@ -22,6 +28,7 @@ inline Config parse(std::string raw){
+  dev_run::need(e.at("adapter_luid").type==dev_run::Json::Type::string&&e.at("compiled_shader_sha256").type==dev_run::Json::Type::string,"GPU identity types");c.adapter_luid=e.at("adapter_luid").text;c.shader_sha=e.at("compiled_shader_sha256").text;
+  dev_run::need(c.adapter_luid.size()==17&&c.adapter_luid[8]==':'&&dev_run::hex(c.adapter_luid.substr(0,8),8)&&dev_run::hex(c.adapter_luid.substr(9),8)&&dev_run::hex(c.shader_sha,64),"GPU exact identity");
+  auto&pr=j.at("prerequisite_primitive_acceptance_sha256");if(c.stage==gpu_proof::Stage::Model2){dev_run::need(pr.type==dev_run::Json::Type::string&&dev_run::hex(pr.text,64),"model2 externally accepted primitive prerequisite");c.primitive_acceptance_sha=pr.text;}else dev_run::need(pr.type==dev_run::Json::Type::null,"primitive has no prerequisite override");
++ if(v2){dev_run::need(c.stage==gpu_proof::Stage::Model2,"diagnostics only on model2");c.diagnostics=std::make_shared<gpu_diagnostic::Plan>(gpu_diagnostic::parse(j.at("diagnostics")));}
+  return c;
+ }
+ struct Ticket {std::string raw,selection,id,config_sha;uint64_t expires=0;size_t parser_charge=0;};
+diff --git a/include/xllama/gpu_selected_vector_witness.h b/include/xllama/gpu_selected_vector_witness.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..b0e58084d3f4f9638ae254f2a6f1ecea12f41c20
+--- /dev/null
++++ b/include/xllama/gpu_selected_vector_witness.h
+@@ -0,0 +1,84 @@
++#pragma once
++#include "gpu_diagnostic_plan.h"
++#include "ua50/expert_gpu.h"
++#include <array>
++#include <charconv>
++#include <chrono>
++#include <cmath>
++#include <cstring>
++#include <functional>
++#include <string>
++#include <vector>
++
++namespace xllama::gpu_proof {
++// Optional held-hybrid oracle. Selection is by semantic position/role/expert, never pointer.
++class SelectedVectorWitness final : public ua50::VectorObserver {
++public:
++ using Digest=std::function<std::string(const void*,size_t)>;
++ struct Row {
++  gpu_diagnostic::VectorKey key;uint32_t k=0,n=0,finite_pairs=0,violations=0,first_difference=UINT32_MAX,first_violation=UINT32_MAX;
++  uint64_t row_stride=0,expert_stride=0;std::string quant,q8_sha256,weight_sha256;double max_abs=0,max_ratio=0;bool seen=false;
++ };
++private:
++ gpu_diagnostic::Plan plan_;Digest digest_;std::vector<Row> rows_;
++ size_t observed_=0,selected_=SIZE_MAX;uint32_t phase_=0,position_=0;bool active_=false,failed_=false,oracle_done_=false;const char*reason_=nullptr;uint64_t work_ns_=0,work_units_=0;std::chrono::steady_clock::time_point selected_start_{};
++ static bool hex(const std::string&s){if(s.size()!=64)return false;for(char c:s)if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')))return false;return true;}
++ static void real(std::string&s,double x){char b[64];auto r=std::to_chars(b,b+sizeof(b),x,std::chars_format::general,17);if(r.ec!=std::errc{})throw std::runtime_error("vector numeric serialization");s.append(b,r.ptr);}
++ void fail(const char*s)noexcept{failed_=true;if(!reason_)reason_=s;}
++ void account_elapsed()noexcept{
++  if(selected_==SIZE_MAX)return;
++  const auto elapsed=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-selected_start_).count();
++  if(elapsed<0||uint64_t(elapsed)>UINT64_MAX-work_ns_){fail("VECTOR_TIME_ACCOUNTING");return;}
++  work_ns_+=uint64_t(elapsed);if(work_ns_>uint64_t(plan_.time_budget_ms)*1000000ull)fail("VECTOR_TIME_BUDGET");
++ }
++public:
++ SelectedVectorWitness(gpu_diagnostic::Plan plan,Digest digest):plan_(std::move(plan)),digest_(std::move(digest)){
++  if(!digest_)throw std::invalid_argument("vector digest missing");for(const auto&k:plan_.vectors){Row r;r.key=k;rows_.push_back(std::move(r));}
++ }
++ void begin(uint32_t phase,uint32_t position)noexcept{phase_=phase;position_=position;selected_=SIZE_MAX;oracle_done_=false;active_=phase==2&&!failed_;}
++ bool select(const ua50::ExpertVector&x)noexcept override{
++  if(!active_||selected_!=SIZE_MAX)return false;
++  for(size_t i=0;i<rows_.size();++i){const auto&k=rows_[i].key;
++   if(!rows_[i].seen&&k.position==position_&&k.role==x.role&&k.expert==x.expert){selected_=i;oracle_done_=false;selected_start_=std::chrono::steady_clock::now();return true;}}
++  return false;
++ }
++ void oracle_completed()noexcept override{account_elapsed();oracle_done_=true;}
++ void unavailable()noexcept override{if(!oracle_done_)account_elapsed();fail("VECTOR_OBSERVATION_UNAVAILABLE");selected_=SIZE_MAX;active_=false;}
++ void observe(const ua50::ExpertVector&x,const float*cpu,const float*gpu)override{
++  if(failed_){selected_=SIZE_MAX;return;}
++  selected_start_=std::chrono::steady_clock::now();oracle_done_=false;
++  try{
++   if(selected_>=rows_.size()||!cpu||!gpu)throw std::logic_error("VECTOR_IDENTITY");
++   auto&r=rows_[selected_];if(r.key.position!=position_||r.key.role!=x.role||r.key.expert!=x.expert||r.seen)throw std::logic_error("VECTOR_IDENTITY");
++   ua50::check_vector(x);
++   r.k=x.k;r.n=x.n;r.quant=x.quant==ua50::Quant::q4_k?"Q4_K":"Q6_K";r.row_stride=ua50::mul(x.k/256,ua50::block(x.quant).bytes);r.expert_stride=x.weight_bytes;
++   if(r.row_stride*x.n!=x.weight_bytes)throw std::runtime_error("VECTOR_STRIDE");
++   r.q8_sha256=digest_(x.q8,x.q8_bytes);r.weight_sha256=digest_(x.weights,x.weight_bytes);
++   if(!hex(r.q8_sha256)||!hex(r.weight_sha256))throw std::runtime_error("VECTOR_DIGEST");
++   for(uint32_t i=0;i<x.n;++i){if(!std::isfinite(cpu[i])||!std::isfinite(gpu[i]))throw std::runtime_error("VECTOR_NONFINITE");
++    uint32_t a=0,b=0;std::memcpy(&a,cpu+i,4);std::memcpy(&b,gpu+i,4);if(a!=b&&r.first_difference==UINT32_MAX)r.first_difference=i;
++    const double delta=std::abs(double(cpu[i])-double(gpu[i]));const double tolerance=(double(plan_.analysis_abs_ppm)+double(plan_.analysis_rel_ppm)*std::abs(double(cpu[i])))/1000000.0;
++    if(delta>r.max_abs)r.max_abs=delta;const double ratio=tolerance>0?delta/tolerance:delta>0?1e300:0;if(ratio>r.max_ratio)r.max_ratio=ratio;
++    if(delta>tolerance){if(r.first_violation==UINT32_MAX)r.first_violation=i;++r.violations;}++r.finite_pairs;
++   }
++   work_units_+=uint64_t(x.k)*x.n+x.n;if(work_units_>plan_.reference_work_budget)fail("VECTOR_WORK_BUDGET");
++   r.seen=true;++observed_;
++  }catch(...){fail("VECTOR_OBSERVATION_FAILURE");}
++  account_elapsed();selected_=SIZE_MAX;
++ }
++ void finish(uint32_t phase,uint32_t position)noexcept{
++  if(phase==2&&!failed_)for(const auto&r:rows_)if(r.key.position==position&&!r.seen)fail("VECTOR_MISSING_SELECTION");
++  selected_=SIZE_MAX;active_=false;
++ }
++ bool complete()const noexcept{return !failed_&&observed_==rows_.size();}
++ std::string summary()const{
++  std::string s="{\"schema\":\"ua68-model2-selected-vectors-v1\",\"complete\":"+std::string(complete()?"true":"false")+",\"unavailable\":"+(failed_?"true":"false")+",\"reason\":";
++  s+=reason_?std::string("\"")+reason_+"\"":"null";s+=",\"expected\":"+std::to_string(rows_.size())+",\"observed\":"+std::to_string(observed_)+",\"diagnostic_work_ns\":"+std::to_string(work_ns_)+",\"diagnostic_work_units\":"+std::to_string(work_units_)+",\"rows\":[";
++  for(size_t i=0;i<rows_.size();++i){const auto&r=rows_[i];if(i)s+=",";
++   s+="{\"phase\":2,\"position\":"+std::to_string(r.key.position)+",\"role\":"+std::to_string(r.key.role)+",\"expert\":"+std::to_string(r.key.expert)+",\"seen\":"+(r.seen?"true":"false");
++   if(r.seen){s+=",\"quant\":\""+r.quant+"\",\"k\":"+std::to_string(r.k)+",\"n\":"+std::to_string(r.n)+",\"row_stride\":"+std::to_string(r.row_stride)+",\"expert_stride\":"+std::to_string(r.expert_stride)+",\"q8_sha256\":\""+r.q8_sha256+"\",\"weight_sha256\":\""+r.weight_sha256+"\",\"finite_pairs\":"+std::to_string(r.finite_pairs)+",\"violations\":"+std::to_string(r.violations)+",\"first_difference\":"+(r.first_difference==UINT32_MAX?"null":std::to_string(r.first_difference)) +",\"first_violation\":"+(r.first_violation==UINT32_MAX?"null":std::to_string(r.first_violation)) +",\"max_abs\":";real(s,r.max_abs);s+=",\"max_ratio\":";real(s,r.max_ratio);}
++   s+="}";
++  }s+="]}";if(s.size()>plan_.output_budget)throw std::length_error("vector output budget");return s;
++ }
++};
++}
+diff --git a/include/xllama/gpu_sweep_witness.h b/include/xllama/gpu_sweep_witness.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..2b345ef3f41955ef74df10274966a10826da62be
+--- /dev/null
++++ b/include/xllama/gpu_sweep_witness.h
+@@ -0,0 +1,138 @@
++#pragma once
++#include "gpu_diagnostic_plan.h"
++#include "gpu_layer_witness.h"
++#include <array>
++#include <charconv>
++#include <chrono>
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++#include <string>
++#include <string_view>
++#include <vector>
++
++namespace xllama::gpu_proof {
++// Optional model2 overview. No raw tensor values leave this owner.
++class SweepWitness final {
++public:
++ using Shape=LayerWitness::Shape;
++ struct Row {
++  uint32_t position=0,layer=0,first_difference=UINT32_MAX,first_violation=UINT32_MAX,max_abs_index=UINT32_MAX,violations=0,finite_pairs=0;
++  uint64_t cpu_hash=0,hybrid_hash=0;double max_abs=0;bool cpu=false,hybrid=false;
++ };
++private:
++ gpu_diagnostic::Plan plan_;
++ std::array<int32_t,gpu_diagnostic::Plan::max_positions*gpu_diagnostic::Plan::max_layers> index_{};
++ std::vector<Row> rows_;std::vector<float> reference_;std::array<float,2048> scratch_{};
++ std::array<uint32_t,6> histogram_{};
++ uint32_t expected_frames_=0,expected_pairs_=0,outside_positions_=0,phase_=0,position_=0,seen_=0,frames_[2]{},first_stop_position_=UINT32_MAX;
++ uint64_t compared_=0,work_ns_=0,work_units_=0;bool configured_=false,in_decode_=false,failed_=false,truncated_=false;
++ const char*reason_=nullptr;
++ static uint64_t fnv(const void*data,size_t size)noexcept{const auto*p=static_cast<const unsigned char*>(data);uint64_t h=14695981039346656037ull;for(size_t i=0;i<size;++i){h^=p[i];h*=1099511628211ull;}return h;}
++ static uint32_t bits(float x)noexcept{uint32_t b=0;std::memcpy(&b,&x,4);return b;}
++ static int layer(std::string_view s)noexcept{
++  if(s.size()<7||s.substr(0,6)!="l_out-")return -1;
++  if(s.size()>7&&s[6]=='0')return -1;int n=0;
++  for(size_t i=6;i<s.size();++i){if(s[i]<'0'||s[i]>'9')return -1;n=n*10+s[i]-'0';if(n>=40)return -1;}return n;
++ }
++ static void real(std::string&out,double v){char b[64];auto x=std::to_chars(b,b+sizeof(b),v,std::chars_format::general,17);if(x.ec!=std::errc{})throw std::runtime_error("sweep numeric serialization");out.append(b,x.ptr);}
++ void fail(const char*reason)noexcept{failed_=true;if(!reason_)reason_=reason;}
++ bool timely()noexcept{if(work_ns_>uint64_t(plan_.time_budget_ms)*1000000ull){fail("TIME_BUDGET");return false;}return true;}
++public:
++ explicit SweepWitness(gpu_diagnostic::Plan plan):plan_(std::move(plan)){index_.fill(-1);}
++ void configure(uint32_t prompt_count)noexcept{
++  if(configured_){fail("CONFIGURE_TWICE");return;}configured_=true;
++  if(prompt_count<1||prompt_count>128){fail("PROMPT_ENVELOPE");return;}
++  expected_frames_=prompt_count+1;expected_pairs_=plan_.positions.count(expected_frames_)*plan_.layers.count(40);
++  if(plan_.positions.mode==gpu_diagnostic::Axis::Mode::range||plan_.positions.mode==gpu_diagnostic::Axis::Mode::set){
++   outside_positions_=plan_.positions.count(gpu_diagnostic::Plan::max_positions)-plan_.positions.count(expected_frames_);
++   if(outside_positions_){fail("POSITION_OUTSIDE_WORKLOAD");return;}
++  }
++  if(!expected_pairs_||expected_pairs_>plan_.max_records){fail("ACTUAL_RECORD_BUDGET");return;}
++  const uint64_t actual_bytes=plan_.exact?uint64_t(expected_pairs_)*2048u*4u:0;
++  if(actual_bytes+4u*1024u*1024u+2u*2048u*4u>plan_.memory_budget||uint64_t(expected_pairs_)*(4096u+(plan_.exact?plan_.element_count:0u))>plan_.reference_work_budget){fail("ACTUAL_WORK_MEMORY_BUDGET");return;}
++  try{
++   rows_.reserve(expected_pairs_);
++   for(uint32_t p=0;p<expected_frames_;++p)if(plan_.positions.contains(p,expected_frames_))
++    for(uint32_t l=0;l<40;++l)if(plan_.layers.contains(l,40)){
++     index_[p*40+l]=int32_t(rows_.size());Row row;row.position=p;row.layer=l;rows_.push_back(row);
++    }
++   if(plan_.exact)reference_.resize(rows_.size()*2048);
++  }catch(...){fail("ALLOCATION_UNAVAILABLE");}
++ }
++ void begin(uint32_t phase,uint32_t position)noexcept{
++  if(!configured_||in_decode_||phase<1||phase>2||position>=expected_frames_||position!=frames_[phase-1]||(phase==2&&frames_[0]!=expected_frames_)){fail("FRAME_ORDER");return;}
++  phase_=phase;position_=position;seen_=0;in_decode_=true;
++ }
++ bool ask(std::string_view name)noexcept{
++  if(!in_decode_||failed_||truncated_||!timely())return false;
++  if((phase_==1&&plan_.arms==gpu_diagnostic::Plan::Arms::hybrid_only)||(phase_==2&&plan_.arms==gpu_diagnostic::Plan::Arms::cpu_only))return false;
++  const int l=layer(name);return l>=0&&index_[position_*40+uint32_t(l)]>=0;
++ }
++ void callback_failure()noexcept{fail("CALLBACK_FAILURE");}
++ template<class Reader> void observe(std::string_view name,const Shape&shape,Reader&&read)noexcept{
++  const auto work_start=std::chrono::steady_clock::now();
++  try{
++   if(!in_decode_||failed_||truncated_||!timely())return;
++   const int l=layer(name);if(l<0)throw std::logic_error("NAME");const int32_t ix=index_[position_*40+uint32_t(l)];if(ix<0)throw std::logic_error("UNSELECTED");
++   uint32_t ordinal=0;for(uint32_t prior=0;prior<uint32_t(l);++prior)if(index_[position_*40+prior]>=0)++ordinal;
++   if(ordinal!=seen_)throw std::logic_error("LAYER_ORDER");
++   auto&r=rows_[size_t(ix)];if((phase_==1&&r.cpu)||(phase_==2&&r.hybrid)||(!r.cpu&&phase_==2&&plan_.arms==gpu_diagnostic::Plan::Arms::paired))throw std::logic_error("PAIR_ORDER");
++   if(!shape.f32||!shape.contiguous||!shape.buffer||!shape.data||shape.bytes!=8192||shape.ne[0]!=2048||shape.ne[1]!=1||shape.ne[2]!=1||shape.ne[3]!=1||shape.nb[0]!=4||shape.nb[1]!=8192||shape.nb[2]!=8192||shape.nb[3]!=8192)throw std::invalid_argument("SHAPE_STRIDE");
++   if(!read(scratch_.data(),8192))throw std::runtime_error("READ");
++   for(float v:scratch_)if(!std::isfinite(v))throw std::runtime_error("NONFINITE");
++   const auto h=fnv(scratch_.data(),8192);
++   if(phase_==1){r.cpu=true;r.cpu_hash=h;if(plan_.exact)std::memcpy(reference_.data()+size_t(ix)*2048,scratch_.data(),8192);}
++   else{
++    r.hybrid=true;r.hybrid_hash=h;
++    if(plan_.exact){const auto*cpu=reference_.data()+size_t(ix)*2048;
++     for(uint32_t s=0;s<plan_.element_count;++s){const uint32_t e=plan_.element_start+s*plan_.element_stride;
++      if(r.first_difference==UINT32_MAX&&bits(cpu[e])!=bits(scratch_[e]))r.first_difference=e;
++      const double delta=std::abs(double(cpu[e])-double(scratch_[e]));
++      const double tolerance=(double(plan_.analysis_abs_ppm)+double(plan_.analysis_rel_ppm)*std::abs(double(cpu[e])))/1000000.0;
++      if(delta>r.max_abs){r.max_abs=delta;r.max_abs_index=e;}
++      const double ratio=tolerance>0?delta/tolerance:delta>0?1e300:0;
++      const uint32_t bin=ratio==0?0:ratio<=.25?1:ratio<=.5?2:ratio<=1?3:ratio<=2?4:5;++histogram_[bin];
++      if(delta>tolerance){if(r.first_violation==UINT32_MAX)r.first_violation=e;++r.violations;}
++      ++r.finite_pairs;++compared_;
++     }
++     if(plan_.stop_on_first&&r.violations){truncated_=true;first_stop_position_=position_;}
++    }
++   }
++   work_units_+=2048u+(phase_==2&&plan_.exact?plan_.element_count:0u);if(work_units_>plan_.reference_work_budget)fail("WORK_BUDGET");
++   ++seen_;
++  }catch(const std::exception&e){
++   if(std::strcmp(e.what(),"SHAPE_STRIDE")==0)fail("SHAPE_STRIDE");else fail("OBSERVATION_FAILURE");
++  }catch(...){fail("OBSERVATION_FAILURE");}
++  const auto elapsed=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-work_start).count();
++  if(elapsed<0||uint64_t(elapsed)>UINT64_MAX-work_ns_)fail("TIME_ACCOUNTING");else{work_ns_+=uint64_t(elapsed);(void)timely();}
++ }
++ void finish(int decode_status)noexcept{
++  if(!in_decode_){fail("FINISH_LIFETIME");return;}in_decode_=false;++frames_[phase_-1];
++  if(decode_status)fail("DECODE_FAILED");
++  if(!failed_&&!truncated_){uint32_t expected=0;
++   if(!((phase_==1&&plan_.arms==gpu_diagnostic::Plan::Arms::hybrid_only)||(phase_==2&&plan_.arms==gpu_diagnostic::Plan::Arms::cpu_only)))
++    for(uint32_t l=0;l<40;++l)if(index_[position_*40+l]>=0)++expected;
++   if(seen_!=expected)fail("MISSED_OBSERVATION");}
++ }
++ bool complete()const noexcept{if(!configured_||failed_||truncated_||in_decode_||frames_[0]!=expected_frames_||frames_[1]!=expected_frames_)return false;for(const auto&r:rows_)if((plan_.arms!=gpu_diagnostic::Plan::Arms::hybrid_only&&!r.cpu)||(plan_.arms!=gpu_diagnostic::Plan::Arms::cpu_only&&!r.hybrid))return false;return true;}
++ std::string summary()const{
++  if(!configured_)throw std::logic_error("sweep unconfigured");
++  const char*arms=plan_.arms==gpu_diagnostic::Plan::Arms::paired?"paired":plan_.arms==gpu_diagnostic::Plan::Arms::cpu_only?"cpu_only":"hybrid_only";
++  std::string s="{\"schema\":\"ua68-model2-sweep-v1\",\"arms\":\""+std::string(arms)+"\",\"complete\":"+std::string(complete()?"true":"false")+",\"unavailable\":"+(failed_?"true":"false")+",\"truncated\":"+(truncated_?"true":"false")+",\"reason\":";
++  s+=reason_?std::string("\"")+reason_+"\"":truncated_?"\"DIAGNOSTIC_FIRST_VIOLATION\"":"null";
++  s+=",\"expected_frames_per_phase\":"+std::to_string(expected_frames_)+",\"CPU_frames\":"+std::to_string(frames_[0])+",\"hybrid_frames\":"+std::to_string(frames_[1]);
++  s+=",\"expected_pairs\":"+std::to_string(expected_pairs_)+",\"requested_outside_workload\":"+std::to_string(outside_positions_)+",\"compared_elements\":"+std::to_string(compared_)+",\"diagnostic_work_ns\":"+std::to_string(work_ns_)+",\"diagnostic_work_units\":"+std::to_string(work_units_)+",\"first_stop_position\":"+(first_stop_position_==UINT32_MAX?"null":std::to_string(first_stop_position_));
++  s+=",\"histogram\":[";for(size_t i=0;i<histogram_.size();++i){if(i)s+=",";s+=std::to_string(histogram_[i]);}s+="],\"rows\":[";
++  for(size_t i=0;i<rows_.size();++i){const auto&r=rows_[i];if(i)s+=",";
++   s+="{\"position\":"+std::to_string(r.position)+",\"layer\":"+std::to_string(r.layer)+",\"CPU_seen\":"+(r.cpu?"true":"false")+",\"hybrid_seen\":"+(r.hybrid?"true":"false")+",\"CPU_fnv1a64\":"+std::to_string(r.cpu_hash)+",\"hybrid_fnv1a64\":"+std::to_string(r.hybrid_hash)+",\"finite_pairs\":"+std::to_string(r.finite_pairs)+",\"first_difference\":"+(r.first_difference==UINT32_MAX?"null":std::to_string(r.first_difference)) +",\"first_violation\":"+(r.first_violation==UINT32_MAX?"null":std::to_string(r.first_violation)) +",\"violations\":"+std::to_string(r.violations)+",\"max_abs\":";
++   real(s,r.max_abs);s+=",\"max_abs_index\":"+(r.max_abs_index==UINT32_MAX?"null":std::to_string(r.max_abs_index))+"}";
++  }
++  s+="],\"top_k\":[";
++  std::vector<size_t> ranked;for(size_t i=0;i<rows_.size();++i)if(rows_[i].max_abs_index!=UINT32_MAX)ranked.push_back(i);
++  std::sort(ranked.begin(),ranked.end(),[this](size_t a,size_t b){const auto&x=rows_[a],&y=rows_[b];if(x.max_abs!=y.max_abs)return x.max_abs>y.max_abs;return a<b;});
++  for(size_t i=0;i<ranked.size()&&i<plan_.top_k;++i){const auto&r=rows_[ranked[i]];if(i)s+=",";s+="{\"position\":"+std::to_string(r.position)+",\"layer\":"+std::to_string(r.layer)+",\"element\":"+std::to_string(r.max_abs_index)+",\"max_abs\":";real(s,r.max_abs);s+="}";}
++  s+="]}";if(s.size()>plan_.output_budget)throw std::length_error("sweep output budget");return s;
++ }
++};
++}
+diff --git a/uwp/gpu-proof-pilot.inc b/uwp/gpu-proof-pilot.inc
+index 056ec035fa6314fb1a67181f4fdc5cec49a2d34e..9f029a8eb654d6ac520f2a746e88435ff3e577db 100644
+--- a/uwp/gpu-proof-pilot.inc
++++ b/uwp/gpu-proof-pilot.inc
+@@ -6,6 +6,7 @@ void run_expert_gpu_proof_configured(){
+  auto state=std::make_shared<Pilot>();state->gpu_aggregate_quota=true;state->deadline=ua50::uwp::Clock::now()+std::chrono::minutes(20);
+  std::shared_ptr<GpuProofInput> input;std::shared_ptr<ua50::ExpertGpu> gpu;std::shared_ptr<gpu_proof::Controller> controller;
+  std::shared_ptr<gpu_proof::Proof> proof;std::shared_ptr<gpu_proof::Trace> trace;std::shared_ptr<gpu_proof::VectorWitness> vectors;
++ std::shared_ptr<gpu_proof::SweepWitness> sweep;std::shared_ptr<gpu_proof::SelectedVectorWitness> selected_vectors;
+  std::optional<ua50::uwp::WindowsInputCandidate> guard;ModelWriteGate::Permit writer;CpuExpertOptIn opt;
+  std::array<CpuExpertEffective,2> actual_effective{};std::array<ua50::Counters,2> host_counts{};size_t live_phase=0;uint64_t sha_calls=0,sha_requested=0,sha_returned=0,sha_elapsed_ns=0;
+  bool pre_sha=false,post_sha=false,normal=false,claim=false;std::string cause,package;ua50::GpuSnapshot gpu_effective;ua50::GpuCounts gpu_counts;
+@@ -27,9 +28,9 @@ void run_expert_gpu_proof_configured(){
+   state->phase("outer-held-preSHA",probe_allowance);guard=source();pre_sha=true;state->held=guard->file;{std::lock_guard<std::mutex> l(state->mutex);state->control=guard->control;}
+   state->phase("GPU-driver-initialization",probe_allowance);
+   ExpertGpuAdmission admission{input->config.adapter_luid,input->config.shader_sha,[state](const ua50::GpuSnapshot&,uint64_t pending){state->phase("GPU-resource-admission",pending);}};
+-  gpu=make_expert_gpu_d3d12(admission);gpu_effective=gpu->snapshot();state->phase("proof-storage-admission",add(add(4u<<20,gpu_proof::Trace::required_owned_bytes()),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,gpu_proof::VectorWitness::charged_bytes):0));
++  gpu=make_expert_gpu_d3d12(admission);gpu_effective=gpu->snapshot();state->phase("proof-storage-admission",add(add(4u<<20,gpu_proof::Trace::required_owned_bytes()),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,input->config.diagnostics?input->config.diagnostics->memory_budget:gpu_proof::VectorWitness::charged_bytes):0));
+   proof=std::make_shared<gpu_proof::Proof>(input->config.stage);trace=std::make_shared<gpu_proof::Trace>(GetCurrentProcessId(),input->config.stage==gpu_proof::Stage::Primitive16?3:4,input->config.id,input->config_sha,input->ticket_sha,gpu_run::engine_sha,gpu_effective.shader_sha256);
+-  opt.enabled=true;opt.plan_profile=CpuExpertOptIn::PlanProfile::FinishedAnswer512;opt.slots=2;opt.cache_ceiling=16u<<20;opt.stage_ceiling=4u<<20;opt.numerical_proof_owned_bytes=4u<<20;opt.instrumentation_owned_bytes=add(add(input->owned_bytes(),262144+4096),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,gpu_proof::VectorWitness::charged_bytes):0);
++  opt.enabled=true;opt.plan_profile=CpuExpertOptIn::PlanProfile::FinishedAnswer512;opt.slots=2;opt.cache_ceiling=16u<<20;opt.stage_ceiling=4u<<20;opt.numerical_proof_owned_bytes=4u<<20;opt.instrumentation_owned_bytes=add(add(input->owned_bytes(),262144+4096),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,input->config.diagnostics?input->config.diagnostics->memory_budget:gpu_proof::VectorWitness::charged_bytes):0);
+   opt.model.main_gpu=-1;opt.model.n_gpu_layers=0;opt.model.split_mode=LLAMA_SPLIT_MODE_NONE;opt.model.load_mode=LLAMA_LOAD_MODE_NONE;opt.model.lazy_mode=LLAMA_LAZY_MODE_OFF;opt.model.use_extra_bufts=false;
+   opt.context.n_ctx=512;opt.context.n_batch=1;opt.context.n_ubatch=1;opt.context.n_seq_max=1;opt.context.n_outputs_max=1;opt.context.n_outputs_max_per_seq=1;opt.context.n_threads=1;opt.context.n_threads_batch=1;opt.context.offload_kqv=false;opt.context.op_offload=false;opt.context.flash_attn_type=LLAMA_FLASH_ATTN_TYPE_DISABLED;opt.context.type_k=GGML_TYPE_F16;opt.context.type_v=GGML_TYPE_F16;
+   opt.model.progress_callback=[](float,void*p)->bool{return !static_cast<Pilot*>(p)->abort->load();};opt.model.progress_callback_user_data=state.get();
+@@ -48,18 +49,28 @@ void run_expert_gpu_proof_configured(){
+    state->phase(p); // validate OLD progress before resetting it; no concealed long operation
+    if(std::strcmp(p,"proof-before-decode")==0||std::strcmp(p,"proof-after-decode")==0||std::strcmp(p,"primitive-vector")==0)state->gpu_progress_ns.store(std::chrono::duration_cast<std::chrono::nanoseconds>(ua50::uwp::Clock::now().time_since_epoch()).count());
+   };
+-  if(input->config.stage==gpu_proof::Stage::Model2)vectors=std::make_shared<gpu_proof::VectorWitness>([state](const void*p,size_t n){
++  if(input->config.stage==gpu_proof::Stage::Model2&&!input->config.diagnostics)vectors=std::make_shared<gpu_proof::VectorWitness>([state](const void*p,size_t n){
+    if(!p||!n||n>2580480||ua50::uwp::Clock::now()>state->deadline||state->abort->load())throw std::runtime_error("vector witness digest bound/stop");
+    return dev_sha(std::string(static_cast<const char*>(p),n));
+   });
+-  controller=std::make_shared<gpu_proof::Controller>(proof,trace,gpu,progress,vectors);{std::lock_guard<std::mutex>l(state->mutex);state->gpu_controller=controller;}
++  if(input->config.diagnostics){
++   auto sweep_plan=*input->config.diagnostics,vector_plan=*input->config.diagnostics;
++   sweep_plan.reference_work_budget=sweep_plan.sweep_work_upper();vector_plan.reference_work_budget=vector_plan.vector_work_upper();
++   if(!vector_plan.vectors.empty()){sweep_plan.time_budget_ms=3*vector_plan.time_budget_ms/4;vector_plan.time_budget_ms-=sweep_plan.time_budget_ms;}
++   sweep=std::make_shared<gpu_proof::SweepWitness>(std::move(sweep_plan));
++   selected_vectors=std::make_shared<gpu_proof::SelectedVectorWitness>(std::move(vector_plan),[state](const void*p,size_t n){
++    if(!p||!n||n>2580480||ua50::uwp::Clock::now()>state->deadline||state->abort->load())throw std::runtime_error("selected vector digest bound/stop");
++    return dev_sha(std::string(static_cast<const char*>(p),n));
++   });
++  }
++  controller=std::make_shared<gpu_proof::Controller>(proof,trace,gpu,progress,vectors,sweep,selected_vectors);{std::lock_guard<std::mutex>l(state->mutex);state->gpu_controller=controller;}
+   if(input->config.stage==gpu_proof::Stage::Primitive16)controller->primitive16(opt);else controller->model2(opt);
+   state->gpu_progress_ns.store(0);state->phase("outer-held-postSHA");auto validator=make_held_sha256_validator({bytes,sha},[state]{return state->abort->load();},state->deadline,hash_observer);auto verified=validator(guard->file,bytes);guard->validate_binding(guard->file);post_sha=verified.bytes_checked==bytes&&verified.sha256==sha;
+   state->finish_monitor();if(state->abort->load())throw std::runtime_error("final monitor stop; retain numeric partial");
+   controller->finish_normal();if(!proof->passed())fail("NUMERICAL_GATE_FAILED_OR_INCOMPLETE; inspect bounded coverage/witness");normal=proof->passed()&&controller->terminal()&&post_sha&&actual_effective[0].context==512&&(input->config.stage==gpu_proof::Stage::Primitive16||actual_effective[1].context==512);
+  }catch(const std::exception&e){fail(e.what());}catch(...){fail("GPU proof unknown failure");}
+  state->finish_monitor();if(state->abort->load())fail("final monitor stopped; no normal commit");
+- std::string layer_witness_json="null",vector_witness_json="null";if(controller){if(!normal){controller->request_stop();controller->drain();}if(input&&input->config.stage==gpu_proof::Stage::Model2){try{layer_witness_json=controller->layer_witness_summary();}catch(const std::exception&e){fail(e.what());}try{vector_witness_json=controller->vector_witness_summary();}catch(const std::exception&e){log_output(marker+" FIRST_VECTOR_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
++ std::string layer_witness_json="null",vector_witness_json="null",sweep_json="null",selected_json="null";if(controller){if(!normal){controller->request_stop();controller->drain();}if(input&&input->config.stage==gpu_proof::Stage::Model2){try{layer_witness_json=controller->layer_witness_summary();}catch(const std::exception&e){fail(e.what());}try{vector_witness_json=controller->vector_witness_summary();}catch(const std::exception&e){log_output(marker+" FIRST_VECTOR_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}try{sweep_json=controller->sweep_witness_summary();selected_json=controller->selected_vector_summary();}catch(const std::exception&e){log_output(marker+" CONFIGURABLE_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
+  if(gpu){gpu->drain();try{gpu_counts=gpu->counts();gpu_effective=gpu->snapshot();if(gpu->error()[0])fail(gpu->error());}catch(const std::exception&e){fail(e.what());}}
+  if(normal&&input){
+   const uint64_t hashes=input->config.stage==gpu_proof::Stage::Primitive16?3:4;
+@@ -118,6 +129,16 @@ void run_expert_gpu_proof_configured(){
+    DWORD written=0;if(!WriteFile(side.value,sidecar.data(),DWORD(sidecar.size()),&written,nullptr)||written!=sidecar.size()||!FlushFileBuffers(side.value))throw std::runtime_error("first vector sidecar commit");side.close();
+    log_output(marker+" FIRST_VECTOR_WITNESS_COMMITTED diagnostic_only\n");
+   }catch(const std::exception&e){log_output(marker+" FIRST_VECTOR_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
++  if(input->config.diagnostics&&sweep_json!="null"&&selected_json!="null")try{
++   state->phase("configurable-diagnostics-sidecar",input->config.diagnostics->output_budget);
++   const std::string raw_trace(reinterpret_cast<const char*>(trace->data()),trace->file_bytes);
++   const std::string sidecar="{\"schema\":\"ua68-model2-configurable-diagnostics-sidecar-v1\",\"diagnostic_only\":true,\"external_signed_artifact_binding_required\":true,\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"output_sha256\":"+quote(dev_sha(json))+",\"trace_sha256\":"+quote(dev_sha(raw_trace))+",\"overview\":"+sweep_json+",\"vectors\":"+selected_json+"}";
++   if(sidecar.size()>input->config.diagnostics->output_budget)throw std::length_error("configurable diagnostics sidecar cap");
++   DevHandle side(CreateFile2(input->path("diagnostics.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr));
++   if(side.value==INVALID_HANDLE_VALUE)throw std::runtime_error("configurable diagnostics sidecar CREATE_NEW");
++   DWORD written=0;if(!WriteFile(side.value,sidecar.data(),DWORD(sidecar.size()),&written,nullptr)||written!=sidecar.size()||!FlushFileBuffers(side.value))throw std::runtime_error("configurable diagnostics sidecar commit");side.close();
++   log_output(marker+" CONFIGURABLE_DIAGNOSTICS_COMMITTED diagnostic_only\n");
++  }catch(const std::exception&e){log_output(marker+" CONFIGURABLE_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
+ 
+   log_output(marker+(normal?" OUTPUT_COMMITTED normal owner/file/writer closed\n":" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));
+  }catch(const std::exception&e){fail(e.what());log_output(marker+" OUTPUT_FAILED: "+e.what()+"\n");}
