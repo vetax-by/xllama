@@ -39,10 +39,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $pins = @{
             'package_copy.py' = 'f4ee7c692e7194f3ebc97ee38f8537e29ec6a618ccde74126a37e260710492ce'
-            'sign_copy.ps1' = '3901f20a1186e611818d32f7da6459a3aa52e2d427f02df9f5a5d641f9f3eb75'
+            'sign_copy.ps1' = '11970b9291f18becc37c079fd46d95a4b685ea50c3997ced1801c2583ef9a002'
             'sign_ephemeral_pair.ps1' = '121ef0d2ea6d0ce7b2fc91926abc49f1274e19544951a2998c77cbda174334b1'
-            'validate_pair_inputs.py' = 'f652d797ff536aad14a92c486ab3f45431f0969535318a685f522f14025707b3'
-            'input-template.json' = '83750ece98e3dbc25ac0358e9f4a8c6125fdae833d7cad2c8d6a2709fcbe7289'
+            'validate_pair_inputs.py' = '6cdfd6f6945e464f7728dccdc142dd5f44fee710602e2c00a575eeef1eb12ac2'
+            'input-template.json' = '0bfca66b6a5ea3ac47a86a8f35653ec8e1d6069888bb38060228867187a28dbb'
           }
           foreach ($name in $pins.Keys) {
             $path = Join-Path 'operator/ua50/signing/successor' $name
@@ -53,7 +53,7 @@ jobs:
               if ($errors.Count -ne 0) { throw "PowerShell parse refused: $name" }
             }
           }
-      # Independent unsigned QA RESULT SHA256: 38287176a6f8add4b7cdd05d5a00e75bfae4b8e6e88410e06c8ccff037397285.
+      # Independent unsigned QA RESULT SHA256: 73dbdd1016844f0bd94826d2e46c8fe89a833824e58f6d5e9f2836862f45c456.
       - name: Download two exact accepted unsigned artifacts
         timeout-minutes: 5
         env:
@@ -63,14 +63,14 @@ jobs:
           $root = Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair'
           if (Test-Path -LiteralPath $root) { throw 'Exclusive artifact root required' }
           New-Item -ItemType Directory -Path $root | Out-Null
-          gh run download 44097593756 --repo vetax-by/xllama --name ua50-uwp-patch-44097593756 --dir (Join-Path $root 'patched')
+          gh run download 44149184202 --repo vetax-by/xllama --name ua50-uwp-patch-44149184202 --dir (Join-Path $root 'patched')
           if ($LASTEXITCODE -ne 0) { throw 'Exact patched artifact download failed; no retry' }
           $patchedPackage = Join-Path $root 'patched/xllama_1.7.0.0_x64.msix'
           $patchedReceipt = Join-Path $root 'patched/UA50-SOURCE-RECEIPT.json'
           $buildReceipt = Join-Path $root 'patched/BUILD-RECEIPT.json'
-          if ((Get-FileHash -LiteralPath $patchedPackage -Algorithm SHA256).Hash.ToLowerInvariant() -ne '1d5a34cb279ea1558ecbaf1de5bb5b29131976d0cd2095f06453ef2a083ddd13') { throw 'Patched package SHA mismatch' }
-          if ((Get-FileHash -LiteralPath $patchedReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'fb929228cd8105d6482e5f386b3f0b3f26b2923fd246d7a14eaca3cd8cd3c071') { throw 'Patched receipt SHA mismatch' }
-          if ((Get-FileHash -LiteralPath $buildReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne '1b2de3d793973feb0ffe0b0867474564657279f58b89a674accd3c27696219dc') { throw 'Patched build receipt SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $patchedPackage -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'b98a74afd6d85bdb8a15531f797fe2c8ef195fb8d5a16c2a466d6f471685031d') { throw 'Patched package SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $patchedReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'ce09d86081d99aa1365cd12bfbc9ff2f08c5ae0afb1a54d280ce5538dfc3c9ba') { throw 'Patched receipt SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $buildReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'abb67e9a3784a29c5a4ebb344b56375e1c4bb97a6fe2aaf61fef27d2669b205c') { throw 'Patched build receipt SHA mismatch' }
           # Byte-exact retained archive from accepted run43592901046; transport mirror only, no rebuild.
           $transport = Join-Path $root 'stock-transport'
           New-Item -ItemType Directory -Path $transport | Out-Null
@@ -100,7 +100,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $plan = Get-Content -LiteralPath 'operator/ua50/signing/successor/input-template.json' -Raw | ConvertFrom-Json
-          if ($plan.InstalledVersion -cne '1.7.0.1514' -or $plan.PatchedVersion -cne '1.7.0.1516' -or $plan.RecoveryVersion -cne '1.7.0.1517') { throw 'Selected version triplet changed' }
+          if ($plan.InstalledVersion -cne '1.7.0.1516' -or $plan.PatchedVersion -cne '1.7.0.1518' -or $plan.RecoveryVersion -cne '1.7.0.1519') { throw 'Selected version triplet changed' }
           $planPath = Join-Path $env:RUNNER_TEMP 'selected-signing-inputs.json'
           if (Test-Path -LiteralPath $planPath) { throw 'Exclusive input plan required' }
           $plan | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $planPath -Encoding utf8NoBOM
