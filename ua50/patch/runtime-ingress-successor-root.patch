@@ -1,0 +1,1262 @@
+--- a/include/xllama/dev_run_config.h
++++ b/include/xllama/dev_run_config.h
+@@ -63,8 +63,9 @@
+  const auto&cache=j.at("cache");cache.keys({"policy","slots","owned_ceiling_bytes"});cache.at("policy").eq("global_lru");c.slots=uint32_t(cache.at("slots").range(2,512));c.cache_ceiling=cache.at("owned_ceiling_bytes").range(1,1342177280);
+  const auto&storage=j.at("storage");storage.keys({"reader","observability"});const auto&rd=storage.at("reader");rd.keys({"mode","inflight_limit","request_policy","access_hint","prefetch"});rd.at("mode").eq("windows_buffered_overlapped");rd.at("inflight_limit").eq(int64_t(1));rd.at("request_policy").eq("exact_tensor_extent");rd.at("access_hint").eq("normal");rd.at("prefetch").eq("none");const auto&o=storage.at("observability");o.keys({"mode","slow_read_samples"});o.at("mode").eq("phase_decode_aggregate");o.at("slow_read_samples").keys({"enabled","max_events"});o.at("slow_read_samples").at("enabled").eq(false);o.at("slow_read_samples").at("max_events").eq(int64_t(0));j.at("diagnostics").keys({"trace"});j.at("diagnostics").at("trace").eq("ordered_expert_keys");return c;
+ }
+-struct Ticket {std::string raw,selection,id,config_sha;uint64_t expires=0;};
+-inline Ticket parse_ticket(std::string raw,uint64_t now){auto j=Parser(raw).parse(ticket_cap);j.keys({"schema","selection_id","run_id","config_sha256","engine_contract_sha256","expires_at_epoch_ms"});j.at("schema").eq("xllama-dev-run-ticket-v1");j.at("engine_contract_sha256").eq(engine_digest);Ticket t;t.raw=std::move(raw);need(j.at("run_id").type==Json::Type::string&&run_id(j.at("run_id").text),"ticket run_id");t.id=j.at("run_id").text;need(j.at("config_sha256").type==Json::Type::string&&hex(j.at("config_sha256").text,64),"ticket configSHA");t.config_sha=j.at("config_sha256").text;need(j.at("selection_id").type==Json::Type::string,"ticket selection");t.selection=j.at("selection_id").text;need(!t.selection.empty()&&t.selection.size()<=64&&std::all_of(t.selection.begin(),t.selection.end(),[](char x){return (x>='a'&&x<='z')||(x>='0'&&x<='9')||x=='-';}),"selection characters");t.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);need(t.expires>now&&t.expires-now<=1800000,"expired/future ticket");return t;}
++struct Ticket {std::string raw,selection,id,config_sha;uint64_t expires=0;bool ingress_v2=false;};
++inline Ticket parse_ticket_versioned(std::string raw,uint64_t now,bool v2){auto j=Parser(raw).parse(ticket_cap);j.keys({"schema","selection_id","run_id","config_sha256","engine_contract_sha256","expires_at_epoch_ms"});j.at("schema").eq(v2?"xllama-dev-run-ticket-v2":"xllama-dev-run-ticket-v1");j.at("engine_contract_sha256").eq(engine_digest);Ticket t;t.ingress_v2=v2;t.raw=std::move(raw);need(j.at("run_id").type==Json::Type::string&&run_id(j.at("run_id").text),"ticket run_id");t.id=j.at("run_id").text;need(j.at("config_sha256").type==Json::Type::string&&hex(j.at("config_sha256").text,64),"ticket configSHA");t.config_sha=j.at("config_sha256").text;need(j.at("selection_id").type==Json::Type::string,"ticket selection");t.selection=j.at("selection_id").text;need(!t.selection.empty()&&t.selection.size()<=64&&std::all_of(t.selection.begin(),t.selection.end(),[](char x){return (x>='a'&&x<='z')||(x>='0'&&x<='9')||x=='-';}),"selection characters");t.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);need(t.expires>now&&t.expires-now<=1800000,"expired/future ticket");return t;}
++inline Ticket parse_ticket(std::string raw,uint64_t now){return parse_ticket_versioned(std::move(raw),now,false);}
+ // Actual Windows calls are supplied by the source-owned held-handle adapter.
+ // No pathname cleanup/retry can be added by this state machine after consumption.
+ struct OneUse {
+--- a/include/xllama/gpu_identity.h
++++ b/include/xllama/gpu_identity.h
+@@ -6,13 +6,14 @@
+ inline constexpr char contract_sha[]="155a1a305cddb3e925cf2b52fd1f5bc9b8132b20c85a8fca325e2ceadd768f0a";
+ inline constexpr size_t request_cap=4096,result_cap=16384,serialization_capacity_cap=65536;
+ inline constexpr uint64_t reserve=512ull<<20,probe=256ull<<20;
+-struct Request {std::string raw,id,selection;uint64_t expires=0;size_t parser_owned=0;
++struct Request {std::string raw,id,selection;uint64_t expires=0;size_t parser_owned=0;bool ingress_v2=false;
+  size_t owned_bytes()const{return sizeof(*this)+raw.capacity()+id.capacity()+selection.capacity()+parser_owned;}
+- std::string leaf(const char*s)const{dev_run::need(dev_run::run_id(id),"identity run id");return "ua68-gpu-identity-v1."+id+"."+s;}
++ std::string leaf(const char*s)const{dev_run::need(dev_run::run_id(id),"identity run id");return std::string(ingress_v2?"ua68-gpu-identity-result-v2.":"ua68-gpu-identity-v1.")+id+"."+s;}
+ };
+-inline Request parse(std::string raw,uint64_t now){auto j=dev_run::Parser(raw).parse(request_cap);j.keys({"schema","contract_sha256","run_id","selection_id","expires_at_epoch_ms"});j.at("schema").eq("ua68-gpu-identity-request-v1");j.at("contract_sha256").eq(contract_sha);Request r;r.parser_owned=j.owned();r.raw=std::move(raw);
++inline Request parse_versioned(std::string raw,uint64_t now,bool v2){auto j=dev_run::Parser(raw).parse(request_cap);j.keys({"schema","contract_sha256","run_id","selection_id","expires_at_epoch_ms"});j.at("schema").eq(v2?"ua68-gpu-identity-request-v2":"ua68-gpu-identity-request-v1");j.at("contract_sha256").eq(contract_sha);Request r;r.ingress_v2=v2;r.parser_owned=j.owned();r.raw=std::move(raw);
+  dev_run::need(j.at("run_id").type==dev_run::Json::Type::string&&dev_run::run_id(j.at("run_id").text),"identity run id");r.id=j.at("run_id").text;
+  dev_run::need(j.at("selection_id").type==dev_run::Json::Type::string,"identity selection type");r.selection=j.at("selection_id").text;dev_run::need(!r.selection.empty()&&r.selection.size()<=64&&std::all_of(r.selection.begin(),r.selection.end(),[](char c){return(c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-';}),"identity selection characters");r.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);dev_run::need(r.expires>now&&r.expires-now<=300000,"identity strict expiry");return r;}
++inline Request parse(std::string raw,uint64_t now){return parse_versioned(std::move(raw),now,false);}
+ struct Quota {uint64_t limit=0,usage=0;uint32_t level=0;}; // level0Low1Medium2High3OverLimit; other refuses
+ struct Observation {std::string luid,shader;uint32_t vendor=0,device=0,subsystem=0,revision=0,flags=0,nodes=0;bool uma=false,coherent=false;uint64_t budget=0,usage=0,reservation=0,available_reservation=0,observed_init_delta=0;Quota before{},after_device{},after_close{};
+  size_t owned_bytes()const{return sizeof(*this)+luid.capacity()+shader.capacity();}
+--- a/include/xllama/gpu_run_config.h
++++ b/include/xllama/gpu_run_config.h
+@@ -40,8 +40,9 @@
+  }
+  return c;
+ }
+-struct Ticket {std::string raw,selection,id,config_sha;uint64_t expires=0;size_t parser_charge=0;};
+-inline Ticket ticket(std::string raw,uint64_t now){auto j=dev_run::Parser(raw).parse(4096);j.keys({"schema","selection_id","run_id","config_sha256","engine_contract_sha256","expires_at_epoch_ms"});j.at("schema").eq("ua68-gpu-proof-ticket-v1");j.at("engine_contract_sha256").eq(engine_sha);Ticket t;t.raw=std::move(raw);t.parser_charge=j.owned();
++struct Ticket {std::string raw,selection,id,config_sha;uint64_t expires=0;size_t parser_charge=0;bool ingress_v2=false;};
++inline Ticket ticket_versioned(std::string raw,uint64_t now,bool v2){auto j=dev_run::Parser(raw).parse(4096);j.keys({"schema","selection_id","run_id","config_sha256","engine_contract_sha256","expires_at_epoch_ms"});j.at("schema").eq(v2?"ua68-gpu-proof-ticket-v2":"ua68-gpu-proof-ticket-v1");j.at("engine_contract_sha256").eq(engine_sha);Ticket t;t.ingress_v2=v2;t.raw=std::move(raw);t.parser_charge=j.owned();
+  dev_run::need(j.at("run_id").type==dev_run::Json::Type::string&&dev_run::run_id(j.at("run_id").text),"GPU ticket id");t.id=j.at("run_id").text;dev_run::need(j.at("config_sha256").type==dev_run::Json::Type::string&&dev_run::hex(j.at("config_sha256").text,64),"GPU ticket hash");t.config_sha=j.at("config_sha256").text;
+  dev_run::need(j.at("selection_id").type==dev_run::Json::Type::string,"GPU ticket selection");t.selection=j.at("selection_id").text;dev_run::need(!t.selection.empty()&&t.selection.size()<=64&&std::all_of(t.selection.begin(),t.selection.end(),[](char x){return (x>='a'&&x<='z')||(x>='0'&&x<='9')||x=='-';}),"GPU selection chars");t.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);dev_run::need(t.expires>now&&t.expires-now<=1800000,"GPU original ticket expiry");return t;}
++inline Ticket ticket(std::string raw,uint64_t now){return ticket_versioned(std::move(raw),now,false);}
+ }
+--- /dev/null
++++ b/include/xllama/ingress_reason_v2.h
+@@ -0,0 +1,43 @@
++#pragma once
++#include <array>
++#include <atomic>
++#include <cstddef>
++#include <cstdint>
++#include <stdexcept>
++#include <string>
++
++namespace xllama::ingress_reason_v2 {
++enum class Stage : uint8_t { identity, proof, cpu_dev, generation };
++inline const char* stage_name(Stage s){switch(s){case Stage::identity:return "identity";case Stage::proof:return "proof";case Stage::cpu_dev:return "cpu_dev";case Stage::generation:return "generation";}return "unknown";}
++enum Mask : uint32_t { none=0, limit_event=1u<<0, limit_changed=1u<<1, steady_deadline=1u<<2, utc_expired=1u<<3, abort_requested=1u<<4, quota_unstable=1u<<5, pressure_or_headroom=1u<<6, clock_unknown=1u<<7, file_state_unknown=1u<<8 };
++// Instrumentation observes the existing stage predicates. It never grants an
++// admission or replaces the predicate evaluated by a stage.
++inline bool limit_callback_stops(Stage s,uint64_t initial,uint64_t new_limit){return s==Stage::identity||new_limit!=initial;}
++struct Event {uint64_t sequence=0,steady_elapsed_ns=0,device_utc_ms=0,old_limit=0,new_limit=0,usage=0;uint32_t mask=0;bool steady_available=false,utc_available=false,limit_available=false,usage_available=false,pressure=false,stopped=false;};
++struct Snapshot {uint64_t steady_elapsed_ns=0,device_utc_ms=0,expires_at_ms=0,initial_limit=0,current_limit=0,usage=0;uint32_t predicate_mask=0;bool steady_available=false,utc_available=false,quota_available=false;};
++struct Recorder {
++ static constexpr size_t event_cap=32;
++ static constexpr size_t serializer_capacity_cap=32768;
++ static constexpr size_t descriptor_charge=4096;
++ std::array<Event,event_cap> events{};std::array<std::atomic<bool>,event_cap> ready{};std::atomic<uint64_t> issued{0};std::atomic<uint32_t> observed_mask{0};std::atomic<uint32_t> stop_observed_mask{0};std::atomic<uint32_t> first_mask{0};std::atomic<bool> truncated{false};
++ // The first stopping event has a separate bounded slot. Keep the lowest issued
++ // sequence even if concurrent callbacks finish out of order after the ring fills.
++ mutable std::atomic_flag stop_lock=ATOMIC_FLAG_INIT;std::atomic<bool> first_stop_ready{false};Event first_stop{};
++ void record(Event e) noexcept {const uint64_t n=issued.fetch_add(1,std::memory_order_relaxed);e.sequence=n+1;observed_mask.fetch_or(e.mask,std::memory_order_relaxed);if(e.stopped){stop_observed_mask.fetch_or(e.mask,std::memory_order_relaxed);while(stop_lock.test_and_set(std::memory_order_acquire)){}if(!first_stop_ready.load(std::memory_order_relaxed)||e.sequence<first_stop.sequence){first_stop=e;first_stop_ready.store(true,std::memory_order_release);}stop_lock.clear(std::memory_order_release);}if(n<event_cap){events[size_t(n)]=e;if(n==0)first_mask.store(e.mask,std::memory_order_release);ready[size_t(n)].store(true,std::memory_order_release);}else truncated.store(true,std::memory_order_relaxed);}
++ bool get(size_t n,Event& out)const noexcept {if(n>=event_cap||!ready[n].load(std::memory_order_acquire))return false;out=events[n];return true;}
++ bool get_first_stop(Event& out)const noexcept {while(stop_lock.test_and_set(std::memory_order_acquire)){}const bool ready=first_stop_ready.load(std::memory_order_relaxed);if(ready)out=first_stop;stop_lock.clear(std::memory_order_release);return ready;}
++ size_t stored()const noexcept {size_t n=0;for(;n<event_cap&&ready[n].load(std::memory_order_acquire);++n){}return n;}
++};
++inline std::string render(const Recorder& r,Stage stage,const std::string& run,const std::string& ticket_sha,const std::string& output_sha,uint64_t expires){
++ // Run and hashes have already passed the exact v2 parsers; no arbitrary text,
++ // credentials, paths, model bytes or Windows error strings enter this record.
++ std::string s; s.reserve(12288);
++ s="{\"schema\":\"xllama-ingress-reason-v2\",\"diagnostic_only\":true,\"stage\":\""+std::string(stage_name(stage))+"\",\"run_id\":\""+run+"\",\"ticket_sha256\":\""+ticket_sha+"\",\"output_sha256\":\""+output_sha+"\",\"expires_at_epoch_ms\":"+std::to_string(expires)+",\"events_total\":"+std::to_string(r.issued.load())+",\"observed_mask\":"+std::to_string(r.observed_mask.load())+",\"stop_observed_mask\":"+std::to_string(r.stop_observed_mask.load())+",\"truncated\":"+(r.truncated.load()?"true":"false")+",\"events\":[";
++ auto event_json=[](const Event&e){return "{\"sequence\":"+std::to_string(e.sequence)+",\"mask\":"+std::to_string(e.mask)+",\"stopped\":"+(e.stopped?std::string("true"):"false")+",\"steady_available\":"+(e.steady_available?std::string("true"):"false")+",\"steady_elapsed_ns\":"+(e.steady_available?std::to_string(e.steady_elapsed_ns):"null")+",\"device_utc_available\":"+(e.utc_available?std::string("true"):"false")+",\"device_utc_ms\":"+(e.utc_available?std::to_string(e.device_utc_ms):"null")+",\"limit_available\":"+(e.limit_available?std::string("true"):"false")+",\"old_limit\":"+(e.limit_available?std::to_string(e.old_limit):"null")+",\"new_limit\":"+(e.limit_available?std::to_string(e.new_limit):"null")+",\"usage_available\":"+(e.usage_available?std::string("true"):"false")+",\"usage\":"+(e.usage_available?std::to_string(e.usage):"null")+",\"pressure\":"+(e.usage_available?(e.pressure?"true":"false"):"null")+"}";};
++ size_t count=0;for(size_t n=0;n<Recorder::event_cap;++n){Event e;if(!r.get(n,e))break;if(count++)s+=",";
++  s+=event_json(e);
++ }
++ Event first_stop; s+="],\"first_stop\":";if(r.get_first_stop(first_stop))s+=event_json(first_stop);else s+="null";s+="}";if(s.size()>16384||s.capacity()>Recorder::serializer_capacity_cap)throw std::length_error("ingress reason sidecar cap");return s;
++}
++inline uint32_t stop_mask(const Snapshot& s,bool event_latched,bool abort_latched,bool steady_expired,bool quota_bad){uint32_t mask=none;if(event_latched)mask|=limit_event;if(abort_latched)mask|=abort_requested;if(steady_expired)mask|=steady_deadline;if(!s.utc_available)mask|=clock_unknown;else if(s.device_utc_ms>=s.expires_at_ms)mask|=utc_expired;if(!s.quota_available)mask|=quota_unstable;else if(quota_bad)mask|=pressure_or_headroom;if(s.quota_available&&s.current_limit!=s.initial_limit)mask|=limit_changed;return mask;}
++}
+--- /dev/null
++++ b/include/xllama/ingress_v2.h
+@@ -0,0 +1,200 @@
++#pragma once
++#include "dev_run_config.h"
++#include <array>
++#include <cstdint>
++#include <stdexcept>
++#include <string>
++#include <vector>
++
++namespace xllama::ingress_v2 {
++// Dispatch is deliberately separate from the three stage parsers.  A ticket is
++// staged data; only an exact, independently selected intent can activate it.
++inline constexpr size_t intent_cap=4096, max_candidates=32, max_scan_bytes=10u<<20;
++inline constexpr size_t max_directory_entries=1024;
++inline constexpr uint64_t max_scan_ms=2000;
++inline constexpr size_t ui_intent_cap=2048, ui_marker_cap=1024, ui_review_cap=8192;
++inline constexpr size_t ui_max_intents=32, ui_scan_bytes_cap=384u<<10;
++static_assert(ui_max_intents*(ui_intent_cap+2*ui_marker_cap+ui_review_cap)<=ui_scan_bytes_cap);
++// Conservative reservation for the scanner's retained strings/handles,
++// transient read and JSON copies, directory names, SHA scratch and descriptors.
++// A native quota bracket still has to admit this reservation before routing.
++inline constexpr size_t route_scratch_and_descriptors=4u<<20;
++inline constexpr size_t route_parser_and_held_per_candidate=128u<<10;
++inline constexpr size_t route_directory_per_entry=2u<<10;
++inline constexpr size_t route_output_and_serializer=2u<<20;
++inline constexpr size_t route_memory_charge=2*max_scan_bytes+
++ max_candidates*route_parser_and_held_per_candidate+
++ max_directory_entries*route_directory_per_entry+
++ route_scratch_and_descriptors+route_output_and_serializer;
++inline constexpr size_t ui_memory_charge=2*ui_scan_bytes_cap+
++ ui_max_intents*(16u<<10)+max_directory_entries*(2u<<10)+(1u<<20);
++inline constexpr size_t route_quota_reserve=512u<<20;
++inline bool ascii_prefix_ci(const std::string& name,const std::string& prefix){
++ if(name.size()<prefix.size())return false;
++ for(size_t n=0;n<prefix.size();++n){unsigned char a=name[n],b=prefix[n];if(a>='A'&&a<='Z')a=static_cast<unsigned char>(a+32);if(b>='A'&&b<='Z')b=static_cast<unsigned char>(b+32);if(a!=b)return false;}
++ return true;
++}
++inline bool ui_time_admitted(uint64_t now,uint64_t expires){return now&&expires>now&&expires-now<=300000;}
++inline bool preclaim_refusal_admitted(bool claim,bool output,bool terminal,bool ticket,
++                                      bool ticket_sha_equal,bool package_equal){
++ return !claim&&!output&&!terminal&&ticket&&ticket_sha_equal&&package_equal;
++}
++static_assert(route_memory_charge<=32u<<20);
++static_assert(ui_memory_charge<=5u<<20);
++inline void charge_scan_bytes(size_t& total,size_t add,size_t cap){
++ if(total>cap||add>cap-total)throw std::runtime_error("ingress scan byte cap");
++ total+=add;
++}
++inline void charge_scan_entry(size_t& total){
++ if(total>=max_directory_entries)throw std::runtime_error("ingress directory entry cap");
++ ++total;
++}
++inline bool route_quota_admitted(uint64_t first,uint64_t second,uint64_t used,
++                                 bool low_or_medium,uint64_t charge){
++ if(!first||first!=second||used>first||!low_or_medium||
++    charge>UINT64_MAX-route_quota_reserve)return false;
++ return first-used>=charge+route_quota_reserve;
++}
++inline constexpr char schema[]="xllama-headless-intent-v2";
++inline constexpr char spent_identity_v1_sha[]="8e262186e384974614a18e3733eb29608a6330120d3af5368047080fb0b61c0a";
++enum class Stage { identity, proof, cpu_dev };
++inline const char* stage_name(Stage s){switch(s){case Stage::identity:return "identity";case Stage::proof:return "proof";case Stage::cpu_dev:return "cpu_dev";}return "unknown";}
++inline const char* ticket_prefix(Stage s){switch(s){case Stage::identity:return "ua68-gpu-identity-v2.";case Stage::proof:return "ua68-gpu-proof-v2.";case Stage::cpu_dev:return "ua50-dev-run-v2.";}return "";}
++inline std::string ticket_leaf(Stage s,const std::string& id){dev_run::need(dev_run::run_id(id),"ingress run id");return std::string(ticket_prefix(s))+id+".ticket.json";}
++inline std::string intent_leaf(const std::string& id){dev_run::need(dev_run::run_id(id),"ingress run id");return "ua68-headless-intent-v2."+id+".json";}
++inline std::string window_leaf(const std::string& id){dev_run::need(dev_run::run_id(id),"window run id");return "ua68-headless-window-v2."+id+".json";}
++struct OperatorWindow {std::string run,selection,intent_sha,selection_receipt_sha,package;uint64_t expires=0;};
++inline OperatorWindow parse_operator_window(const std::string& raw){
++ auto j=dev_run::Parser(raw).parse(4096);j.keys({"schema","run_id","selection_id","intent_sha256","selection_receipt_sha256","full_package_name","expires_at_epoch_ms"});j.at("schema").eq("xllama-headless-operator-window-v2");OperatorWindow w;
++ const auto& id=j.at("run_id");dev_run::need(id.type==dev_run::Json::Type::string&&dev_run::run_id(id.text),"window run");w.run=id.text;
++ const auto& sel=j.at("selection_id");dev_run::need(sel.type==dev_run::Json::Type::string&&!sel.text.empty()&&sel.text.size()<=64&&std::all_of(sel.text.begin(),sel.text.end(),[](char c){return(c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-';}),"window selection");w.selection=sel.text;
++ const auto& h=j.at("intent_sha256");const auto& r=j.at("selection_receipt_sha256");dev_run::need(h.type==dev_run::Json::Type::string&&dev_run::hex(h.text,64)&&r.type==dev_run::Json::Type::string&&dev_run::hex(r.text,64),"window hashes");w.intent_sha=h.text;w.selection_receipt_sha=r.text;
++ const auto& p=j.at("full_package_name");dev_run::need(p.type==dev_run::Json::Type::string&&p.text.size()>=32&&p.text.size()<=160,"window package");w.package=p.text;
++ w.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);return w;
++}
++inline std::string ui_leaf(const std::string& id){dev_run::need(dev_run::run_id(id),"UI run id");return "ua68-protected-ui-v2."+id+".intent.json";}
++inline std::string ui_claim_leaf(const std::string& id){dev_run::need(dev_run::run_id(id),"UI run id");return "ua68-protected-ui-v2."+id+".claim.json";}
++inline std::string ui_close_leaf(const std::string& id){dev_run::need(dev_run::run_id(id),"UI run id");return "ua68-protected-ui-v2."+id+".close.json";}
++inline std::string ui_review_leaf(const std::string& id){dev_run::need(dev_run::run_id(id),"UI run id");return "ua68-protected-ui-v2."+id+".review.json";}
++struct UiIntent {std::string run,selection,package,nonce;uint64_t expires=0;};
++inline UiIntent parse_ui_intent(const std::string& raw){
++ auto j=dev_run::Parser(raw).parse(ui_intent_cap);
++ j.keys({"schema","run_id","selection_id","full_package_name","nonce_sha256","expires_at_epoch_ms"});
++ j.at("schema").eq("xllama-protected-ui-intent-v2");UiIntent u;
++ const auto& id=j.at("run_id");dev_run::need(id.type==dev_run::Json::Type::string&&dev_run::run_id(id.text),"UI run");u.run=id.text;
++ const auto& sel=j.at("selection_id");dev_run::need(sel.type==dev_run::Json::Type::string&&!sel.text.empty()&&sel.text.size()<=64&&std::all_of(sel.text.begin(),sel.text.end(),[](char c){return(c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-';}),"UI selection");u.selection=sel.text;
++ const auto& p=j.at("full_package_name");dev_run::need(p.type==dev_run::Json::Type::string&&p.text.size()>=32&&p.text.size()<=160&&p.text.find("GianlucaMazza.xllama_")==0&&p.text.find("_x64__pj67f1fcj4n14")!=std::string::npos,"UI package");u.package=p.text;
++ const auto& n=j.at("nonce_sha256");dev_run::need(n.type==dev_run::Json::Type::string&&dev_run::hex(n.text,64),"UI nonce");u.nonce=n.text;
++ u.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);return u;
++}
++struct UiMarker {std::string run,intent_sha,package;};
++inline UiMarker parse_ui_marker(const std::string& raw,const char* schema){
++ auto j=dev_run::Parser(raw).parse(1024);j.keys({"schema","run_id","intent_sha256","full_package_name"});j.at("schema").eq(schema);
++ UiMarker m;const auto& id=j.at("run_id");dev_run::need(id.type==dev_run::Json::Type::string&&dev_run::run_id(id.text),"UI marker run");m.run=id.text;
++ const auto& h=j.at("intent_sha256");dev_run::need(h.type==dev_run::Json::Type::string&&dev_run::hex(h.text,64),"UI marker SHA");m.intent_sha=h.text;
++ const auto& p=j.at("full_package_name");dev_run::need(p.type==dev_run::Json::Type::string&&p.text.size()>=32&&p.text.size()<=160,"UI marker package");m.package=p.text;return m;
++}
++struct UiClose {UiMarker marker;std::string selection,claim_sha,post_ui_review_sha;};
++inline UiClose parse_ui_close(const std::string& raw){
++ auto j=dev_run::Parser(raw).parse(ui_marker_cap);j.keys({"schema","run_id","selection_id","intent_sha256","claim_sha256","full_package_name","post_ui_review_sha256"});j.at("schema").eq("xllama-protected-ui-close-v2");
++ UiClose c;const auto& id=j.at("run_id");dev_run::need(id.type==dev_run::Json::Type::string&&dev_run::run_id(id.text),"UI close run");c.marker.run=id.text;
++ const auto& sel=j.at("selection_id");dev_run::need(sel.type==dev_run::Json::Type::string&&!sel.text.empty()&&sel.text.size()<=64,"UI close selection");c.selection=sel.text;
++ const auto& h=j.at("intent_sha256");dev_run::need(h.type==dev_run::Json::Type::string&&dev_run::hex(h.text,64),"UI close intent SHA");c.marker.intent_sha=h.text;
++ const auto& ch=j.at("claim_sha256");dev_run::need(ch.type==dev_run::Json::Type::string&&dev_run::hex(ch.text,64),"UI close claim SHA");c.claim_sha=ch.text;
++ const auto& p=j.at("full_package_name");dev_run::need(p.type==dev_run::Json::Type::string&&p.text.size()>=32&&p.text.size()<=160,"UI close package");c.marker.package=p.text;
++ const auto& r=j.at("post_ui_review_sha256");dev_run::need(r.type==dev_run::Json::Type::string&&dev_run::hex(r.text,64),"UI close review SHA");c.post_ui_review_sha=r.text;return c;
++}
++// The reviewed receipt is staged as private data only after independent review.
++// Syntax and exact byte binding here do not authenticate its external issuer;
++// the selecting Ops adapter must verify the machine receipt before upload.
++inline void check_ui_review_receipt(const std::string& raw,const UiIntent& ui,const std::string& claim_sha){
++ auto j=dev_run::Parser(raw).parse(ui_review_cap);
++ j.at("schema").eq("xllama-independent-post-ui-selected-readback-v2");
++ j.at("selected_ui_run_id").eq(ui.run.c_str());
++ j.at("selected_ui_selection_id").eq(ui.selection.c_str());
++ j.at("native_ui_claim_sha256").eq(claim_sha.c_str());
++ const auto version_begin=ui.package.find("_1.7.0.");dev_run::need(version_begin!=std::string::npos,"UI package version");
++ const auto build_begin=version_begin+7,build_end=ui.package.find('_',build_begin);
++ dev_run::need(build_end!=std::string::npos&&build_end>build_begin&&build_end-build_begin<=8,"UI package build");
++ const auto expected_status="ACCEPTED_POST_UI_"+ui.package.substr(build_begin,build_end-build_begin)+"_OWNER_METADATA_ONLY";
++ j.at("status").eq(expected_status.c_str());
++ j.at("package_full_name").eq(ui.package.c_str());
++ j.at("xllama_process_count").eq(int64_t(0));
++ j.at("write_count").eq(int64_t(0));
++ j.at("retry_count_reported").eq(int64_t(0));
++ j.at("all_requests_closed_reported").eq(true);
++ j.at("user_game_manual_ui_report").eq(("EXTERNAL_STAN_REPORT_AFTER_EXACT_"+ui.package.substr(build_begin,build_end-build_begin)+"_READBACK").c_str());
++}
++inline std::string result_prefix(Stage s,const std::string& id){dev_run::need(dev_run::run_id(id),"ingress run id");switch(s){case Stage::identity:return "ua68-gpu-identity-result-v2."+id+".";case Stage::proof:return "ua68-gpu-proof-v1."+id+".";case Stage::cpu_dev:return "ua50-dev-run-v1."+id+".";}throw std::invalid_argument("ingress result stage");}
++enum class IdentityNameKind { other, ticket, result, invalid };
++inline IdentityNameKind classify_identity_name(const std::string& name){
++ const std::string ticket="ua68-gpu-identity-v2.",result="ua68-gpu-identity-result-v2.";
++ const bool is_result=ascii_prefix_ci(name,result),is_ticket=ascii_prefix_ci(name,ticket);
++ if(!is_result&&!is_ticket)return IdentityNameKind::other;
++ const auto& prefix=is_result?result:ticket;
++ if(name.rfind(prefix,0)!=0||name.size()<prefix.size()+32+1)return IdentityNameKind::invalid;
++ const auto run=name.substr(prefix.size(),32),suffix=name.substr(prefix.size()+32);
++ if(!dev_run::run_id(run))return IdentityNameKind::invalid;
++ if(is_result){
++  for(const char* allowed:{".attempt-v2.json",".terminal-v2.json",".output.json",".claim",".reason-v2.json",".stop"})if(suffix==allowed)return IdentityNameKind::result;
++  return IdentityNameKind::invalid;
++ }
++ return suffix==".ticket.json"?IdentityNameKind::ticket:IdentityNameKind::invalid;
++}
++struct Attempt {Stage stage=Stage::identity;std::string run,ticket_sha,package;};
++inline Attempt parse_attempt(const std::string& raw){auto j=dev_run::Parser(raw).parse(768);j.keys({"schema","stage","run_id","ticket_sha256","full_package_name"});j.at("schema").eq("xllama-headless-attempt-v2");Attempt a;const auto& st=j.at("stage");dev_run::need(st.type==dev_run::Json::Type::string,"attempt stage");if(st.text=="identity")a.stage=Stage::identity;else if(st.text=="proof")a.stage=Stage::proof;else if(st.text=="cpu_dev")a.stage=Stage::cpu_dev;else throw std::invalid_argument("attempt stage unsupported");const auto& id=j.at("run_id");dev_run::need(id.type==dev_run::Json::Type::string&&dev_run::run_id(id.text),"attempt run");a.run=id.text;const auto& th=j.at("ticket_sha256");dev_run::need(th.type==dev_run::Json::Type::string&&dev_run::hex(th.text,64),"attempt ticket SHA");a.ticket_sha=th.text;const auto& p=j.at("full_package_name");dev_run::need(p.type==dev_run::Json::Type::string&&!p.text.empty()&&p.text.size()<=160,"attempt package");a.package=p.text;return a;}
++struct Terminal {Stage stage=Stage::identity;std::string run,ticket_sha,output_sha,package;bool normal=false;};
++inline Terminal parse_terminal(const std::string& raw){
++ auto j=dev_run::Parser(raw).parse(1024);j.keys({"schema","stage","run_id","ticket_sha256","output_sha256","full_package_name","normal"});j.at("schema").eq("xllama-headless-terminal-v2");
++ Terminal t;const auto& st=j.at("stage");dev_run::need(st.type==dev_run::Json::Type::string,"terminal stage");if(st.text=="identity")t.stage=Stage::identity;else if(st.text=="proof")t.stage=Stage::proof;else if(st.text=="cpu_dev")t.stage=Stage::cpu_dev;else throw std::invalid_argument("terminal stage unsupported");
++ const auto& id=j.at("run_id");dev_run::need(id.type==dev_run::Json::Type::string&&dev_run::run_id(id.text),"terminal run");t.run=id.text;
++ const auto& th=j.at("ticket_sha256");const auto& oh=j.at("output_sha256");dev_run::need(th.type==dev_run::Json::Type::string&&dev_run::hex(th.text,64)&&oh.type==dev_run::Json::Type::string&&dev_run::hex(oh.text,64),"terminal hashes");t.ticket_sha=th.text;t.output_sha=oh.text;
++ const auto& p=j.at("full_package_name");dev_run::need(p.type==dev_run::Json::Type::string&&!p.text.empty()&&p.text.size()<=160,"terminal package");t.package=p.text;
++ const auto& n=j.at("normal");dev_run::need(n.type==dev_run::Json::Type::boolean,"terminal normal");t.normal=n.flag;return t;
++}
++struct Intent {
++ Stage stage=Stage::identity;std::string run,selection,ticket_sha,config_sha,package;uint64_t expires=0;size_t parser_bytes=0;
++ size_t owned_bytes()const{return sizeof(*this)+run.capacity()+selection.capacity()+ticket_sha.capacity()+config_sha.capacity()+package.capacity()+parser_bytes;}
++};
++inline Intent parse_intent(const std::string& raw){
++ auto j=dev_run::Parser(raw).parse(intent_cap);
++ j.keys({"schema","stage","run_id","selection_id","ticket_sha256","config_sha256","full_package_name","expires_at_epoch_ms"});
++ j.at("schema").eq(schema);Intent i;i.parser_bytes=j.owned();
++ const auto& st=j.at("stage");dev_run::need(st.type==dev_run::Json::Type::string,"ingress stage");
++ if(st.text=="identity")i.stage=Stage::identity;else if(st.text=="proof")i.stage=Stage::proof;else if(st.text=="cpu_dev")i.stage=Stage::cpu_dev;else throw std::invalid_argument("ingress stage unsupported");
++ const auto& id=j.at("run_id");dev_run::need(id.type==dev_run::Json::Type::string&&dev_run::run_id(id.text),"ingress run id");i.run=id.text;
++ const auto& sel=j.at("selection_id");dev_run::need(sel.type==dev_run::Json::Type::string&&!sel.text.empty()&&sel.text.size()<=64&&std::all_of(sel.text.begin(),sel.text.end(),[](char c){return(c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-';}),"ingress selection");i.selection=sel.text;
++ const auto& th=j.at("ticket_sha256");dev_run::need(th.type==dev_run::Json::Type::string&&dev_run::hex(th.text,64),"ingress ticket SHA");i.ticket_sha=th.text;
++ const auto& ch=j.at("config_sha256");dev_run::need(ch.type==dev_run::Json::Type::string,"ingress config SHA type");dev_run::need(i.stage==Stage::identity?ch.text.empty():dev_run::hex(ch.text,64),"ingress config SHA");i.config_sha=ch.text;
++ const auto& pkg=j.at("full_package_name");dev_run::need(pkg.type==dev_run::Json::Type::string&&pkg.text.size()>=32&&pkg.text.size()<=160&&pkg.text.find("GianlucaMazza.xllama_")==0&&pkg.text.find("_x64__pj67f1fcj4n14")!=std::string::npos,"ingress package");i.package=pkg.text;
++ i.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);return i;
++}
++enum class State { absent, inert_spent_v1, selected, conflict, unavailable, spent_or_orphan };
++enum class Lifecycle { fresh, closed_spent, orphan, unknown };
++struct Candidate {Intent intent;bool ticket_present=false,claim_present=false,output_present=false,consume_known=false;bool exact_binding=false,window_bound=false,terminal_verified=false;Lifecycle lifecycle=Lifecycle::unknown;};
++struct Inventory {std::vector<Candidate> candidates;bool old_identity_present=false,old_identity_exact_spent=false,old_proof_present=false,old_cpu_present=false,legacy_flag_present=false,scan_error=false;size_t bytes=0;uint64_t elapsed_ms=0;};
++struct Decision {State state=State::unavailable;size_t selected=0;const char* reason="INGRESS_UNAVAILABLE";};
++// Retained claims/refusals are history. They may coexist with one fresh run,
++// but an unbound or ambiguous item is never silently treated as inert.
++inline Decision decide(const Inventory& v,bool ui,uint64_t now,const std::string& full_package_name){
++ if(v.scan_error||v.candidates.size()>max_candidates||v.bytes>max_scan_bytes||v.elapsed_ms>max_scan_ms)return {State::unavailable,0,"SCAN_CAP_OR_IO"};
++ if((v.old_identity_present&&!v.old_identity_exact_spent)||v.old_proof_present||v.old_cpu_present||v.legacy_flag_present)return {State::conflict,0,"LEGACY_UNTRUSTED_OR_CONFLICT"};
++ size_t active=0,selected=0;
++ for(size_t n=0;n<v.candidates.size();++n){const auto& c=v.candidates[n];
++  if(!c.exact_binding)return {State::unavailable,0,"SCHEMA_OR_BINDING"};
++  if(c.lifecycle==Lifecycle::orphan||c.lifecycle==Lifecycle::unknown)return {State::spent_or_orphan,0,"ORPHAN_OR_UNKNOWN"};
++  if(c.lifecycle==Lifecycle::closed_spent){if(!c.output_present||!c.terminal_verified)return {State::spent_or_orphan,0,"SPENT_TERMINAL_UNVERIFIED"};continue;}
++  if(!c.window_bound)return {State::unavailable,0,"OPERATOR_WINDOW_UNBOUND"};
++  if(c.claim_present||c.output_present||c.consume_known)return {State::spent_or_orphan,0,"FRESH_STATE_CONFLICT"};
++  if(!c.ticket_present)return {State::unavailable,0,"INTENT_WITHOUT_TICKET"};
++  if(c.intent.package!=full_package_name)return {State::unavailable,0,"PACKAGE_MISMATCH"};
++  const uint64_t window=c.intent.stage==Stage::identity?300000:1800000;
++  if(c.intent.expires<=now||c.intent.expires-now>window)return {State::unavailable,0,"EXPIRY_UNKNOWN_OR_INVALID"};
++  ++active;selected=n;
++ }
++ if(active>1)return {State::conflict,0,"INGRESS_CONFLICT"};
++ if(ui)return active?Decision{State::conflict,0,"UI_HEADLESS_ACTIVE"}:Decision{State::absent,0,"UI_CLEAR"};
++ if(!active)return {State::absent,0,"NO_SELECTED_INTENT"};
++ return {State::selected,selected,"SELECTED"};
++}
++}
+--- a/uwp/App.cpp
++++ b/uwp/App.cpp
+@@ -13,9 +13,13 @@
+ #include "xllama/platform.h"
+ #include "xllama/capture_probe.h"
+ #include "native_capture.h"
++#include "protected-ui-v2.h"
+ #include <roapi.h> // RoInitialize — WinRT MTA (see wWinMain)
+ #ifndef XLLAMA_STORE_SKU
+ #include "api-server.h"
++#include "protected-ui-v2-scan.h"
++#include "ingress-v2-scanner.h"
++#include "ingress-route-budget.h"
+ #include <winrt/Windows.Foundation.Metadata.h>
+ #endif
+ // clang-format on
+@@ -27,9 +31,6 @@
+ // Defined in the headless section below; also used by the in-process
+ // diffusion experiment in App::OnLaunched.
+ static std::wstring flag_path_if_present(const wchar_t* name);
+-static void run_gpustep_headless() {
+-    ::xllama::bridge::run_gpustep(/*inproc=*/false);
+-}
+     #endif
+ 
+ using namespace winrt;
+@@ -234,7 +235,7 @@
+         // See include/xllama/capture_probe.h and docs/uwp-constraints.md §10b.1.
+         ::xllama::probe_graphics_capture();
+ 
+-        auto native_capture_flag = flag_path_if_present(L"native-capture.flag");
++        auto native_capture_flag = ::xllama::bridge::protected_ui_v2::active() ? std::wstring{} : flag_path_if_present(L"native-capture.flag");
+         if (!native_capture_flag.empty()) {
+             _wremove(native_capture_flag.c_str());
+             ::xllama::start_native_capture(m_controller->Root());
+@@ -247,7 +248,7 @@
+         // background MTA thread INSIDE the XAML process to test exactly that.
+         // Consumed before the run, same semantics as the headless flags.
+         // Store SKU: research flags omitted (docs/release-readiness.md).
+-        std::wstring inproc = flag_path_if_present(L"diffuse-inproc.flag");
++        std::wstring inproc = ::xllama::bridge::protected_ui_v2::active() ? std::wstring{} : flag_path_if_present(L"diffuse-inproc.flag");
+         if (!inproc.empty()) {
+             _wremove(inproc.c_str());
+             auto compute_permit = ::xllama::try_acquire_compute_job();
+@@ -269,7 +270,7 @@
+ 
+         // D1d (docs/gguf-gpu-decode.md): the same probe with the compositor's
+         // D3D12 device alive — chat and the LAN API live in this process.
+-        std::wstring gpustep_inproc = flag_path_if_present(L"gpustep-inproc.flag");
++        std::wstring gpustep_inproc = ::xllama::bridge::protected_ui_v2::active() ? std::wstring{} : flag_path_if_present(L"gpustep-inproc.flag");
+         if (!gpustep_inproc.empty()) {
+             _wremove(gpustep_inproc.c_str());
+             auto compute_permit = ::xllama::try_acquire_compute_job();
+@@ -291,7 +292,7 @@
+         // server is persistent and coexists with the live XAML chat UI, unlike
+         // the headless bench/diffuse flags. Runs on a detached MTA thread; the
+         // Settings UI may later stop or rebind the listener. See api-server.cpp.
+-        const bool start_persisted_api = !flag_path_if_present(L"api.flag").empty();
++        const bool start_persisted_api = !::xllama::bridge::protected_ui_v2::active() && !flag_path_if_present(L"api.flag").empty();
+         if (start_persisted_api) {
+             log_write("[xllama] api.flag detected -> starting LAN HTTP endpoint\n");
+             auto controller = m_controller;
+@@ -303,7 +304,7 @@
+                 if (controller)
+                     controller->StartAutopilotIfRequested();
+             }).detach();
+-        } else if (m_controller) {
++        } else if (m_controller && !::xllama::bridge::protected_ui_v2::active()) {
+             m_controller->StartAutopilotIfRequested();
+         }
+     #else
+@@ -359,18 +360,6 @@
+     return {};
+ }
+ 
+-// New developer ticket ingress fails closed on query errors; absent ticket alone
+-// preserves the ordinary path. No pathname deletion or parser side effects here.
+-static int dev_ticket_presence(const wchar_t* leaf) {
+-    try {
+-        const auto folder=winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
+-        const std::wstring path=std::wstring(folder.Path().c_str())+L"\\"+leaf;
+-        const DWORD attrs=GetFileAttributesW(path.c_str());
+-        if(attrs==INVALID_FILE_ATTRIBUTES)return GetLastError()==ERROR_FILE_NOT_FOUND?0:-1;
+-        return (attrs&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT))?-1:1;
+-    }catch(...){return -1;}
+-}
+-
+ // Metadata only: preserved REGULAR api.flag is inert under the explicit identity ticket.
+ // No content read, deletion/reset, API server, UI or model fallback. All query/close errors refuse.
+ static bool identity_api_marker_safe() {
+@@ -397,15 +386,17 @@
+ // Minimal IFrameworkView: activates the CoreWindow (satisfies the PLM
+ // activation watchdog, dismisses the splash) without a swapchain/compositor,
+ // so no D3D12 device exists in-process. Same pattern as the UWP DX12 template.
+-// Runs `m_entry` (bench main_loop, run_diffuse, run_membw, run_logits or
+-// run_train) on an MTA thread, then
+-// exits the process — a D3D12-clean host for any DirectML workload.
++// Runs one selected identity, proof, or CPU-dev entry on an MTA thread, then
++// exits the process. Historical flag modes are not active successor ingress.
+ struct HeadlessView
+     : winrt::implements<HeadlessView, winrt::Windows::ApplicationModel::Core::IFrameworkViewSource,
+                         winrt::Windows::ApplicationModel::Core::IFrameworkView> {
+     void (*m_entry)() = nullptr;
+     const char* m_label = "headless";
+-    explicit HeadlessView(void (*entry)(), const char* label) : m_entry(entry), m_label(label) {}
++    ::xllama::ingress_v2::Intent m_intent;
++    std::filesystem::path m_root;
++    explicit HeadlessView(void (*entry)(), const char* label,::xllama::ingress_v2::Intent intent,std::filesystem::path root)
++        : m_entry(entry), m_label(label),m_intent(std::move(intent)),m_root(std::move(root)) {}
+ 
+     winrt::Windows::ApplicationModel::Core::IFrameworkView CreateView() {
+         return *this;
+@@ -420,10 +411,13 @@
+         auto dispatcher = window.Dispatcher();
+         void (*entry)() = m_entry;
+         const char* label = m_label;
+-        std::thread([dispatcher, entry, label]() {
++        const auto intent=m_intent;const auto root=m_root;
++        std::thread([dispatcher, entry, label, intent, root]() {
+             winrt::init_apartment(); // MTA: entry uses ApplicationData (WinRT)
+             ::xllama::log_output(std::string("[xllama] headless ") + label + ": starting\n");
+-            entry();
++            try{entry();}catch(const std::exception&e){::xllama::log_output(std::string("[ingress-v2] selected entry exception: ")+e.what()+"\n");}catch(...){::xllama::log_output("[ingress-v2] selected entry unknown exception\n");}
++            try{if(::xllama::bridge::finalize_selected_preclaim_refusal(root,intent))::xllama::log_output("[ingress-v2] preclaim refusal output and terminal committed; no retry\n");}
++            catch(const std::exception&e){::xllama::log_output(std::string("[ingress-v2] preclaim finalizer unavailable: ")+e.what()+"; orphan remains\n");}
+             ::xllama::log_output(std::string("[xllama] headless ") + label + ": done, exiting\n");
+             dispatcher.RunAsync(winrt::Windows::UI::Core::CoreDispatcherPriority::Normal, [] {
+                 winrt::Windows::ApplicationModel::Core::CoreApplication::Exit();
+@@ -447,185 +441,63 @@
+         winrt::check_hresult(RoInitialize(RO_INIT_MULTITHREADED));
+         winrt::init_apartment(); // CoInitializeEx MTA; pairs with RoInitialize
+     #ifndef XLLAMA_STORE_SKU
+-        // Headless operator modes (Device Portal flags). Omitted from the Store
+-        // SKU — retail builds always take the interactive XAML path.
+-        // Consume the flag BEFORE the run:
+-        // a later start without the flag goes back to interactive.
++        // A separately selected manual Game/UI window takes precedence over
++        // every historical file-triggered headless route. Claim before XAML;
++        // any uncertain/consumed UI intent refuses instead of falling through.
++        const std::filesystem::path ui_root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());
++        const auto actual_package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
++        ::xllama::bridge::IngressRouteQuota ui_route_quota(::xllama::ingress_v2::ui_memory_charge);
++        auto ui_scan=::xllama::bridge::scan_protected_ui_v2(ui_root,actual_package,::xllama::bridge::dev_utc_ms());
++        ui_route_quota.finish();
++        if(ui_scan.state==::xllama::bridge::ProtectedUiScan::State::refuse){::xllama::log_output("[ingress-v2] protected UI intent refused; no headless fallback\n");return 1;}
++        const bool protected_ui=ui_scan.state==::xllama::bridge::ProtectedUiScan::State::selected;
++        if(protected_ui){::xllama::bridge::commit_protected_ui_claim(ui_root,ui_scan);if(!::xllama::ingress_v2::ui_time_admitted(::xllama::bridge::dev_utc_ms(),ui_scan.selected.expires))throw std::runtime_error("protected UI expired after claim");::xllama::bridge::protected_ui_v2::latch();::xllama::log_output("[ingress-v2] protected UI intent claimed and latched\n");}
++        if(!protected_ui){
++            // One bounded scanner owns every diagnostic route in this successor.
++            // Old fixed tickets and experimental flags are inventory/conflict
++            // inputs; they are never consumed or replayed by this dispatcher.
++            // Closed UI history remains held during this second scan, so the
++            // joint reservation includes both route inventories.
++            ::xllama::bridge::IngressRouteQuota headless_route_quota(
++                ::xllama::ingress_v2::route_memory_charge+::xllama::ingress_v2::ui_memory_charge);
++            auto scan=::xllama::bridge::scan_ingress_v2(ui_root,actual_package,false);
++            headless_route_quota.finish();
++            using S=::xllama::ingress_v2::State;
++            if(scan.decision.state==S::selected){
+ #if defined(XLLAMA_USE_LLAMA)
+-        const int identity_ticket_presence=dev_ticket_presence(L"ua68-gpu-identity-v1.ticket.json");
+-        if(identity_ticket_presence<0){::xllama::log_output("[gpu-identity-v1] REFUSED invalid ticket ingress; no fallback\n");return 1;}
+-        if(identity_ticket_presence>0){
+-            // api.flag remains preserved and inert ONLY when regular; metadata errors/nonregular refuse.
+-            if(!identity_api_marker_safe())return 1;
+-            for(const auto* old:{L"ua68-gpu-proof-v1.ticket.json",L"ua50-dev-run-v1.ticket.json",L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag",L"diffuse.flag",L"bench.flag",L"membw.flag",L"diskbw.flag",L"gpubw.flag",L"gpugemv.flag",L"d3d12be.flag",L"gpustep.flag",L"ramceil.flag",L"mic.flag",L"logits.flag",L"oprepro.flag",L"train.flag",L"native-capture.flag",L"diffuse-inproc.flag",L"gpustep-inproc.flag"})if(dev_ticket_presence(old)!=0)return 1;
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(winrt::make<HeadlessView>(&::xllama::bridge::run_gpu_capability_identity,"gpu-identity-v1"));return 0;
+-        }
+-        const int gpu_ticket_presence=dev_ticket_presence(L"ua68-gpu-proof-v1.ticket.json");
+-        if(gpu_ticket_presence<0)return 1;
+-        if(gpu_ticket_presence>0){
+-            // Same preserved regular api.flag policy for the explicit proof headless ingress.
+-            if(!identity_api_marker_safe())return 1;
+-            for(const auto* old:{L"ua50-dev-run-v1.ticket.json",L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag",L"diffuse.flag",L"bench.flag",L"membw.flag",L"diskbw.flag",L"gpubw.flag",L"gpugemv.flag",L"d3d12be.flag",L"gpustep.flag",L"ramceil.flag",L"mic.flag",L"logits.flag",L"oprepro.flag",L"train.flag",L"native-capture.flag",L"diffuse-inproc.flag",L"gpustep-inproc.flag"})if(dev_ticket_presence(old)!=0)return 1;
+-            // New held ticket/claim namespace only; no pathname deletion/rearm.
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(winrt::make<HeadlessView>(&::xllama::bridge::run_expert_gpu_proof_configured,"gpu-expert-proof-v1"));return 0;
+-        }
+-        const int ticket_presence=dev_ticket_presence(L"ua50-dev-run-v1.ticket.json");
+-        if(ticket_presence<0)return 1;
+-        if(ticket_presence>0) {
+-            for(const auto* old:{L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag"})
+-                if(dev_ticket_presence(old)!=0)return 1;
+-            // Runner owns the held ticket; App never deletes it by pathname.
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_cpu_expert_configured,"cpu-dev-run-v1"));return 0;
+-        }
+-        std::wstring cache_a_flag=flag_path_if_present(L"ua50-cpu-lfm24-cache-a2-v1.flag");
+-        std::wstring cache_b_flag=flag_path_if_present(L"ua50-cpu-lfm24-cache-b512-v1.flag");
+-        if(!cache_a_flag.empty() || !cache_b_flag.empty()) {
+-            if((!cache_a_flag.empty() && !cache_b_flag.empty()) ||
+-               !flag_path_if_present(L"ua50-cpu-lfm24-finished-answer-v2.flag").empty() ||
+-               !flag_path_if_present(L"ua50-cpu-lfm24-first-answer-v1.flag").empty() ||
+-               !flag_path_if_present(L"ua50-cpu-lfm24-pilot.flag").empty())return 1;
+-            const bool b=!cache_b_flag.empty();
+-            if(_wremove((b?cache_b_flag:cache_a_flag).c_str())!=0)return 1;
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(b?&::xllama::bridge::run_cpu_expert_cache_b512:&::xllama::bridge::run_cpu_expert_cache_a2,
+-                  b?"cpu-lfm24-cache-b512-v1":"cpu-lfm24-cache-a2-v1"));
+-            return 0;
+-        }
+-        std::wstring finished_answer_flag=flag_path_if_present(L"ua50-cpu-lfm24-finished-answer-v2.flag");
+-        if(!finished_answer_flag.empty()) {
+-            if(!flag_path_if_present(L"ua50-cpu-lfm24-first-answer-v1.flag").empty() ||
+-               !flag_path_if_present(L"ua50-cpu-lfm24-pilot.flag").empty())return 1;
+-            if(_wremove(finished_answer_flag.c_str())!=0)return 1;
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_cpu_expert_finished_answer,"cpu-lfm24-finished-answer-v2"));
+-            return 0;
+-        }
+-        std::wstring first_answer_flag=flag_path_if_present(L"ua50-cpu-lfm24-first-answer-v1.flag");
+-        if(!first_answer_flag.empty()) {
+-            // Ambiguous explicit activations refuse; never consume/reset the old pilot claim.
+-            if(!flag_path_if_present(L"ua50-cpu-lfm24-pilot.flag").empty())return 1;
+-            if(_wremove(first_answer_flag.c_str())!=0)return 1;
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_cpu_expert_first_answer,"cpu-lfm24-first-answer-v1"));
+-            return 0;
+-        }
+-        std::wstring cpu_pilot_flag = flag_path_if_present(L"ua50-cpu-lfm24-pilot.flag");
+-        if(!cpu_pilot_flag.empty()) {
+-            if(_wremove(cpu_pilot_flag.c_str())!=0)return 1; // consume before any admission
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_cpu_expert_pilot,"cpu-lfm24-pilot"));
+-            return 0;
+-        }
++                if(!identity_api_marker_safe())return 1;
++                auto selected=std::move(scan.entries.at(scan.decision.selected));
++                const auto selected_intent=selected.intent;
++                const auto stage=selected.intent.stage;
++                const auto result=::xllama::ingress_v2::result_prefix(stage,selected.intent.run);
++                const auto attempt=ui_root/std::filesystem::path(std::wstring(result.begin(),result.end())+L"attempt-v2.json");
++                ::xllama::bridge::commit_ingress_attempt(attempt,selected.intent);
++                // The durable attempt commits this activation. Release every
++                // unselected scan lease before entering the model stage; only
++                // the selected exact intent/window/config/ticket lease moves on.
++                scan.entries.clear();
++                scan.inventory.candidates.clear();
++                scan.held_legacy_identity.close();
++                ui_scan.held.clear();
++                ::xllama::bridge::install_selected_ingress(std::move(selected));
++                using T=::xllama::ingress_v2::Stage;
++                void (*entry)()=stage==T::identity?&::xllama::bridge::run_gpu_capability_identity:
++                    stage==T::proof?&::xllama::bridge::run_expert_gpu_proof_configured:
++                    &::xllama::bridge::run_cpu_expert_configured;
++                const char* label=stage==T::identity?"gpu-identity-v2":stage==T::proof?"gpu-proof-v2":"cpu-dev-v2";
++                winrt::Windows::ApplicationModel::Core::CoreApplication::Run(winrt::make<HeadlessView>(entry,label,selected_intent,ui_root));
++                return 0;
++#else
++                ::xllama::log_output("[ingress-v2] REFUSED selected stage unavailable in this build\n");
++                return 1;
+ #endif
+-        std::wstring diffuse_flag = flag_path_if_present(L"diffuse.flag");
+-        if (!diffuse_flag.empty()) {
+-            _wremove(diffuse_flag.c_str());
+-            ::xllama::log_output("[xllama] diffuse.flag detected -> headless diffusion mode\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_diffuse, "diffuse"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring bench_flag = flag_path_if_present(L"bench.flag");
+-        if (!bench_flag.empty()) {
+-            _wremove(bench_flag.c_str());
+-            ::xllama::log_output("[xllama] bench.flag detected -> headless bench mode\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::main_loop, "bench"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring membw_flag = flag_path_if_present(L"membw.flag");
+-        if (!membw_flag.empty()) {
+-            _wremove(membw_flag.c_str());
+-            ::xllama::log_output("[xllama] membw.flag detected -> headless membw mode\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_membw, "membw"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring diskbw_flag = flag_path_if_present(L"diskbw.flag");
+-        if (!diskbw_flag.empty()) {
+-            _wremove(diskbw_flag.c_str());
+-            ::xllama::log_output("[xllama] diskbw.flag detected -> headless diskbw mode\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_diskbw, "diskbw"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring gpubw_flag = flag_path_if_present(L"gpubw.flag");
+-        if (!gpubw_flag.empty()) {
+-            _wremove(gpubw_flag.c_str());
+-            ::xllama::log_output("[xllama] gpubw.flag detected -> headless gpubw mode (#211)\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_gpubw, "gpubw"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring gpugemv_flag = flag_path_if_present(L"gpugemv.flag");
+-        if (!gpugemv_flag.empty()) {
+-            _wremove(gpugemv_flag.c_str());
+-            ::xllama::log_output(
+-                "[xllama] gpugemv.flag detected -> headless Q4_K GEMV mode (#228)\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_gpugemv, "gpugemv"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring d3d12be_flag = flag_path_if_present(L"d3d12be.flag");
+-        if (!d3d12be_flag.empty()) {
+-            _wremove(d3d12be_flag.c_str());
+-            ::xllama::log_output("[xllama] d3d12be.flag detected -> headless d3d12 backend "
+-                                 "selftest\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_d3d12_selftest, "d3d12be"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring gpustep_flag = flag_path_if_present(L"gpustep.flag");
+-        if (!gpustep_flag.empty()) {
+-            _wremove(gpustep_flag.c_str());
+-            ::xllama::log_output(
+-                "[xllama] gpustep.flag detected -> headless GGUF GPU decode probe D1\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&run_gpustep_headless, "gpustep"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring ramceil_flag = flag_path_if_present(L"ramceil.flag");
+-        if (!ramceil_flag.empty()) {
+-            _wremove(ramceil_flag.c_str());
+-            ::xllama::log_output("[xllama] ramceil.flag detected -> headless heap-ceiling probe\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_ramceil, "ramceil"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring mic_flag = flag_path_if_present(L"mic.flag");
+-        if (!mic_flag.empty()) {
+-            _wremove(mic_flag.c_str());
+-            ::xllama::log_output("[xllama] mic.flag detected -> headless mic capture probe\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_mic_probe, "mic"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring logits_flag = flag_path_if_present(L"logits.flag");
+-        if (!logits_flag.empty()) {
+-            _wremove(logits_flag.c_str());
+-            ::xllama::log_output("[xllama] logits.flag detected -> headless logit-parity dump\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_logits, "logits"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring oprepro_flag = flag_path_if_present(L"oprepro.flag");
+-        if (!oprepro_flag.empty()) {
+-            _wremove(oprepro_flag.c_str());
+-            ::xllama::log_output("[xllama] oprepro.flag detected -> single-op CPU-vs-DML repro\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_oprepro, "oprepro"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
+-        std::wstring train_flag = flag_path_if_present(L"train.flag");
+-        if (!train_flag.empty()) {
+-            _wremove(train_flag.c_str());
+-            ::xllama::log_output(
+-                "[xllama] train.flag detected -> headless device training (Lane B)\n");
+-            winrt::Windows::ApplicationModel::Core::CoreApplication::Run(
+-                winrt::make<HeadlessView>(&::xllama::bridge::run_train, "train"));
+-            return 0; // not reached: CoreApplication::Exit terminates the process
+-        }
++            }
++            if(scan.decision.state!=S::absent&&scan.decision.state!=S::inert_spent_v1){
++                ::xllama::log_output(std::string("[ingress-v2] REFUSED ")+scan.decision.reason+"; no legacy fallback\n");
++                return 1;
++            }
++        }
++        if(protected_ui&&!::xllama::ingress_v2::ui_time_admitted(::xllama::bridge::dev_utc_ms(),ui_scan.selected.expires))throw std::runtime_error("protected UI expired before XAML");
+     #endif // !XLLAMA_STORE_SKU
+         // Keep the MTA from init_apartment() through Application::Start.
+         // XAML requires the *first* Application access to come from the MTA
+--- a/uwp/MainPage.cpp
++++ b/uwp/MainPage.cpp
+@@ -6,6 +6,7 @@
+ // clang-format off
+ #include "pch.h"
+ #include "MainPage.h"
++#include "protected-ui-v2.h"
+ // clang-format on
+ 
+     #ifndef XLLAMA_STORE_SKU
+@@ -3939,6 +3940,8 @@
+ }
+ 
+ void MainPageController::StartAutopilotIfRequested() {
++    if (::xllama::bridge::protected_ui_v2::active())
++        return; // Preserve the flag and script during a protected manual UI launch.
+     std::wstring flag = local_wpath(L"autopilot.flag");
+     if (GetFileAttributesW(flag.c_str()) == INVALID_FILE_ATTRIBUTES)
+         return;
+--- a/uwp/cpu-expert-pilot.cpp
++++ b/uwp/cpu-expert-pilot.cpp
+@@ -19,6 +19,7 @@
+ #include <thread>
+ #include <cstdio>
+ #include "xllama/first_answer_record.h"
++#include "xllama/ingress_reason_v2.h"
+ #include "ua50/cache_trace.h"
+ #include "../src/platform/ua50/dev_run_io.h"
+ #include "dev-run-input.h"
+@@ -54,6 +55,14 @@
+     FILE* held=nullptr; // borrowed only on the serialized owning hub thread
+     std::wstring stop_path;
+     ua50::uwp::Clock::time_point deadline;
++    std::shared_ptr<ingress_reason_v2::Recorder> ingress_reason;
++    ua50::uwp::Clock::time_point ingress_reason_start=ua50::uwp::Clock::now();
++    void record_ingress_reason(uint32_t mask,bool stopped,uint64_t old_limit=0,uint64_t new_limit=0,uint64_t usage=0,bool pressure=false,bool limits_available=false,bool usage_available=false) noexcept {
++        if(!ingress_reason)return;
++        ingress_reason_v2::Event e;e.mask=mask;e.stopped=stopped;e.old_limit=old_limit;e.new_limit=new_limit;e.usage=usage;e.pressure=pressure;e.limit_available=limits_available;e.usage_available=usage_available;
++        const auto now=ua50::uwp::Clock::now();if(now>=ingress_reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-ingress_reason_start).count());}
++        e.utc_available=true;e.device_utc_ms=dev_utc_ms();ingress_reason->record(e);
++    }
+     Quota snapshot(const char* phase) {
+         using M=winrt::Windows::System::MemoryManager;
+         const auto level=M::AppMemoryUsageLevel();
+@@ -67,17 +76,23 @@
+         char line[384];std::snprintf(line,sizeof(line),"[cpu-pilot] quota phase=%s pid=%lu utc100ns=%llu limit=%llu usage=%llu level=%d pressure=%d\n",
+             phase,GetCurrentProcessId(),static_cast<unsigned long long>(utc.QuadPart),static_cast<unsigned long long>(q.limit),static_cast<unsigned long long>(q.usage),static_cast<int>(level),q.pressure?1:0);
+         if(gpu_aggregate_quota)gpu_quota_snapshots.fetch_add(1,std::memory_order_relaxed);else log_output(line);
+-        if(final_limit!=q.limit) {log_output("[cpu-pilot] quota changed during bracketed sample\n");throw std::runtime_error("quota changed during sample");}
++        if(final_limit!=q.limit) {record_ingress_reason(ingress_reason_v2::quota_unstable,true,q.limit,final_limit,q.usage,q.pressure,true,true);log_output("[cpu-pilot] quota changed during bracketed sample\n");throw std::runtime_error("quota changed during sample");}
+         if(level!=winrt::Windows::System::AppMemoryUsageLevel::Low && level!=winrt::Windows::System::AppMemoryUsageLevel::Medium && !q.pressure)
+             throw std::runtime_error("unknown MemoryManager level");
+         return q;
+     }
+     void phase(const char* name,uint64_t pending=0) {
+-        if(abort->load() || ua50::uwp::Clock::now()>=deadline || (ticket_expiry&&dev_utc_ms()>=ticket_expiry))throw std::runtime_error("pilot stop/deadline");
++        if(abort->load() || ua50::uwp::Clock::now()>=deadline || (ticket_expiry&&dev_utc_ms()>=ticket_expiry)){
++            if(ingress_reason){const bool aborted=abort->load(),steady=ua50::uwp::Clock::now()>=deadline,utc=ticket_expiry&&dev_utc_ms()>=ticket_expiry;record_ingress_reason((aborted?ingress_reason_v2::abort_requested:0)|(steady?ingress_reason_v2::steady_deadline:0)|(utc?ingress_reason_v2::utc_expired:0),true);}
++            throw std::runtime_error("pilot stop/deadline");
++        }
++        if(ingress_reason)pending=ua50::add(pending,sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::serializer_capacity_cap+ingress_reason_v2::Recorder::descriptor_charge);
+         const auto progress=gpu_progress_ns.load();if(progress>0){const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(ua50::uwp::Clock::now().time_since_epoch()).count();if(now<progress||now-progress>180000000000ll)throw std::runtime_error("GPU proof watchdog/clock");}
+-        check(snapshot(name),initial_limit,pending);
++        const auto q=snapshot(name);
++        try{check(q,initial_limit,pending);}catch(...){record_ingress_reason(ingress_reason_v2::pressure_or_headroom,true,q.limit,initial_limit,q.usage,q.pressure,true,true);throw;}
+     }
+     void request_stop() noexcept {
++        record_ingress_reason(ingress_reason_v2::abort_requested,true);
+         abort->store(true);
+         std::shared_ptr<ua50::uwp::WindowsInputControl> c;
+         {std::lock_guard<std::mutex> lock(mutex);c=control.lock();}
+@@ -133,6 +148,7 @@
+         log_output(configured?"[dev-run-v1] REFUSED: existing hub owner\n":"[cpu-pilot] NOT_ADMITTED existing hub owner\n");return;
+     }
+     auto state=std::make_shared<Pilot>();
++    if(configured&&configured->ticket.ingress_v2)state->ingress_reason=std::make_shared<ingress_reason_v2::Recorder>();
+     bool success=false;
+     auto record=answer_stage?std::make_shared<first_answer::Record>(configured?first_answer::Profile::Configured:cache_profile==1?first_answer::Profile::CacheA2:cache_profile==2?first_answer::Profile::CacheB512:finished?first_answer::Profile::Finished384:first_answer::Profile::First128):nullptr;
+     if(configured)record->configure(configured->config.max_new,configured->config.prompt_cap);
+@@ -148,6 +164,7 @@
+     // Batch1 evaluates prompt tokens and all sampled nonterminal tokens except the last.
+     const uint64_t route_bound=ua50::mul(ua50::add(configured?configured->config.prompt_cap:128u,max_new)-1u,456u);
+     HANDLE output=INVALID_HANDLE_VALUE;
++    std::string committed_output_sha;
+     if(record)record->pid=GetCurrentProcessId();
+     try {
+         const std::wstring root=winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str();
+@@ -175,12 +192,12 @@
+              if(trace_file==INVALID_HANDLE_VALUE)throw std::runtime_error("cache trace exists/unavailable");}
+         }
+         require_matching_catalogue();
+-        auto q=state->snapshot("entry");state->initial_limit=q.limit;check(q,q.limit,probe_allowance);
++        auto q=state->snapshot("entry");state->initial_limit=q.limit;check(q,q.limit,probe_allowance+(state->ingress_reason?sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::serializer_capacity_cap+ingress_reason_v2::Recorder::descriptor_charge:0));
+         std::weak_ptr<Pilot> weak_state=state;
+         state->limit_changed=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,
+             [weak_state](const auto&,const winrt::Windows::System::AppMemoryUsageLimitChangingEventArgs& args) noexcept {
+                 if(auto s=weak_state.lock()) {
+-                    try {if(args.NewLimit()!=s->initial_limit){log_output("[cpu-pilot] quota limit-changing event -> stop\n");s->request_stop();}}
++                    try {const auto next=args.NewLimit();const bool stops=next!=s->initial_limit;s->record_ingress_reason(ingress_reason_v2::limit_event|(stops?ingress_reason_v2::limit_changed:0),stops,s->initial_limit,next,0,false,true,false);if(stops){log_output("[cpu-pilot] quota limit-changing event -> stop\n");s->request_stop();}}
+                     catch(...) {s->request_stop();}
+                 }
+             });
+@@ -349,10 +366,16 @@
+             first_answer::commit_record(*record,[&](const std::string& json){DWORD written=0;
+             if(!WriteFile(output,json.data(),static_cast<DWORD>(json.size()),&written,nullptr) || written!=json.size() || !FlushFileBuffers(output))throw std::runtime_error("private output write/flush failure");
+             if(!CloseHandle(output)){output=INVALID_HANDLE_VALUE;throw std::runtime_error("private output close failure");}output=INVALID_HANDLE_VALUE;
++            if(configured&&configured->ticket.ingress_v2)committed_output_sha=dev_sha(json);
+             });
+             log_output(success?(marker+" OUTPUT_COMMITTED normal owner/file/writer closed\n"):(marker+" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));
+         }catch(const std::exception& e){success=false;log_output(std::string((marker+" OUTPUT_FAILED: "))+e.what()+"\n");}
+         if(output!=INVALID_HANDLE_VALUE)CloseHandle(output);
++        if(configured&&configured->ticket.ingress_v2&&state->ingress_reason&&!committed_output_sha.empty())try{commit_ingress_reason(configured->path("reason-v2.json"),*state->ingress_reason,ingress_reason_v2::Stage::cpu_dev,configured->ticket.id,configured->ticket_sha,committed_output_sha,configured->ticket.expires);}catch(const std::exception& e){log_output(marker+" REASON_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
++        if(configured&&configured->ticket.ingress_v2&&!committed_output_sha.empty())try{
++            const auto package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
++            commit_ingress_terminal(configured->path("terminal-v2.json"),ingress_v2::Stage::cpu_dev,configured->ticket.id,configured->ticket_sha,committed_output_sha,package,success);
++        }catch(const std::exception& e){log_output(marker+" TERMINAL_MARKER_UNAVAILABLE: "+e.what()+"\n");}
+         log_output(success?(marker+" terminal normal\n"):(marker+" terminal stopped; no retry\n"));
+     }
+     log_output(success?"[cpu-pilot] terminal normal owner/file/writer close\n":"[cpu-pilot] terminal stopped; no automatic retry\n");
+@@ -362,9 +385,9 @@
+ void run_cpu_expert_finished_answer(){run_cpu_expert_stage(true,true);}
+ void run_cpu_expert_configured(){
+  try{Pilot input_probe;input_probe.deadline=ua50::uwp::Clock::now()+std::chrono::minutes(20);
+-  const auto quota=input_probe.snapshot("before-config-parse");check(quota,quota.limit,probe_allowance);
++  const auto quota=input_probe.snapshot("before-config-parse");try{check(quota,quota.limit,probe_allowance);}catch(...){record_selected_preclaim_reason(!quota.limit?ingress_reason_v2::quota_unstable:ingress_reason_v2::pressure_or_headroom,quota.limit,quota.usage,quota.limit!=0);throw;}
+   const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());
+-  auto input=std::make_shared<DevRunInput>(root);run_cpu_expert_stage(true,true,3,std::move(input));
++  auto input=std::make_shared<DevRunInput>(root,take_selected_ingress(ingress_v2::Stage::cpu_dev));run_cpu_expert_stage(true,true,3,std::move(input));
+  }catch(const std::exception&e){log_output(std::string("[dev-run-v1] REFUSED: ")+e.what()+"\n");}
+  catch(...){log_output("[dev-run-v1] REFUSED: unknown input failure\n");}
+ }
+--- a/uwp/dev-run-input.h
++++ b/uwp/dev-run-input.h
+@@ -1,15 +1,22 @@
+ #pragma once
+ #include "xllama/dev_run_config.h"
++#include "xllama/ingress_v2.h"
++#include "xllama/first_answer_record.h"
++#include "xllama/ingress_reason_v2.h"
+ #include <windows.h>
+ #include <bcrypt.h>
+ #include <array>
+ #include <filesystem>
+ #include <cstring>
++#include <memory>
++#include <mutex>
+ namespace xllama::bridge {
+ struct DevHandle {
+  HANDLE value=INVALID_HANDLE_VALUE;
+  DevHandle()=default;explicit DevHandle(HANDLE v):value(v){}
+  DevHandle(const DevHandle&)=delete;DevHandle&operator=(const DevHandle&)=delete;
++ DevHandle(DevHandle&& other) noexcept:value(other.value){other.value=INVALID_HANDLE_VALUE;}
++ DevHandle&operator=(DevHandle&& other) noexcept{if(this!=&other){if(value!=INVALID_HANDLE_VALUE)CloseHandle(value);value=other.value;other.value=INVALID_HANDLE_VALUE;}return *this;}
+  ~DevHandle(){if(value!=INVALID_HANDLE_VALUE)CloseHandle(value);}
+  void close(){HANDLE v=value;value=INVALID_HANDLE_VALUE;if(v!=INVALID_HANDLE_VALUE&&!CloseHandle(v))throw std::runtime_error("native handle close failure");}
+ };
+@@ -27,11 +34,71 @@
+  if(GetFileType(h.value)!=FILE_TYPE_DISK||!GetFileInformationByHandleEx(h.value,FileStandardInfo,&before,sizeof(before))||!GetFileInformationByHandleEx(h.value,FileAttributeTagInfo,&attr,sizeof(attr))||!GetFileInformationByHandleEx(h.value,FileIdInfo,&id,sizeof(id))||before.NumberOfLinks!=1||before.Directory||before.DeletePending||(attr.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)||before.EndOfFile.QuadPart<=0||uint64_t(before.EndOfFile.QuadPart)>cap)throw std::runtime_error("config/ticket file shape/bound");
+  std::string raw(size_t(before.EndOfFile.QuadPart),'\0');DWORD got=0;if(!ReadFile(h.value,raw.data(),DWORD(raw.size()),&got,nullptr)||got!=raw.size())throw std::runtime_error("config/ticket short read");unsigned char extra=0;DWORD trailing=0;if(!ReadFile(h.value,&extra,1,&trailing,nullptr)||trailing)throw std::runtime_error("config/ticket trailing read");FILE_STANDARD_INFO after{};if(!GetFileInformationByHandleEx(h.value,FileStandardInfo,&after,sizeof(after))||!GetFileInformationByHandleEx(h.value,FileIdInfo,&postid,sizeof(postid))||after.EndOfFile.QuadPart!=before.EndOfFile.QuadPart||memcmp(&id,&postid,sizeof(id)))throw std::runtime_error("config/ticket held identity changed");return raw;
+ }
++struct SelectedIngress {
++ ingress_v2::Intent intent;DevHandle ticket,config,intent_file,window_file;std::string intent_raw,ticket_raw,ticket_sha,config_raw,config_sha,window_raw,window_sha;
++ SelectedIngress()=default;SelectedIngress(const SelectedIngress&)=delete;SelectedIngress&operator=(const SelectedIngress&)=delete;
++ SelectedIngress(SelectedIngress&&)=default;SelectedIngress&operator=(SelectedIngress&&)=default;
++};
++inline std::mutex selected_ingress_mutex;
++inline std::unique_ptr<SelectedIngress> selected_ingress;
++inline ingress_reason_v2::Recorder& selected_preclaim_reason(){static thread_local ingress_reason_v2::Recorder reason;return reason;}
++inline void record_selected_preclaim_reason(uint32_t mask,uint64_t limit=0,uint64_t usage=0,bool quota_known=false){
++ ingress_reason_v2::Event e;e.mask=mask;e.stopped=true;e.utc_available=true;e.device_utc_ms=dev_utc_ms();e.limit_available=quota_known;e.usage_available=quota_known;e.old_limit=limit;e.new_limit=limit;e.usage=usage;e.pressure=(mask&ingress_reason_v2::pressure_or_headroom)!=0;selected_preclaim_reason().record(e);
++}
++inline void install_selected_ingress(SelectedIngress&& s){std::lock_guard<std::mutex> lock(selected_ingress_mutex);dev_run::need(!selected_ingress,"selected ingress already installed");selected_ingress=std::make_unique<SelectedIngress>(std::move(s));}
++inline SelectedIngress take_selected_ingress(ingress_v2::Stage stage){std::lock_guard<std::mutex> lock(selected_ingress_mutex);dev_run::need(selected_ingress&&selected_ingress->intent.stage==stage,"selected ingress stage missing/mismatch");SelectedIngress out(std::move(*selected_ingress));selected_ingress.reset();return out;}
++inline void verify_selected_ingress(const SelectedIngress& s){dev_run::need(s.intent_file.value!=INVALID_HANDLE_VALUE&&ingress_v2::parse_intent(s.intent_raw).run==s.intent.run,"selected intent lease/binding");dev_run::need(s.ticket.value!=INVALID_HANDLE_VALUE&&s.ticket_sha==s.intent.ticket_sha&&dev_sha(s.ticket_raw)==s.ticket_sha,"selected ticket lease/hash");dev_run::need(s.window_file.value!=INVALID_HANDLE_VALUE&&s.window_sha==dev_sha(s.window_raw),"selected operator window lease/hash");const auto w=ingress_v2::parse_operator_window(s.window_raw);dev_run::need(w.run==s.intent.run&&w.selection==s.intent.selection&&w.intent_sha==dev_sha(s.intent_raw)&&w.package==s.intent.package&&w.expires==s.intent.expires,"selected operator window binding");}
++inline void commit_ingress_attempt(const std::filesystem::path& path,const ingress_v2::Intent& i){
++ const auto quote=first_answer::quote;const std::string raw="{\"schema\":\"xllama-headless-attempt-v2\",\"stage\":"+quote(ingress_v2::stage_name(i.stage)) +",\"run_id\":"+quote(i.run)+",\"ticket_sha256\":"+quote(i.ticket_sha)+",\"full_package_name\":"+quote(i.package)+"}";
++ dev_run::need(raw.size()<=768,"attempt marker cap");DevHandle h(CreateFile2(path.c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(h.value==INVALID_HANDLE_VALUE)throw std::runtime_error("attempt CREATE_NEW refused");DWORD n=0;if(!WriteFile(h.value,raw.data(),DWORD(raw.size()),&n,nullptr)||n!=raw.size()||!FlushFileBuffers(h.value))throw std::runtime_error("attempt durable write refused");h.close();
++}
++inline void commit_ingress_terminal(const std::filesystem::path& path,ingress_v2::Stage stage,const std::string& run,const std::string& ticket_sha,const std::string& output_sha,const std::string& package,bool normal){
++ const auto quote=first_answer::quote;
++ const std::string raw="{\"schema\":\"xllama-headless-terminal-v2\",\"stage\":"+quote(ingress_v2::stage_name(stage)) +",\"run_id\":"+quote(run)+",\"ticket_sha256\":"+quote(ticket_sha)+",\"output_sha256\":"+quote(output_sha)+",\"full_package_name\":"+quote(package)+",\"normal\":"+(normal?"true":"false")+"}";
++ dev_run::need(raw.size()<=1024,"terminal marker cap");DevHandle h(CreateFile2(path.c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(h.value==INVALID_HANDLE_VALUE)throw std::runtime_error("terminal marker CREATE_NEW refused");DWORD n=0;if(!WriteFile(h.value,raw.data(),DWORD(raw.size()),&n,nullptr)||n!=raw.size()||!FlushFileBuffers(h.value))throw std::runtime_error("terminal marker durable write refused");h.close();
++}
++inline void commit_ingress_reason(const std::filesystem::path&,const ingress_reason_v2::Recorder&,ingress_reason_v2::Stage,const std::string&,const std::string&,const std::string&,uint64_t);
++// A selected adapter may return before parsing or claiming (busy owner, quota,
++// expired ticket). Close only that unclaimed, output-free attempt. A consumed
++// ticket, any claim/output, or uncertain file state remains an orphan; never
++// manufacture a successful stage result or silently replay the ticket.
++inline bool finalize_selected_preclaim_refusal(const std::filesystem::path& root,const ingress_v2::Intent& i){
++ {std::lock_guard<std::mutex> lock(selected_ingress_mutex);selected_ingress.reset();}
++ const auto leaf=ingress_v2::result_prefix(i.stage,i.run);
++ const auto base=root/std::filesystem::path(std::wstring(leaf.begin(),leaf.end()));
++ auto present=[](const std::filesystem::path& p){const DWORD a=GetFileAttributesW(p.c_str());if(a==INVALID_FILE_ATTRIBUTES){if(GetLastError()==ERROR_FILE_NOT_FOUND)return false;throw std::runtime_error("preclaim path state unknown");}if(a&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DEVICE))throw std::runtime_error("preclaim path shape");return true;};
++ const auto claim=std::filesystem::path(base.wstring()+L"claim"),output=std::filesystem::path(base.wstring()+L"output.json"),terminal=std::filesystem::path(base.wstring()+L"terminal-v2.json");
++ const bool has_terminal=present(terminal),has_claim=present(claim),has_output=present(output);
++ if(has_terminal||has_claim||has_output)return false;
++ const auto ticket_leaf=ingress_v2::ticket_leaf(i.stage,i.run);const auto ticket=root/std::filesystem::path(std::wstring(ticket_leaf.begin(),ticket_leaf.end()));
++ const bool has_ticket=present(ticket);if(!has_ticket)return false;
++ DevHandle held;open_dev_file(held,ticket,true);const bool ticket_equal=dev_sha(read_dev_file(held,4096))==i.ticket_sha;
++ const auto package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
++ if(!ingress_v2::preclaim_refusal_admitted(has_claim,has_output,has_terminal,has_ticket,ticket_equal,package==i.package))throw std::runtime_error("preclaim ticket/package drift");
++ const auto quote=first_answer::quote;
++ const std::string raw="{\"schema\":\"xllama-headless-preclaim-refusal-v2\",\"normal\":false,\"status\":\"REFUSED_BEFORE_NATIVE_CLAIM\",\"stage\":"+quote(ingress_v2::stage_name(i.stage)) +",\"run_id\":"+quote(i.run)+",\"ticket_sha256\":"+quote(i.ticket_sha)+",\"full_package_name\":"+quote(package)+"}";
++ if(raw.size()>1024)throw std::runtime_error("preclaim refusal cap");
++ DevHandle out(CreateFile2(output.c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(out.value==INVALID_HANDLE_VALUE)throw std::runtime_error("preclaim refusal CREATE_NEW");DWORD n=0;
++ if(!WriteFile(out.value,raw.data(),DWORD(raw.size()),&n,nullptr)||n!=raw.size()||!FlushFileBuffers(out.value))throw std::runtime_error("preclaim refusal write/flush");out.close();
++ try{const auto reason_stage=i.stage==ingress_v2::Stage::identity?ingress_reason_v2::Stage::identity:i.stage==ingress_v2::Stage::proof?ingress_reason_v2::Stage::proof:ingress_reason_v2::Stage::cpu_dev;commit_ingress_reason(std::filesystem::path(base.wstring()+L"reason-v2.json"),selected_preclaim_reason(),reason_stage,i.run,i.ticket_sha,dev_sha(raw),i.expires);}catch(const std::exception&e){log_output(std::string("[ingress-v2] preclaim reason unavailable: ")+e.what()+"\n");}
++ commit_ingress_terminal(terminal,i.stage,i.run,i.ticket_sha,dev_sha(raw),package,false);return true;
++}
++inline void commit_ingress_reason(const std::filesystem::path& path,const ingress_reason_v2::Recorder& reason,ingress_reason_v2::Stage stage,const std::string& run,const std::string& ticket_sha,const std::string& output_sha,uint64_t expires){
++ const auto raw=ingress_reason_v2::render(reason,stage,run,ticket_sha,output_sha,expires);
++ DevHandle h(CreateFile2(path.c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr));if(h.value==INVALID_HANDLE_VALUE)throw std::runtime_error("ingress reason CREATE_NEW refused");
++ DWORD n=0;if(!WriteFile(h.value,raw.data(),DWORD(raw.size()),&n,nullptr)||n!=raw.size()||!FlushFileBuffers(h.value))throw std::runtime_error("ingress reason durable write refused");h.close();
++}
+ struct DevRunInput {
+  DevHandle held_ticket;dev_run::Ticket ticket;dev_run::Config config;dev_run::OneUse use;std::string config_sha,ticket_sha;std::filesystem::path root;
+  explicit DevRunInput(std::filesystem::path base):root(std::move(base)){
+   open_dev_file(held_ticket,root/L"ua50-dev-run-v1.ticket.json",true);auto ticket_bytes=read_dev_file(held_ticket,dev_run::ticket_cap);ticket_sha=dev_sha(ticket_bytes);ticket=dev_run::parse_ticket(std::move(ticket_bytes),dev_utc_ms());
+   DevHandle cfg;const std::string leaf="ua50-dev-run-v1."+ticket.id+".config.json";open_dev_file(cfg,root/std::wstring(leaf.begin(),leaf.end()),false);auto bytes=read_dev_file(cfg,dev_run::config_cap);config_sha=dev_sha(bytes);config=dev_run::parse_config(std::move(bytes));cfg.close();dev_run::need(ticket.id==config.id&&ticket.config_sha==config_sha,"ticket/config binding");
++ }
++ DevRunInput(std::filesystem::path base,SelectedIngress&& selected):root(std::move(base)){
++  dev_run::need(selected.intent.stage==ingress_v2::Stage::cpu_dev,"CPU ingress stage");verify_selected_ingress(selected);held_ticket=std::move(selected.ticket);ticket_sha=selected.ticket_sha;
++  ticket=dev_run::parse_ticket_versioned(std::move(selected.ticket_raw),dev_utc_ms(),true);
++  dev_run::need(ticket.id==selected.intent.run&&ticket.selection==selected.intent.selection&&ticket.expires==selected.intent.expires&&ticket.config_sha==selected.intent.config_sha,"CPU intent/ticket binding");
++  dev_run::need(selected.config.value!=INVALID_HANDLE_VALUE&&selected.config_sha==selected.intent.config_sha&&dev_sha(selected.config_raw)==selected.config_sha,"CPU held config hash");config_sha=selected.config_sha;config=dev_run::parse_config(std::move(selected.config_raw));selected.config.close();dev_run::need(ticket.id==config.id&&ticket.config_sha==config_sha,"CPU selected config binding");
+  }
+  size_t owned_bytes()const{return sizeof(*this)+config.owned_bytes()+ticket.raw.capacity()+ticket.selection.capacity()+ticket.id.capacity()+ticket.config_sha.capacity()+config_sha.capacity()+ticket_sha.capacity()+4096;}
+  std::filesystem::path path(const char*suffix)const{auto leaf=config.leaf(suffix);return root/std::wstring(leaf.begin(),leaf.end());}
+--- a/uwp/gpu-identity-input.h
++++ b/uwp/gpu-identity-input.h
+@@ -14,6 +14,11 @@
+  explicit GpuIdentityInput(std::filesystem::path r):root(std::move(r)){
+   open_dev_file(held,root/L"ua68-gpu-identity-v1.ticket.json",true);auto raw=read_dev_file(held,gpu_identity::request_cap);request_sha=identity_request_sha(raw);request=gpu_identity::parse(std::move(raw),dev_utc_ms());
+  }
++ GpuIdentityInput(std::filesystem::path r,SelectedIngress&& selected):root(std::move(r)){
++  dev_run::need(selected.intent.stage==ingress_v2::Stage::identity,"identity ingress stage");verify_selected_ingress(selected);held=std::move(selected.ticket);request_sha=selected.ticket_sha;
++  request=gpu_identity::parse_versioned(std::move(selected.ticket_raw),dev_utc_ms(),true);
++  dev_run::need(request.id==selected.intent.run&&request.selection==selected.intent.selection&&request.expires==selected.intent.expires&&selected.intent.config_sha.empty(),"identity intent/ticket binding");
++ }
+  std::filesystem::path path(const char*s)const{auto x=request.leaf(s);return root/std::wstring(x.begin(),x.end());}
+  size_t owned_bytes()const{return sizeof(*this)+request.owned_bytes()+request_sha.capacity()+root.native().capacity()*sizeof(wchar_t)+4096;}
+  void spend(){dev_run::need(request.expires>dev_utc_ms(),"identity expired before claim");use.spend([&]{DevHandle c(CreateFile2(path("claim").c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(c.value==INVALID_HANDLE_VALUE)throw std::runtime_error("identity claim unavailable/already spent");const auto b=request_sha+"\n";DWORD n=0;if(!WriteFile(c.value,b.data(),DWORD(b.size()),&n,nullptr)||n!=b.size()||!FlushFileBuffers(c.value))throw std::runtime_error("identity claim durable write");c.close();},[&]{dev_run::need(request.expires>dev_utc_ms(),"identity expired before consume");FILE_DISPOSITION_INFO d{};d.DeleteFile=TRUE;if(!SetFileInformationByHandle(held.value,FileDispositionInfo,&d,sizeof(d)))throw std::runtime_error("identity held consumption failed");held.close();});dev_run::need(use.may_start_model(),"identity ticket not consumed");}
+--- a/uwp/gpu-identity-pilot.inc
++++ b/uwp/gpu-identity-pilot.inc
+@@ -1,22 +1,26 @@
+ // Identity only; included once by existing pilot TU. Never enters model/catalogue/Reader.
+ void run_gpu_capability_identity(){
+  const std::string tag="[gpu-identity-v1]";char first[256]{};auto fail=[&](const char*s){if(!first[0])std::snprintf(first,sizeof(first),"%s",s?s:"unknown identity failure");};
+- bool normal=false,resources_closed=true;auto limit_changed=std::make_shared<std::atomic<bool>>(false);uint64_t metadata=0,initial_limit=0;std::optional<gpu_identity::Observation> observation;
++ bool normal=false,resources_closed=true;auto limit_changed=std::make_shared<std::atomic<bool>>(false);auto reason=std::make_shared<ingress_reason_v2::Recorder>();const auto reason_start=ua50::uwp::Clock::now();uint64_t metadata=0,initial_limit=0;std::optional<gpu_identity::Observation> observation;
+  std::shared_ptr<GpuIdentityInput> input;std::string package;auto wall=ua50::uwp::Clock::now()+std::chrono::seconds(30);
+  // RAII for parse/claim failure; no output path is trusted until strict parse returns.
+  try{
+   auto compute=try_acquire_compute_job();if(!compute)throw std::runtime_error("identity compute lane busy");
+-  auto limit_event=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[limit_changed](const auto&,const auto&)noexcept{limit_changed->store(true);});
++  auto limit_event=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[limit_changed,reason,reason_start](const auto&,const auto&)noexcept{ingress_reason_v2::Event e;e.mask=ingress_reason_v2::limit_event;e.stopped=true;e.utc_available=true;e.device_utc_ms=dev_utc_ms();const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);limit_changed->store(true);});
+   auto q=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();auto usage=winrt::Windows::System::MemoryManager::AppMemoryUsage();initial_limit=q;
+-  if(!q||usage>q||q-usage<gpu_identity::reserve+gpu_identity::probe+(256u<<10))throw std::runtime_error("identity preparse quota refused");
+-  const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());input=std::make_shared<GpuIdentityInput>(root);
++  if(!q||usage>q||q-usage<gpu_identity::reserve+gpu_identity::probe+(256u<<10)+sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::descriptor_charge){record_selected_preclaim_reason((!q||usage>q?ingress_reason_v2::quota_unstable:ingress_reason_v2::pressure_or_headroom),q,usage,q!=0);throw std::runtime_error("identity preparse quota refused");}
++  const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());input=std::make_shared<GpuIdentityInput>(root,take_selected_ingress(ingress_v2::Stage::identity));
++  auto record_stop=[&](uint32_t mask,uint64_t current_limit=0,uint64_t usage=0,bool quota_known=false,bool pressure=false){if(!input->request.ingress_v2)return;ingress_reason_v2::Event e;e.mask=mask;e.stopped=true;e.utc_available=true;e.device_utc_ms=dev_utc_ms();e.limit_available=quota_known;e.usage_available=quota_known;e.old_limit=initial_limit;e.new_limit=current_limit;e.usage=usage;e.pressure=pressure;const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);};
+   auto check=[&]{
+-   if(limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires)throw std::runtime_error("identity original deadline/expiry stop");
+-   const auto stop=input->path("stop");DWORD a=GetFileAttributesW(stop.c_str());if(a!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("identity stop requested/query unknown");
++   if(limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires){const bool limit=limit_changed->load(),steady=ua50::uwp::Clock::now()>=wall,utc=dev_utc_ms()>=input->request.expires;record_stop((limit?ingress_reason_v2::limit_event:0)|(steady?ingress_reason_v2::steady_deadline:0)|(utc?ingress_reason_v2::utc_expired:0));throw std::runtime_error("identity original deadline/expiry stop");}
++   const auto stop=input->path("stop");DWORD a=GetFileAttributesW(stop.c_str());if(a!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND){record_stop(a!=INVALID_FILE_ATTRIBUTES?ingress_reason_v2::abort_requested:ingress_reason_v2::file_state_unknown);throw std::runtime_error("identity stop requested/query unknown");}
+    using M=winrt::Windows::System::MemoryManager;const auto l=M::AppMemoryUsageLimit(),u=M::AppMemoryUsage();const auto level=M::AppMemoryUsageLevel();
+-   if(l!=initial_limit||!l||u>l||(level!=winrt::Windows::System::AppMemoryUsageLevel::Low&&level!=winrt::Windows::System::AppMemoryUsageLevel::Medium)||l!=M::AppMemoryUsageLimit()||metadata>UINT64_MAX-gpu_identity::reserve-gpu_identity::probe||l-u<metadata+gpu_identity::reserve+gpu_identity::probe)throw std::runtime_error("identity limit/usage/pressure/metadata stop");
++   const bool changed=l!=initial_limit,unstable=!l||u>l||l!=M::AppMemoryUsageLimit();
++   const bool pressure=level!=winrt::Windows::System::AppMemoryUsageLevel::Low&&level!=winrt::Windows::System::AppMemoryUsageLevel::Medium;
++   const bool headroom=metadata>UINT64_MAX-gpu_identity::reserve-gpu_identity::probe||(!unstable&&l-u<metadata+gpu_identity::reserve+gpu_identity::probe);
++   if(changed||unstable||pressure||headroom){record_stop((changed?ingress_reason_v2::limit_changed:0)|(unstable?ingress_reason_v2::quota_unstable:0)|(pressure||headroom?ingress_reason_v2::pressure_or_headroom:0),l,u,l!=0,pressure);throw std::runtime_error("identity limit/usage/pressure/metadata stop");}
+   };
+-  metadata=add(input->owned_bytes(),sizeof(gpu_identity::Observation)+gpu_identity::serialization_capacity_cap+65536+8192);check();
++  metadata=add(input->owned_bytes(),sizeof(gpu_identity::Observation)+gpu_identity::serialization_capacity_cap+65536+8192+sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::serializer_capacity_cap+ingress_reason_v2::Recorder::descriptor_charge);check();
+   const auto output=input->path("output.json");DWORD old=GetFileAttributesW(output.c_str());if(old!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("identity old output/query unknown");
+   package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());if(package.empty()||package.size()>1024)throw std::runtime_error("identity package bound");
+   input->spend();check();resources_closed=false;
+@@ -24,6 +28,7 @@
+  }catch(const std::exception&e){fail(e.what());}catch(...){fail("identity unknown failure");}
+  // All query temporaries unwind before this serializer. Refused query retains conservative closure uncertainty.
+  if(input){try{
++  if(package.empty()){package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());if(package.empty()||package.size()>160)throw std::runtime_error("identity package unavailable at refusal");}
+   auto q=[](const gpu_identity::Quota&a){return std::string("{\"limit\":")+std::to_string(a.limit)+",\"usage\":"+std::to_string(a.usage)+",\"level\":"+std::to_string(a.level)+"}";};
+   const auto quote=first_answer::quote;std::string body;body.reserve(gpu_identity::result_cap);
+   body="{\"schema\":\"ua68-gpu-identity-result-v1\",\"contract_sha256\":"+quote(gpu_identity::contract_sha)+",\"normal\":"+(normal?"true":"false")+",\"status\":"+quote(normal?"IDENTITY_OBSERVED":"REFUSED")+",\"run_id\":"+quote(input->request.id)+",\"selection_id\":"+quote(input->request.selection)+",\"request_sha256\":"+quote(input->request_sha)+",\"native_package_full_name\":"+(package.empty()?std::string("null"):quote(package))+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"request_expires_at_epoch_ms\":"+std::to_string(input->request.expires)+",\"error\":"+quote(first)+",\"native_resources_closed\":"+(resources_closed?"true":"false")+",\"observation\":";
+@@ -34,9 +39,11 @@
+   body+=",\"accounting\":{\"request_owned_bytes\":"+std::to_string(input->owned_bytes())+",\"metadata_charge_bytes\":"+std::to_string(metadata)+",\"serialization_capacity_cap\":65536,\"reserve_bytes\":536870912,\"probe_bytes\":268435456,\"sampled_not_peak\":true,\"UMA_extra_RAM\":false,\"model_plan_admitted\":false},\"model_opened\":false,\"model_bytes_read\":0,\"GPU_submits\":0,\"signed_artifact_authenticated_by_native\":false,\"driver_JIT_machinecode_identity_available\":false}";
+   if(body.size()>gpu_identity::result_cap||body.capacity()>gpu_identity::serialization_capacity_cap)throw std::length_error("identity serialized output bound");
+   // Even final serialization delay cannot publish normal after expiry/stop. Recheck without a new query.
+-  if(normal){DWORD s=GetFileAttributesW(input->path("stop").c_str());if(s!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND||limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires||winrt::Windows::System::MemoryManager::AppMemoryUsageLimit()!=initial_limit)throw std::runtime_error("identity final publication stop");}
++  if(normal){DWORD s=GetFileAttributesW(input->path("stop").c_str());if(s!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND||limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires||winrt::Windows::System::MemoryManager::AppMemoryUsageLimit()!=initial_limit){if(input->request.ingress_v2){const auto final_limit=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();const bool limit=limit_changed->load(),steady=ua50::uwp::Clock::now()>=wall,utc=dev_utc_ms()>=input->request.expires,quota=final_limit!=initial_limit;ingress_reason_v2::Event e;e.mask=(limit?ingress_reason_v2::limit_event:0)|(steady?ingress_reason_v2::steady_deadline:0)|(utc?ingress_reason_v2::utc_expired:0)|(quota?ingress_reason_v2::quota_unstable:0)|(s!=INVALID_FILE_ATTRIBUTES?ingress_reason_v2::abort_requested:0);e.stopped=true;e.limit_available=true;e.old_limit=initial_limit;e.new_limit=final_limit;e.utc_available=true;e.device_utc_ms=dev_utc_ms();const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);}throw std::runtime_error("identity final publication stop");}}
+   if(input->held.value!=INVALID_HANDLE_VALUE){input->held.close();if(normal)throw std::runtime_error("identity unconsumed ticket cannot be normal");}
+   DevHandle out(CreateFile2(input->path("output.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr));if(out.value==INVALID_HANDLE_VALUE)throw std::runtime_error("identity output CREATE_NEW failed");DWORD n=0;if(!WriteFile(out.value,body.data(),DWORD(body.size()),&n,nullptr)||n!=body.size()||!FlushFileBuffers(out.value))throw std::runtime_error("identity output write/flush failed");out.close();
++  if(input->request.ingress_v2)try{commit_ingress_reason(input->path("reason-v2.json"),*reason,ingress_reason_v2::Stage::identity,input->request.id,input->request_sha,dev_sha(body),input->request.expires);}catch(const std::exception&e){log_output(tag+" REASON_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
++  if(input->request.ingress_v2)commit_ingress_terminal(input->path("terminal-v2.json"),ingress_v2::Stage::identity,input->request.id,input->request_sha,dev_sha(body),package,normal);
+   log_output(tag+(normal?" OUTPUT_COMMITTED identity-only temporary resources closed\n":" OUTPUT_COMMITTED refused\n"));
+  }catch(const std::exception&e){fail(e.what());normal=false;log_output(tag+" OUTPUT_FAILED: "+first+"\n");}catch(...){fail("identity unknown output failure");normal=false;log_output(tag+" OUTPUT_FAILED: "+first+"\n");}}
+  else log_output(tag+" REFUSED: "+first+"\n");
+--- a/uwp/gpu-proof-input.h
++++ b/uwp/gpu-proof-input.h
+@@ -8,6 +8,12 @@
+   open_dev_file(held_ticket,root/L"ua68-gpu-proof-v1.ticket.json",true);auto traw=read_dev_file(held_ticket,4096);ticket_sha=dev_sha(traw);ticket=gpu_run::ticket(std::move(traw),dev_utc_ms());
+   DevHandle cfg;const auto leaf="ua68-gpu-proof-v1."+ticket.id+".config.json";open_dev_file(cfg,root/std::wstring(leaf.begin(),leaf.end()),false);auto raw=read_dev_file(cfg,16384);config_sha=dev_sha(raw);config=gpu_run::parse(std::move(raw));cfg.close();dev_run::need(config.id==ticket.id&&config_sha==ticket.config_sha,"GPU ticket consumed bytes");
+  }
++ GpuProofInput(std::filesystem::path base,SelectedIngress&& selected):root(std::move(base)){
++  dev_run::need(selected.intent.stage==ingress_v2::Stage::proof,"GPU ingress stage");verify_selected_ingress(selected);held_ticket=std::move(selected.ticket);ticket_sha=selected.ticket_sha;
++  ticket=gpu_run::ticket_versioned(std::move(selected.ticket_raw),dev_utc_ms(),true);
++  dev_run::need(ticket.id==selected.intent.run&&ticket.selection==selected.intent.selection&&ticket.expires==selected.intent.expires&&ticket.config_sha==selected.intent.config_sha,"GPU intent/ticket binding");
++  dev_run::need(selected.config.value!=INVALID_HANDLE_VALUE&&selected.config_sha==selected.intent.config_sha&&dev_sha(selected.config_raw)==selected.config_sha,"GPU held config hash");config_sha=selected.config_sha;config=gpu_run::parse(std::move(selected.config_raw));selected.config.close();dev_run::need(config.id==ticket.id&&config_sha==ticket.config_sha,"GPU selected config binding");
++ }
+  std::filesystem::path path(const char*suffix)const{auto leaf=config.leaf(suffix);return root/std::wstring(leaf.begin(),leaf.end());}
+  size_t owned_bytes()const{return sizeof(*this)+config.owned_bytes()+ticket.raw.capacity()+ticket.selection.capacity()+ticket.id.capacity()+ticket.config_sha.capacity()+ticket.parser_charge+config_sha.capacity()+ticket_sha.capacity()+4096;}
+  void spend(){dev_run::need(ticket.expires>dev_utc_ms(),"GPU expiry before claim");use.spend([&]{DevHandle c(CreateFile2(path("claim").c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(c.value==INVALID_HANDLE_VALUE)throw std::runtime_error("GPU claim already used/unavailable");auto s=ticket_sha+"\n";DWORD n=0;if(!WriteFile(c.value,s.data(),DWORD(s.size()),&n,nullptr)||n!=s.size()||!FlushFileBuffers(c.value))throw std::runtime_error("GPU claim durable write");c.close();},[&]{dev_run::need(ticket.expires>dev_utc_ms(),"GPU expiry before consume");FILE_DISPOSITION_INFO d{};d.DeleteFile=TRUE;if(!SetFileInformationByHandle(held_ticket.value,FileDispositionInfo,&d,sizeof(d)))throw std::runtime_error("GPU held ticket disposition failed");held_ticket.close();});dev_run::need(use.may_start_model(),"GPU ticket not consumed");}
+--- a/uwp/gpu-proof-pilot.inc
++++ b/uwp/gpu-proof-pilot.inc
+@@ -10,18 +10,19 @@
+  std::shared_ptr<gpu_proof::GraphWitness> graph;std::shared_ptr<gpu_proof::CrossArmWitness> cross;
+  std::optional<ua50::uwp::WindowsInputCandidate> guard;ModelWriteGate::Permit writer;CpuExpertOptIn opt;
+  std::array<CpuExpertEffective,2> actual_effective{};std::array<ua50::Counters,2> host_counts{};size_t live_phase=0;uint64_t sha_calls=0,sha_requested=0,sha_returned=0,sha_elapsed_ns=0;
+- bool pre_sha=false,post_sha=false,normal=false,claim=false;std::string cause,package;ua50::GpuSnapshot gpu_effective;ua50::GpuCounts gpu_counts;
++ bool pre_sha=false,post_sha=false,normal=false,claim=false;std::string cause,package,committed_output_sha;ua50::GpuSnapshot gpu_effective;ua50::GpuCounts gpu_counts;
+  size_t pcount=0;uint32_t cpu_rows=0,gpu_rows=0;std::array<llama_token,128> prompt_ids{};llama_token t0=-1,t1=-1,g0=-1,g1=-1;HANDLE output=INVALID_HANDLE_VALUE,trace_file=INVALID_HANDLE_VALUE;
+  auto fail=[&](const char*s){if(cause.empty())cause=s?s:"unknown proof failure";normal=false;};
+  try{
+-  auto q=state->snapshot("before-gpu-config");state->initial_limit=q.limit;check(q,q.limit,probe_allowance);
++  auto q=state->snapshot("before-gpu-config");state->initial_limit=q.limit;try{check(q,q.limit,probe_allowance);}catch(...){record_selected_preclaim_reason(!q.limit?ingress_reason_v2::quota_unstable:ingress_reason_v2::pressure_or_headroom,q.limit,q.usage,q.limit!=0);throw;}
+   const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());
+-  input=std::make_shared<GpuProofInput>(root);state->ticket_expiry=input->ticket.expires;const auto now=dev_utc_ms();if(now>=state->ticket_expiry)throw std::runtime_error("GPU ticket expired before admission");state->deadline=std::min(state->deadline,ua50::uwp::Clock::now()+std::chrono::milliseconds(state->ticket_expiry-now));state->stop_path=input->path("stop").wstring();
++  input=std::make_shared<GpuProofInput>(root,take_selected_ingress(ingress_v2::Stage::proof));if(input->ticket.ingress_v2)state->ingress_reason=std::make_shared<ingress_reason_v2::Recorder>();state->ticket_expiry=input->ticket.expires;const auto now=dev_utc_ms();if(now>=state->ticket_expiry){record_selected_preclaim_reason(ingress_reason_v2::utc_expired);throw std::runtime_error("GPU ticket expired before admission");}state->deadline=std::min(state->deadline,ua50::uwp::Clock::now()+std::chrono::milliseconds(state->ticket_expiry-now));state->stop_path=input->path("stop").wstring();
++  if(state->ingress_reason)state->phase("v2-before-claim",probe_allowance);
+   if(std::filesystem::exists(input->path("output.json"))||std::filesystem::exists(input->path("trace.bin")))throw std::runtime_error("GPU old output identity exists");
+   // Namespace admission and exact bytes precede claim/hash; authority is separately bound by future Ops/Root.
+   input->spend();claim=true;output=CreateFile2(input->path("output.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr);if(output==INVALID_HANDLE_VALUE)throw std::runtime_error("GPU main CREATE_NEW");trace_file=CreateFile2(input->path("trace.bin").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr);if(trace_file==INVALID_HANDLE_VALUE)throw std::runtime_error("GPU trace CREATE_NEW");
+   require_matching_catalogue();writer=ModelDownloader::WriterGate().try_acquire();if(!writer.owns_lock())throw std::runtime_error("GPU own-writer exclusion unavailable");
+-  std::weak_ptr<Pilot> weak=state;state->limit_changed=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[weak](const auto&,const winrt::Windows::System::AppMemoryUsageLimitChangingEventArgs&a)noexcept{if(auto s=weak.lock())if(a.NewLimit()!=s->initial_limit)s->request_stop();});state->start_monitor();
++  std::weak_ptr<Pilot> weak=state;state->limit_changed=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[weak](const auto&,const winrt::Windows::System::AppMemoryUsageLimitChangingEventArgs&a)noexcept{if(auto s=weak.lock()){const auto next=a.NewLimit();const bool stops=next!=s->initial_limit;s->record_ingress_reason(ingress_reason_v2::limit_event|(stops?ingress_reason_v2::limit_changed:0),stops,s->initial_limit,next,0,false,true,false);if(stops)s->request_stop();}});state->start_monitor();
+   for(const auto&folder:{root,root/L"models",root/L"models"/L"lfm25-24b-a2b-q4-k-m"}){CREATEFILE2_EXTENDED_PARAMETERS p{};p.dwSize=sizeof(p);p.dwFileFlags=FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT;DevHandle d(CreateFile2(folder.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,OPEN_EXISTING,&p));FILE_ATTRIBUTE_TAG_INFO a{};if(d.value==INVALID_HANDLE_VALUE||!GetFileInformationByHandleEx(d.value,FileAttributeTagInfo,&a,sizeof(a))||!(a.FileAttributes&FILE_ATTRIBUTE_DIRECTORY)||(a.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT))throw std::runtime_error("GPU LocalFolder model path unavailable/reparse");}
+   const auto path=(root/L"models"/L"lfm25-24b-a2b-q4-k-m"/file).wstring();
+   HashReadObserver hash_observer=[&](size_t want,size_t got,int64_t elapsed){if(elapsed<0)throw std::runtime_error("GPU SHA clock");sha_calls=add(sha_calls,1);sha_requested=add(sha_requested,want);sha_returned=add(sha_returned,got);sha_elapsed_ns=add(sha_elapsed_ns,uint64_t(elapsed));};
+@@ -96,7 +97,7 @@
+  try{
+   if(!input||!claim)throw std::runtime_error("GPU claim/input unavailable; no numerical evidence");
+   if(!proof||!trace){
+-   if(output!=INVALID_HANDLE_VALUE){const auto quote=first_answer::quote;const std::string refused="{\"schema\":\"ua68-gpu-proof-output-v1\",\"normal\":false,\"status\":\"REFUSED_BEFORE_NUMERICAL_PROOF\",\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"error\":"+quote(cause)+",\"proof\":null,\"trace\":null,\"owner_file_writer_closed\":true}";DWORD written=0;if(!WriteFile(output,refused.data(),DWORD(refused.size()),&written,nullptr)||written!=refused.size()||!FlushFileBuffers(output))throw std::runtime_error("GPU refusal commit failed");if(!CloseHandle(output))throw std::runtime_error("GPU refusal close failed");output=INVALID_HANDLE_VALUE;log_output(marker+" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n");}
++   if(output!=INVALID_HANDLE_VALUE){const auto quote=first_answer::quote;const std::string refused="{\"schema\":\"ua68-gpu-proof-output-v1\",\"normal\":false,\"status\":\"REFUSED_BEFORE_NUMERICAL_PROOF\",\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"error\":"+quote(cause)+",\"proof\":null,\"trace\":null,\"owner_file_writer_closed\":true}";DWORD written=0;if(!WriteFile(output,refused.data(),DWORD(refused.size()),&written,nullptr)||written!=refused.size()||!FlushFileBuffers(output))throw std::runtime_error("GPU refusal commit failed");if(!CloseHandle(output))throw std::runtime_error("GPU refusal close failed");output=INVALID_HANDLE_VALUE;committed_output_sha=dev_sha(refused);log_output(marker+" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n");}
+    throw std::runtime_error("numerical proof not reached; empty trace not replayable");
+   }
+   package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
+@@ -116,7 +117,7 @@
+   if(routes.available&&!routes.equal)json+="{\"frame\":"+std::to_string(routes.frame)+",\"key_in_frame\":"+std::to_string(routes.key)+",\"cpu_key\":"+std::to_string(routes.cpu_key)+",\"gpu_key\":"+std::to_string(routes.gpu_key)+"}";else json+="null";
+   json+=",\"SHA_elapsed_ns\":"+std::to_string(sha_elapsed_ns)+",\"storage_coverage\":{\"provider_reader\":\"cache_success_commit_counters_only\",\"partial_reader_bytes_available\":false,\"metadata_load_file_io\":\"unobserved\",\"SHA\":\"all_instrumented_fread_EOF_and_errors\"},\"CPU_Q8_pack_ns\":null,\"physical_SSD_metrics\":null,\"raw_rows_saved\":false,\"offline_rawrow_replay\":false,\"native_consumption_epoch_exported\":false";
+   json+="}";
+-  if(json.size()>262144||json.capacity()>(2u<<20)||output==INVALID_HANDLE_VALUE)throw std::length_error("GPU combined main cap/output");n=0;if(!WriteFile(output,json.data(),DWORD(json.size()),&n,nullptr)||n!=json.size()||!FlushFileBuffers(output))throw std::runtime_error("GPU main commit failed");if(!CloseHandle(output)){output=INVALID_HANDLE_VALUE;throw std::runtime_error("GPU main close failed");}output=INVALID_HANDLE_VALUE;
++  if(json.size()>262144||json.capacity()>(2u<<20)||output==INVALID_HANDLE_VALUE)throw std::length_error("GPU combined main cap/output");n=0;if(!WriteFile(output,json.data(),DWORD(json.size()),&n,nullptr)||n!=json.size()||!FlushFileBuffers(output))throw std::runtime_error("GPU main commit failed");if(!CloseHandle(output)){output=INVALID_HANDLE_VALUE;throw std::runtime_error("GPU main close failed");}output=INVALID_HANDLE_VALUE;committed_output_sha=dev_sha(json);
+   // Optional model2 diagnostic sidecar. Main output bytes/schema and acceptance stay unchanged.
+   // A reader must verify BOTH saved raw SHA hashes before using this diagnostic.
+   if(input->config.stage==gpu_proof::Stage::Model2&&layer_witness_json!="null")try{
+@@ -164,5 +165,10 @@
+   log_output(marker+(normal?" OUTPUT_COMMITTED normal owner/file/writer closed\n":" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));
+  }catch(const std::exception&e){fail(e.what());log_output(marker+" OUTPUT_FAILED: "+e.what()+"\n");}
+  if(trace_file!=INVALID_HANDLE_VALUE)CloseHandle(trace_file);if(output!=INVALID_HANDLE_VALUE)CloseHandle(output);
++ if(input&&input->ticket.ingress_v2&&state->ingress_reason&&!committed_output_sha.empty())try{commit_ingress_reason(input->path("reason-v2.json"),*state->ingress_reason,ingress_reason_v2::Stage::proof,input->ticket.id,input->ticket_sha,committed_output_sha,input->ticket.expires);}catch(const std::exception&e){log_output(marker+" REASON_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
++ if(input&&input->ticket.ingress_v2&&!committed_output_sha.empty())try{
++  if(package.empty())package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
++  commit_ingress_terminal(input->path("terminal-v2.json"),ingress_v2::Stage::proof,input->ticket.id,input->ticket_sha,committed_output_sha,package,normal);
++ }catch(const std::exception&e){log_output(marker+" TERMINAL_MARKER_UNAVAILABLE: "+e.what()+"\n");}
+  log_output(marker+(normal?" terminal normal\n":" terminal stopped; no retry\n"));
+ }
+--- /dev/null
++++ b/uwp/ingress-route-budget.h
+@@ -0,0 +1,35 @@
++#pragma once
++#include "xllama/ingress_v2.h"
++#include <winrt/Windows.System.h>
++#include <cstdint>
++#include <stdexcept>
++#include <utility>
++
++namespace xllama::bridge {
++// This is a route reservation, charged before any selected model stage. The
++// measured delta is sampled evidence; the source caps bound retained and
++// transient scanner allocations separately. Neither is a peak measurement.
++struct IngressRouteQuota {
++ uint64_t limit=0,usage=0,charge=0;
++ static std::pair<uint64_t,uint64_t> sample(uint64_t charge){
++  using M=winrt::Windows::System::MemoryManager;
++  const auto first=M::AppMemoryUsageLimit();
++  const auto used=M::AppMemoryUsage();
++  const auto level=M::AppMemoryUsageLevel();
++  const auto second=M::AppMemoryUsageLimit();
++  const bool low_or_medium=level==winrt::Windows::System::AppMemoryUsageLevel::Low||
++      level==winrt::Windows::System::AppMemoryUsageLevel::Medium;
++  if(!ingress_v2::route_quota_admitted(first,second,used,low_or_medium,charge))
++    throw std::runtime_error("ingress route quota/headroom refused");
++  return {first,used};
++ }
++ explicit IngressRouteQuota(uint64_t reservation):charge(reservation){
++  const auto q=sample(charge);limit=q.first;usage=q.second;
++ }
++ void finish()const{
++  const auto q=sample(charge);
++  if(q.first!=limit||q.second>usage+charge)
++    throw std::runtime_error("ingress route quota changed or charge exceeded");
++ }
++};
++}
+--- /dev/null
++++ b/uwp/ingress-v2-scanner.h
+@@ -0,0 +1,95 @@
++#pragma once
++#include "dev-run-input.h"
++#include "gpu-identity-input.h"
++#include "gpu-proof-input.h"
++#include <chrono>
++#include <optional>
++#include <set>
++
++namespace xllama::bridge {
++struct IngressScan {
++ ingress_v2::Inventory inventory;ingress_v2::Decision decision;
++ std::vector<SelectedIngress> entries;std::vector<DevHandle> held_intents;DevHandle held_legacy_identity;
++};
++inline bool ingress_file_exists(const std::filesystem::path& p){const DWORD a=GetFileAttributesW(p.c_str());if(a==INVALID_FILE_ATTRIBUTES){if(GetLastError()==ERROR_FILE_NOT_FOUND)return false;throw std::runtime_error("ingress file presence unknown");}if(a&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DEVICE))throw std::runtime_error("ingress file shape");return true;}
++inline void ingress_charge(ingress_v2::Inventory& v,size_t n){ingress_v2::charge_scan_bytes(v.bytes,n,ingress_v2::max_scan_bytes);}
++inline std::string ingress_read(ingress_v2::Inventory&v,DevHandle&h,size_t cap){auto s=read_dev_file(h,cap);ingress_charge(v,s.size());return s;}
++inline bool ingress_same(const ingress_v2::Attempt&a,const ingress_v2::Intent&i){return a.stage==i.stage&&a.run==i.run&&a.ticket_sha==i.ticket_sha&&a.package==i.package;}
++inline bool ingress_same(const ingress_v2::Terminal&t,const ingress_v2::Intent&i){return t.stage==i.stage&&t.run==i.run&&t.ticket_sha==i.ticket_sha&&t.package==i.package;}
++inline IngressScan scan_ingress_v2(const std::filesystem::path& root,const std::string& package,bool ui){
++ using namespace ingress_v2;IngressScan out;
++ const auto started=std::chrono::steady_clock::now();
++ auto elapsed=[&]{return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-started).count());};
++ const auto old=root/L"ua68-gpu-identity-v1.ticket.json";
++ if(ingress_file_exists(old)){
++  out.inventory.old_identity_present=true;open_dev_file(out.held_legacy_identity,old,true);const auto raw=ingress_read(out.inventory,out.held_legacy_identity,gpu_identity::request_cap);
++  out.inventory.old_identity_exact_spent=dev_sha(raw)==spent_identity_v1_sha&&raw.find("d9423262070c2b5f3443f1c456cfe73d")!=std::string::npos;
++ }
++ out.inventory.old_proof_present=ingress_file_exists(root/L"ua68-gpu-proof-v1.ticket.json");
++ out.inventory.old_cpu_present=ingress_file_exists(root/L"ua50-dev-run-v1.ticket.json");
++ for(const auto* name:{L"ua50-cpu-lfm24-cache-a2-v1.flag",L"ua50-cpu-lfm24-cache-b512-v1.flag",L"ua50-cpu-lfm24-finished-answer-v2.flag",L"ua50-cpu-lfm24-first-answer-v1.flag",L"ua50-cpu-lfm24-pilot.flag",L"diffuse.flag",L"bench.flag",L"membw.flag",L"diskbw.flag",L"gpubw.flag",L"gpugemv.flag",L"d3d12be.flag",L"gpustep.flag",L"ramceil.flag",L"mic.flag",L"logits.flag",L"oprepro.flag",L"train.flag",L"native-capture.flag",L"diffuse-inproc.flag",L"gpustep-inproc.flag",L"autopilot.flag"})if(ingress_file_exists(root/name))out.inventory.legacy_flag_present=true;
++ std::error_code ec;std::filesystem::directory_iterator it(root,ec),end;if(ec)throw std::runtime_error("ingress enumeration unavailable");
++ const std::string prefix="ua68-headless-intent-v2.";
++ std::set<std::string> ticket_names,window_names,identity_result_names;
++ size_t visited=0;
++ for(;it!=end;it.increment(ec)){
++  if(ec)throw std::runtime_error("ingress enumeration failure");if(elapsed()>max_scan_ms)throw std::runtime_error("ingress enumeration deadline");
++  charge_scan_entry(visited);
++  const auto name=it->path().filename().string();
++  const auto identity_name=classify_identity_name(name);
++  if(identity_name==IdentityNameKind::invalid)throw std::runtime_error("ingress identity reserved name");
++  if(identity_name==IdentityNameKind::result)identity_result_names.insert(name);
++  bool v2_ticket=identity_name==IdentityNameKind::ticket;
++  for(const auto stage:{Stage::proof,Stage::cpu_dev}){
++   const std::string p=ticket_prefix(stage);
++   if(ascii_prefix_ci(name,p)&&name.rfind(p,0)!=0)throw std::runtime_error("ingress reserved ticket name case variant");
++   if(name.rfind(p,0)==0){v2_ticket=true;break;}
++  }
++  if(v2_ticket){
++   if(name.size()>128||name.size()<48||name.substr(name.size()-12)!=".ticket.json"||!ticket_names.insert(name).second)throw std::runtime_error("ingress v2 ticket name/duplicate");
++  }
++  const std::string window_prefix="ua68-headless-window-v2.";
++  if(ascii_prefix_ci(name,window_prefix)&&name.rfind(window_prefix,0)!=0)throw std::runtime_error("ingress reserved window name case variant");
++  if(name.rfind(window_prefix,0)==0){
++   if(name.size()!=window_prefix.size()+32+5||name.substr(name.size()-5)!=".json"||!dev_run::run_id(name.substr(window_prefix.size(),32))||!window_names.insert(name).second)throw std::runtime_error("ingress operator window name/duplicate");
++  }
++  if(ascii_prefix_ci(name,prefix)&&name.rfind(prefix,0)!=0)throw std::runtime_error("ingress reserved intent name case variant");
++  if(name.rfind(prefix,0)!=0)continue;
++  if(out.inventory.candidates.size()>=max_candidates||name.size()>128||name.size()!=prefix.size()+32+5||name.substr(name.size()-5)!=".json")throw std::runtime_error("ingress candidate name/count cap");
++  SelectedIngress s;open_dev_file(s.intent_file,it->path(),false);s.intent_raw=ingress_read(out.inventory,s.intent_file,intent_cap);s.intent=parse_intent(s.intent_raw);
++  if(name!=intent_leaf(s.intent.run))throw std::runtime_error("ingress filename/run mismatch");
++  Candidate c;c.intent=s.intent;c.exact_binding=true;
++  const auto window_name=window_leaf(s.intent.run);const auto wp=root/std::filesystem::path(std::wstring(window_name.begin(),window_name.end()));
++  open_dev_file(s.window_file,wp,false);s.window_raw=ingress_read(out.inventory,s.window_file,4096);s.window_sha=dev_sha(s.window_raw);
++  const auto window=parse_operator_window(s.window_raw);
++  if(window.run!=s.intent.run||window.selection!=s.intent.selection||window.intent_sha!=dev_sha(s.intent_raw)||window.package!=s.intent.package||window.expires!=s.intent.expires)throw std::runtime_error("ingress operator window binding");c.window_bound=true;
++  const auto ticket_name=ticket_leaf(s.intent.stage,s.intent.run);const auto ticket_path=root/std::filesystem::path(std::wstring(ticket_name.begin(),ticket_name.end()));
++  if(ingress_file_exists(ticket_path)){
++   open_dev_file(s.ticket,ticket_path,true);s.ticket_raw=ingress_read(out.inventory,s.ticket,4096);s.ticket_sha=dev_sha(s.ticket_raw);c.ticket_present=true;
++   if(s.ticket_sha!=s.intent.ticket_sha)throw std::runtime_error("ingress ticket SHA mismatch");
++   const auto pseudo_now=s.intent.expires-1;
++   if(s.intent.stage==Stage::identity){auto x=gpu_identity::parse_versioned(s.ticket_raw,pseudo_now,true);if(x.id!=s.intent.run||x.selection!=s.intent.selection||x.expires!=s.intent.expires||!s.intent.config_sha.empty())throw std::runtime_error("ingress identity ticket mismatch");}
++   else if(s.intent.stage==Stage::proof){auto x=gpu_run::ticket_versioned(s.ticket_raw,pseudo_now,true);if(x.id!=s.intent.run||x.selection!=s.intent.selection||x.expires!=s.intent.expires||x.config_sha!=s.intent.config_sha)throw std::runtime_error("ingress proof ticket mismatch");}
++   else {auto x=dev_run::parse_ticket_versioned(s.ticket_raw,pseudo_now,true);if(x.id!=s.intent.run||x.selection!=s.intent.selection||x.expires!=s.intent.expires||x.config_sha!=s.intent.config_sha)throw std::runtime_error("ingress CPU ticket mismatch");}
++  }
++  const auto result_name=result_prefix(s.intent.stage,s.intent.run);const auto base=root/std::filesystem::path(std::wstring(result_name.begin(),result_name.end()));
++  const auto attempt=std::filesystem::path(base.wstring()+L"attempt-v2.json"),terminal=std::filesystem::path(base.wstring()+L"terminal-v2.json"),output=std::filesystem::path(base.wstring()+L"output.json"),claim=std::filesystem::path(base.wstring()+L"claim");
++  const bool attempted=ingress_file_exists(attempt),terminated=ingress_file_exists(terminal);c.claim_present=ingress_file_exists(claim);c.output_present=ingress_file_exists(output);c.consume_known=attempted&&!c.ticket_present;
++  if(c.claim_present){DevHandle h;open_dev_file(h,claim,false);const auto bytes=ingress_read(out.inventory,h,128);if(bytes!=s.intent.ticket_sha+"\n")throw std::runtime_error("ingress claim binding");}
++  bool attempt_ok=false;if(attempted){DevHandle h;open_dev_file(h,attempt,false);attempt_ok=ingress_same(parse_attempt(ingress_read(out.inventory,h,768)),s.intent);if(!attempt_ok)throw std::runtime_error("ingress attempt binding");}
++  if(terminated){DevHandle h;open_dev_file(h,terminal,false);const auto t=parse_terminal(ingress_read(out.inventory,h,1024));if(!attempt_ok||!ingress_same(t,s.intent)||!c.output_present)throw std::runtime_error("ingress terminal binding");DevHandle oh;open_dev_file(oh,output,false);const auto bytes=ingress_read(out.inventory,oh,s.intent.stage==Stage::identity?gpu_identity::result_cap:262144);if(dev_sha(bytes)!=t.output_sha)throw std::runtime_error("ingress terminal output SHA");c.terminal_verified=true;c.lifecycle=Lifecycle::closed_spent;}
++  else c.lifecycle=attempted||c.claim_present||c.output_present||!c.ticket_present?Lifecycle::orphan:Lifecycle::fresh;
++  if(c.lifecycle==Lifecycle::fresh&&s.intent.stage!=Stage::identity){const auto config_leaf=result_prefix(s.intent.stage,s.intent.run)+"config.json";const auto cp=root/std::filesystem::path(std::wstring(config_leaf.begin(),config_leaf.end()));open_dev_file(s.config,cp,false);s.config_raw=ingress_read(out.inventory,s.config,16384);s.config_sha=dev_sha(s.config_raw);if(s.config_sha!=s.intent.config_sha)throw std::runtime_error("ingress config SHA mismatch");}
++  out.inventory.candidates.push_back(std::move(c));out.entries.push_back(std::move(s));
++ }
++ if(ec)throw std::runtime_error("ingress enumeration final error");
++ for(const auto& name:ticket_names){
++  bool matched=false;
++  for(const auto& candidate:out.inventory.candidates)if(ticket_leaf(candidate.intent.stage,candidate.intent.run)==name&&candidate.ticket_present){matched=true;break;}
++  if(!matched)throw std::runtime_error("unbound v2 ticket");
++ }
++ for(const auto& name:window_names){bool matched=false;for(const auto& candidate:out.inventory.candidates)if(window_leaf(candidate.intent.run)==name){matched=true;break;}if(!matched)throw std::runtime_error("unbound operator window");}
++ for(const auto& name:identity_result_names){bool matched=false;for(const auto& candidate:out.inventory.candidates)if(candidate.intent.stage==Stage::identity&&name.rfind(result_prefix(Stage::identity,candidate.intent.run),0)==0){matched=true;break;}if(!matched)throw std::runtime_error("unbound identity result");}
++ out.inventory.elapsed_ms=elapsed();out.decision=decide(out.inventory,ui,dev_utc_ms(),package);return out;
++}
++}
+--- /dev/null
++++ b/uwp/protected-ui-v2-scan.h
+@@ -0,0 +1,75 @@
++#pragma once
++#include "dev-run-input.h"
++#include "protected-ui-v2.h"
++#include <chrono>
++#include <set>
++#include <vector>
++
++namespace xllama::bridge {
++struct ProtectedUiScan {
++ enum class State { none, selected, refuse } state=State::none;
++ ingress_v2::UiIntent selected;
++ std::string selected_sha;
++ std::vector<DevHandle> held;
++};
++inline std::filesystem::path ui_path(const std::filesystem::path& root,const std::string& leaf){return root/std::filesystem::path(std::wstring(leaf.begin(),leaf.end()));}
++inline bool ui_regular_exists(const std::filesystem::path& p){
++ const DWORD a=GetFileAttributesW(p.c_str());
++ if(a==INVALID_FILE_ATTRIBUTES){if(GetLastError()==ERROR_FILE_NOT_FOUND)return false;throw std::runtime_error("protected UI file presence unknown");}
++ if(a&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DEVICE))throw std::runtime_error("protected UI file shape");return true;
++}
++inline ProtectedUiScan scan_protected_ui_v2(const std::filesystem::path& root,const std::string& package,uint64_t now){
++ ProtectedUiScan out;size_t visited=0,bytes=0,active=0,intents=0;
++ std::set<std::string> seen_intents,seen_claims,seen_closes,seen_reviews;
++ const auto started=std::chrono::steady_clock::now();
++ std::error_code ec;std::filesystem::directory_iterator it(root,ec),end;if(ec)throw std::runtime_error("protected UI directory unavailable");
++ const std::string prefix="ua68-protected-ui-v2.",suffix=".intent.json";
++ for(;it!=end;it.increment(ec)){
++  if(ec)throw std::runtime_error("protected UI enumeration failure");
++  ingress_v2::charge_scan_entry(visited);if(std::chrono::steady_clock::now()-started>std::chrono::milliseconds(ingress_v2::max_scan_ms))throw std::runtime_error("protected UI scan deadline");
++  const auto name=it->path().filename().string();if(!ingress_v2::ascii_prefix_ci(name,prefix))continue;
++  if(name.rfind(prefix,0)!=0)throw std::runtime_error("protected UI reserved name case variant");
++  const auto classify=[&](const std::string& ending,std::set<std::string>& seen)->bool{
++   if(name.size()!=prefix.size()+32+ending.size()||name.substr(name.size()-ending.size())!=ending)return false;
++   const auto run=name.substr(prefix.size(),32);if(!dev_run::run_id(run)||!seen.insert(run).second)throw std::runtime_error("protected UI filename/duplicate");return true;
++  };
++  if(classify(".claim.json",seen_claims)||classify(".close.json",seen_closes)||classify(".review.json",seen_reviews))continue;
++  if(!classify(suffix,seen_intents)||++intents>ingress_v2::ui_max_intents)throw std::runtime_error("protected UI filename/count");
++  DevHandle intent;open_dev_file(intent,it->path(),false);const auto raw=read_dev_file(intent,ingress_v2::ui_intent_cap);ingress_v2::charge_scan_bytes(bytes,raw.size(),ingress_v2::ui_scan_bytes_cap);
++  const auto ui=ingress_v2::parse_ui_intent(raw);if(name!=ingress_v2::ui_leaf(ui.run))throw std::runtime_error("protected UI filename binding");
++  const auto sha=dev_sha(raw);
++  const auto claim_path=ui_path(root,ingress_v2::ui_claim_leaf(ui.run));
++  const auto close_path=ui_path(root,ingress_v2::ui_close_leaf(ui.run));
++  const auto review_path=ui_path(root,ingress_v2::ui_review_leaf(ui.run));
++  const bool claimed=ui_regular_exists(claim_path),closed=ui_regular_exists(close_path),reviewed=ui_regular_exists(review_path);
++  std::string claim_sha;
++  if(claimed){DevHandle h;open_dev_file(h,claim_path,false);const auto raw_claim=read_dev_file(h,ingress_v2::ui_marker_cap);ingress_v2::charge_scan_bytes(bytes,raw_claim.size(),ingress_v2::ui_scan_bytes_cap);const auto m=ingress_v2::parse_ui_marker(raw_claim,"xllama-protected-ui-claim-v2");if(m.run!=ui.run||m.intent_sha!=sha||m.package!=ui.package)throw std::runtime_error("protected UI claim binding");claim_sha=dev_sha(raw_claim);out.held.push_back(std::move(h));}
++  if(closed){if(!claimed||!reviewed)throw std::runtime_error("protected UI close lacks claim/review");DevHandle h;open_dev_file(h,close_path,false);const auto raw_close=read_dev_file(h,ingress_v2::ui_marker_cap);ingress_v2::charge_scan_bytes(bytes,raw_close.size(),ingress_v2::ui_scan_bytes_cap);const auto c=ingress_v2::parse_ui_close(raw_close);if(c.marker.run!=ui.run||c.marker.intent_sha!=sha||c.marker.package!=ui.package||c.selection!=ui.selection||c.claim_sha!=claim_sha)throw std::runtime_error("protected UI close binding");out.held.push_back(std::move(h));DevHandle r;open_dev_file(r,review_path,false);const auto raw_review=read_dev_file(r,ingress_v2::ui_review_cap);ingress_v2::charge_scan_bytes(bytes,raw_review.size(),ingress_v2::ui_scan_bytes_cap);if(dev_sha(raw_review)!=c.post_ui_review_sha)throw std::runtime_error("protected UI review SHA/bound");ingress_v2::check_ui_review_receipt(raw_review,ui,claim_sha);out.held.push_back(std::move(r));}
++  else if(reviewed)throw std::runtime_error("protected UI premature review without close");
++  else if(claimed)out.state=ProtectedUiScan::State::refuse;
++  else {
++   ++active;if(ui.package!=package||!ingress_v2::ui_time_admitted(now,ui.expires))out.state=ProtectedUiScan::State::refuse;
++   else {out.selected=ui;out.selected_sha=sha;}
++  }
++  out.held.push_back(std::move(intent));
++ }
++ if(ec)throw std::runtime_error("protected UI enumeration final error");
++ if(std::chrono::steady_clock::now()-started>std::chrono::milliseconds(2000))throw std::runtime_error("protected UI final scan deadline");
++ for(const auto& run:seen_claims)if(!seen_intents.count(run))throw std::runtime_error("protected UI orphan claim");
++ for(const auto& run:seen_closes)if(!seen_intents.count(run))throw std::runtime_error("protected UI orphan close");
++ for(const auto& run:seen_reviews)if(!seen_intents.count(run))throw std::runtime_error("protected UI orphan review");
++ if(active>1)out.state=ProtectedUiScan::State::refuse;
++ else if(active==1&&out.state!=ProtectedUiScan::State::refuse)out.state=ProtectedUiScan::State::selected;
++ return out;
++}
++inline void commit_protected_ui_claim(const std::filesystem::path& root,const ProtectedUiScan& scan){
++ if(scan.state!=ProtectedUiScan::State::selected)throw std::runtime_error("protected UI selection unavailable");
++ if(!ingress_v2::ui_time_admitted(dev_utc_ms(),scan.selected.expires))throw std::runtime_error("protected UI expired before claim");
++ const auto quote=first_answer::quote;
++ const auto raw="{\"schema\":\"xllama-protected-ui-claim-v2\",\"run_id\":"+quote(scan.selected.run)+",\"intent_sha256\":"+quote(scan.selected_sha)+",\"full_package_name\":"+quote(scan.selected.package)+"}";
++ if(raw.size()>1024)throw std::runtime_error("protected UI claim cap");
++ DevHandle h(CreateFile2(ui_path(root,ingress_v2::ui_claim_leaf(scan.selected.run)).c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));
++ if(h.value==INVALID_HANDLE_VALUE)throw std::runtime_error("protected UI claim CREATE_NEW refused");DWORD n=0;
++ if(!WriteFile(h.value,raw.data(),DWORD(raw.size()),&n,nullptr)||n!=raw.size()||!FlushFileBuffers(h.value))throw std::runtime_error("protected UI claim durable write refused");h.close();
++}
++}
+--- /dev/null
++++ b/uwp/protected-ui-v2.h
+@@ -0,0 +1,9 @@
++#pragma once
++#include <atomic>
++
++namespace xllama::bridge::protected_ui_v2 {
++// Latched before Application::Start. Deferred UI callbacks read the same value.
++inline std::atomic<bool> selected{false};
++inline void latch() noexcept { selected.store(true, std::memory_order_release); }
++inline bool active() noexcept { return selected.load(std::memory_order_acquire); }
++}

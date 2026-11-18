@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_HELD_WEIGHT_CROSS_INPUT_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_RUNTIME_INGRESS_SOURCE_CANDIDATE",
   "parent_patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
   "parent12_reused_not_replayed": true,
   "patches": [
@@ -182,6 +182,12 @@
       "target": "llama",
       "bytes": 5980,
       "sha256": "2c2310fe5d21ca45aaa40f08792e8825cacd908ef56f4abb44646541e4b57059"
+    },
+    {
+      "file": "patch/runtime-ingress-successor-root.patch",
+      "target": "xllama",
+      "bytes": 131022,
+      "sha256": "3ff83df2ed8a18116afdae1bb889c149606d1b0d41bfb07a9096792bd973134c"
     }
   ],
   "parent14_reused_not_replayed": true,
@@ -197,5 +203,7 @@
   "parent26_patch_lock_sha256": "f035c9cd3b672ac2b441eecd65d171ef2175c33ea9c34045644d61c0d85957e0",
   "parent26_reused_not_replayed": true,
   "parent28_patch_lock_sha256": "75da7c5e339b7b5528d688dbbdd4d8aa2e031ac33cda36d3f33e4eb8971a02c0",
-  "parent28_reused_not_replayed": true
+  "parent28_reused_not_replayed": true,
+  "parent30_patch_lock_sha256": "8769d6d7337fd15baf0793fbf25dba12a7af889751e8056c3b86230b8d45ed4e",
+  "parent30_reused_not_replayed": true
 }

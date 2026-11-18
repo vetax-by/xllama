@@ -1039,6 +1039,78 @@
       "include": "utility"
     },
     {
+      "from": "include/xllama/ingress_reason_v2.h",
+      "line": 2,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/ingress_reason_v2.h",
+      "line": 3,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "include/xllama/ingress_reason_v2.h",
+      "line": 4,
+      "style": "<",
+      "include": "cstddef"
+    },
+    {
+      "from": "include/xllama/ingress_reason_v2.h",
+      "line": 5,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/ingress_reason_v2.h",
+      "line": 6,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/ingress_reason_v2.h",
+      "line": 7,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/ingress_v2.h",
+      "line": 2,
+      "style": "\"",
+      "include": "dev_run_config.h"
+    },
+    {
+      "from": "include/xllama/ingress_v2.h",
+      "line": 3,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "include/xllama/ingress_v2.h",
+      "line": 4,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "include/xllama/ingress_v2.h",
+      "line": 5,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "include/xllama/ingress_v2.h",
+      "line": 6,
+      "style": "<",
+      "include": "string"
+    },
+    {
+      "from": "include/xllama/ingress_v2.h",
+      "line": 7,
+      "style": "<",
+      "include": "vector"
+    },
+    {
       "from": "include/xllama/session.h",
       "line": 8,
       "style": "\"",
@@ -3723,30 +3795,54 @@
     {
       "from": "uwp/App.cpp",
       "line": 16,
+      "style": "\"",
+      "include": "protected-ui-v2.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 17,
       "style": "<",
       "include": "roapi.h"
     },
     {
       "from": "uwp/App.cpp",
-      "line": 18,
+      "line": 19,
       "style": "\"",
       "include": "api-server.h"
     },
     {
       "from": "uwp/App.cpp",
-      "line": 19,
-      "style": "<",
-      "include": "winrt/Windows.Foundation.Metadata.h"
+      "line": 20,
+      "style": "\"",
+      "include": "protected-ui-v2-scan.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 21,
+      "style": "\"",
+      "include": "ingress-v2-scanner.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 22,
+      "style": "\"",
+      "include": "ingress-route-budget.h"
     },
     {
       "from": "uwp/App.cpp",
       "line": 23,
       "style": "<",
+      "include": "winrt/Windows.Foundation.Metadata.h"
+    },
+    {
+      "from": "uwp/App.cpp",
+      "line": 27,
+      "style": "<",
       "include": "thread"
     },
     {
       "from": "uwp/App.cpp",
-      "line": 24,
+      "line": 28,
       "style": "<",
       "include": "utility"
     },
@@ -3764,217 +3860,223 @@
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 12,
+      "line": 9,
+      "style": "\"",
+      "include": "protected-ui-v2.h"
+    },
+    {
+      "from": "uwp/MainPage.cpp",
+      "line": 13,
       "style": "\"",
       "include": "api-server.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 14,
+      "line": 15,
       "style": "\"",
       "include": "chat-history.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 15,
+      "line": 16,
       "style": "\"",
       "include": "inference-bridge.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 16,
+      "line": 17,
       "style": "\"",
       "include": "xllama/cancel_policy.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 17,
+      "line": 18,
       "style": "\"",
       "include": "xllama/chat_prompt.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 18,
+      "line": 19,
       "style": "\"",
       "include": "xllama/compute_admission.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 19,
+      "line": 20,
       "style": "\"",
       "include": "xllama/debug_dashboard.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 20,
+      "line": 21,
       "style": "\"",
       "include": "xllama/json_utils.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 21,
+      "line": 22,
       "style": "\"",
       "include": "xllama/kv_store.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 22,
+      "line": 23,
       "style": "\"",
       "include": "xllama/model_file_plan.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 23,
+      "line": 24,
       "style": "\"",
       "include": "xllama/model_provision.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 24,
+      "line": 25,
       "style": "\"",
       "include": "xllama/path_utils.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 25,
+      "line": 26,
       "style": "\"",
       "include": "xllama/personalize.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 26,
+      "line": 27,
       "style": "\"",
       "include": "xllama/platform.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 27,
+      "line": 28,
       "style": "\"",
       "include": "xllama/preference_capture.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 28,
+      "line": 29,
       "style": "\"",
       "include": "xllama/prompt_budget.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 29,
+      "line": 30,
       "style": "\"",
       "include": "xllama/routing_policy.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 30,
+      "line": 31,
       "style": "\"",
       "include": "xllama/stability_attribution.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 31,
+      "line": 32,
       "style": "\"",
       "include": "xllama/training.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 32,
+      "line": 33,
       "style": "\"",
       "include": "xllama/utf8_utils.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 34,
+      "line": 35,
       "style": "<",
       "include": "winrt/Windows.Data.Json.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 35,
+      "line": 36,
       "style": "<",
       "include": "winrt/Windows.Networking.Connectivity.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 36,
+      "line": 37,
       "style": "<",
       "include": "winrt/Windows.Networking.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 37,
+      "line": 38,
       "style": "<",
       "include": "winrt/Windows.UI.Xaml.Media.Imaging.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 39,
+      "line": 40,
       "style": "\"",
       "include": "xllama/api_activity.h"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 42,
+      "line": 43,
       "style": "<",
       "include": "algorithm"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 43,
+      "line": 44,
       "style": "<",
       "include": "chrono"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 44,
+      "line": 45,
       "style": "<",
       "include": "cstdio"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 45,
+      "line": 46,
       "style": "<",
       "include": "ctime"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 46,
+      "line": 47,
       "style": "<",
       "include": "filesystem"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 47,
+      "line": 48,
       "style": "<",
       "include": "limits"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 48,
+      "line": 49,
       "style": "<",
       "include": "mutex"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 49,
+      "line": 50,
       "style": "<",
       "include": "optional"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 50,
+      "line": 51,
       "style": "<",
       "include": "string"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 51,
+      "line": 52,
       "style": "<",
       "include": "thread"
     },
     {
       "from": "uwp/MainPage.cpp",
-      "line": 52,
+      "line": 53,
       "style": "<",
       "include": "vector"
     },
@@ -4384,101 +4486,107 @@
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 22,
       "style": "\"",
-      "include": "ua50/cache_trace.h"
+      "include": "xllama/ingress_reason_v2.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 23,
       "style": "\"",
-      "include": "../src/platform/ua50/dev_run_io.h"
+      "include": "ua50/cache_trace.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 24,
       "style": "\"",
-      "include": "dev-run-input.h"
+      "include": "../src/platform/ua50/dev_run_io.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 25,
       "style": "\"",
-      "include": "gpu-proof-input.h"
+      "include": "dev-run-input.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 26,
       "style": "\"",
-      "include": "gpu-identity-input.h"
+      "include": "gpu-proof-input.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 27,
       "style": "\"",
-      "include": "xllama/expert_gpu_d3d12.h"
+      "include": "gpu-identity-input.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 28,
       "style": "\"",
-      "include": "xllama/gpu_proof_controller.h"
+      "include": "xllama/expert_gpu_d3d12.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 29,
       "style": "\"",
-      "include": "xllama/gpu_proof_build_pins.h"
+      "include": "xllama/gpu_proof_controller.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 30,
       "style": "\"",
-      "include": "xllama/generation_runner.h"
+      "include": "xllama/gpu_proof_build_pins.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 31,
       "style": "\"",
-      "include": "xllama/generation_profile.h"
+      "include": "xllama/generation_runner.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 32,
       "style": "\"",
-      "include": "xllama/generation_trace.h"
+      "include": "xllama/generation_profile.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 33,
       "style": "\"",
-      "include": "xllama/generation_result.h"
+      "include": "xllama/generation_trace.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 34,
       "style": "\"",
-      "include": "xllama/generation_capabilities.h"
+      "include": "xllama/generation_result.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
       "line": 35,
+      "style": "\"",
+      "include": "xllama/generation_capabilities.h"
+    },
+    {
+      "from": "uwp/cpu-expert-pilot.cpp",
+      "line": 36,
       "style": "<",
       "include": "winrt/Windows.ApplicationModel.h"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
-      "line": 371,
+      "line": 396,
       "style": "\"",
       "include": "gpu-proof-pilot.inc"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
-      "line": 372,
+      "line": 397,
       "style": "\"",
       "include": "generation-runner.inc"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
-      "line": 373,
+      "line": 398,
       "style": "\"",
       "include": "gpu-identity-pilot.inc"
     },
@@ -4491,32 +4599,62 @@
     {
       "from": "uwp/dev-run-input.h",
       "line": 3,
-      "style": "<",
-      "include": "windows.h"
+      "style": "\"",
+      "include": "xllama/ingress_v2.h"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 4,
-      "style": "<",
-      "include": "bcrypt.h"
+      "style": "\"",
+      "include": "xllama/first_answer_record.h"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 5,
-      "style": "<",
-      "include": "array"
+      "style": "\"",
+      "include": "xllama/ingress_reason_v2.h"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 6,
       "style": "<",
-      "include": "filesystem"
+      "include": "windows.h"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 7,
       "style": "<",
+      "include": "bcrypt.h"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 8,
+      "style": "<",
+      "include": "array"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 9,
+      "style": "<",
+      "include": "filesystem"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 10,
+      "style": "<",
       "include": "cstring"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 11,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 12,
+      "style": "<",
+      "include": "mutex"
     },
     {
       "from": "uwp/gpu-identity-input.h",
@@ -4565,6 +4703,108 @@
       "line": 9,
       "style": "\"",
       "include": "xllama/training_params.h"
+    },
+    {
+      "from": "uwp/ingress-route-budget.h",
+      "line": 2,
+      "style": "\"",
+      "include": "xllama/ingress_v2.h"
+    },
+    {
+      "from": "uwp/ingress-route-budget.h",
+      "line": 3,
+      "style": "<",
+      "include": "winrt/Windows.System.h"
+    },
+    {
+      "from": "uwp/ingress-route-budget.h",
+      "line": 4,
+      "style": "<",
+      "include": "cstdint"
+    },
+    {
+      "from": "uwp/ingress-route-budget.h",
+      "line": 5,
+      "style": "<",
+      "include": "stdexcept"
+    },
+    {
+      "from": "uwp/ingress-route-budget.h",
+      "line": 6,
+      "style": "<",
+      "include": "utility"
+    },
+    {
+      "from": "uwp/ingress-v2-scanner.h",
+      "line": 2,
+      "style": "\"",
+      "include": "dev-run-input.h"
+    },
+    {
+      "from": "uwp/ingress-v2-scanner.h",
+      "line": 3,
+      "style": "\"",
+      "include": "gpu-identity-input.h"
+    },
+    {
+      "from": "uwp/ingress-v2-scanner.h",
+      "line": 4,
+      "style": "\"",
+      "include": "gpu-proof-input.h"
+    },
+    {
+      "from": "uwp/ingress-v2-scanner.h",
+      "line": 5,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "uwp/ingress-v2-scanner.h",
+      "line": 6,
+      "style": "<",
+      "include": "optional"
+    },
+    {
+      "from": "uwp/ingress-v2-scanner.h",
+      "line": 7,
+      "style": "<",
+      "include": "set"
+    },
+    {
+      "from": "uwp/protected-ui-v2-scan.h",
+      "line": 2,
+      "style": "\"",
+      "include": "dev-run-input.h"
+    },
+    {
+      "from": "uwp/protected-ui-v2-scan.h",
+      "line": 3,
+      "style": "\"",
+      "include": "protected-ui-v2.h"
+    },
+    {
+      "from": "uwp/protected-ui-v2-scan.h",
+      "line": 4,
+      "style": "<",
+      "include": "chrono"
+    },
+    {
+      "from": "uwp/protected-ui-v2-scan.h",
+      "line": 5,
+      "style": "<",
+      "include": "set"
+    },
+    {
+      "from": "uwp/protected-ui-v2-scan.h",
+      "line": 6,
+      "style": "<",
+      "include": "vector"
+    },
+    {
+      "from": "uwp/protected-ui-v2.h",
+      "line": 2,
+      "style": "<",
+      "include": "atomic"
     }
   ],
   "not_transitive_SDK_or_link_proof": true
