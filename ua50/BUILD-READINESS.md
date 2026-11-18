@@ -1,3 +1,13 @@
+# Current no-model bootstrap candidate
+
+Current patch33 /102 postimages has independent coherent source/host pair review; no Windows compile/link/package/native result exists for this source. Known source integration blockers were closed in the inspected pair. Publication and a Windows run require separate Lead action; this file dispatches nothing.
+
+The old patch32 run44291441810 compiled/linked/packaged successfully and was signed as1522. The prior patch31 run44287852328 failed MSVC C1083/no artifact and remains terminal. Neither result proves patch33 compilation. Historical receipts below retain their own exact scope.
+
+Future sequence: exact public/source review → one separately selected Windows build/artifact QA → fresh predecessor/signing/signed-pair QA → preserving install/no launch → exact new PFN → separately selected manual no-model/current live READY/report → same-artifact identity/primitive/model2 → gated generation. Genuine issuer/roster and Windows/UWP/Portal/clock/quota/GPU/drain/Exit/process/HTTP/original caller qualification remain required. No automatic retry, cleanup, model run or acceptance transfer from1522/1520.
+
+## Historical readiness notes
+
 The current 32-patch App.cpp include-path correction source candidate composes on a separate clean pinned product checkout after the stock guard. Its lock selects 96 shipping postimages and 801 direct include records. The fork application tree already contains root edits and must not receive these patches again.
 
 Patches 25 and 26 add a strict per-run model2 diagnostic CONFIG v2. A broad layer-output sweep covers the actual selected workload; deterministic position shards and bounded detail vector selections use the same source bytes. Legacy CONFIG v1 has diagnostics off. Diagnostic failure is reported in an optional sidecar without changing core GPU publication or the existing main output schema, held SHA, strict 456-route, numerical and terminal gates. Host source and synthetic checks are not a Windows or native result for this candidate.

@@ -1111,6 +1111,84 @@
       "include": "vector"
     },
     {
+      "from": "include/xllama/qualification_mailbox.h",
+      "line": 2,
+      "style": "\"",
+      "include": "dev_run_config.h"
+    },
+    {
+      "from": "include/xllama/qualification_mailbox.h",
+      "line": 3,
+      "style": "\"",
+      "include": "ingress_reason_v2.h"
+    },
+    {
+      "from": "include/xllama/qualification_mailbox.h",
+      "line": 4,
+      "style": "<",
+      "include": "functional"
+    },
+    {
+      "from": "include/xllama/qualification_mailbox.h",
+      "line": 5,
+      "style": "<",
+      "include": "limits"
+    },
+    {
+      "from": "include/xllama/qualification_mailbox.h",
+      "line": 6,
+      "style": "<",
+      "include": "atomic"
+    },
+    {
+      "from": "include/xllama/qualification_profiles.h",
+      "line": 2,
+      "style": "\"",
+      "include": "qualification_mailbox.h"
+    },
+    {
+      "from": "include/xllama/qualification_profiles.h",
+      "line": 3,
+      "style": "\"",
+      "include": "gpu_identity.h"
+    },
+    {
+      "from": "include/xllama/qualification_profiles.h",
+      "line": 4,
+      "style": "\"",
+      "include": "gpu_run_config.h"
+    },
+    {
+      "from": "include/xllama/qualification_profiles.h",
+      "line": 5,
+      "style": "\"",
+      "include": "generation_profile.h"
+    },
+    {
+      "from": "include/xllama/qualification_receipts.h",
+      "line": 2,
+      "style": "\"",
+      "include": "qualification_mailbox.h"
+    },
+    {
+      "from": "include/xllama/qualification_release.h",
+      "line": 2,
+      "style": "\"",
+      "include": "qualification_mailbox.h"
+    },
+    {
+      "from": "include/xllama/qualification_release_window.h",
+      "line": 2,
+      "style": "\"",
+      "include": "qualification_release.h"
+    },
+    {
+      "from": "include/xllama/qualification_release_window.h",
+      "line": 3,
+      "style": "\"",
+      "include": "qualification_receipts.h"
+    },
+    {
       "from": "include/xllama/session.h",
       "line": 8,
       "style": "\"",
@@ -3814,35 +3892,23 @@
       "from": "uwp/App.cpp",
       "line": 20,
       "style": "\"",
-      "include": "protected-ui-v2-scan.h"
+      "include": "qualification-shell.h"
     },
     {
       "from": "uwp/App.cpp",
       "line": 21,
-      "style": "\"",
-      "include": "ingress-v2-scanner.h"
-    },
-    {
-      "from": "uwp/App.cpp",
-      "line": 22,
-      "style": "\"",
-      "include": "ingress-route-budget.h"
-    },
-    {
-      "from": "uwp/App.cpp",
-      "line": 23,
       "style": "<",
       "include": "winrt/Windows.Foundation.Metadata.h"
     },
     {
       "from": "uwp/App.cpp",
-      "line": 27,
+      "line": 25,
       "style": "<",
       "include": "thread"
     },
     {
       "from": "uwp/App.cpp",
-      "line": 28,
+      "line": 26,
       "style": "<",
       "include": "utility"
     },
@@ -4574,19 +4640,19 @@
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
-      "line": 396,
+      "line": 398,
       "style": "\"",
       "include": "gpu-proof-pilot.inc"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
-      "line": 397,
+      "line": 399,
       "style": "\"",
       "include": "generation-runner.inc"
     },
     {
       "from": "uwp/cpu-expert-pilot.cpp",
-      "line": 398,
+      "line": 400,
       "style": "\"",
       "include": "gpu-identity-pilot.inc"
     },
@@ -4617,42 +4683,54 @@
     {
       "from": "uwp/dev-run-input.h",
       "line": 6,
-      "style": "<",
-      "include": "windows.h"
+      "style": "\"",
+      "include": "xllama/qualification_mailbox.h"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 7,
       "style": "<",
-      "include": "bcrypt.h"
+      "include": "chrono"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 8,
       "style": "<",
-      "include": "array"
+      "include": "windows.h"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 9,
       "style": "<",
-      "include": "filesystem"
+      "include": "bcrypt.h"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 10,
       "style": "<",
-      "include": "cstring"
+      "include": "array"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 11,
       "style": "<",
-      "include": "memory"
+      "include": "filesystem"
     },
     {
       "from": "uwp/dev-run-input.h",
       "line": 12,
+      "style": "<",
+      "include": "cstring"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 13,
+      "style": "<",
+      "include": "memory"
+    },
+    {
+      "from": "uwp/dev-run-input.h",
+      "line": 14,
       "style": "<",
       "include": "mutex"
     },
@@ -4805,6 +4883,84 @@
       "line": 2,
       "style": "<",
       "include": "atomic"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 4,
+      "style": "\"",
+      "include": "dev-run-input.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 5,
+      "style": "\"",
+      "include": "gpu-identity-input.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 6,
+      "style": "\"",
+      "include": "gpu-proof-input.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 7,
+      "style": "\"",
+      "include": "ingress-route-budget.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 8,
+      "style": "\"",
+      "include": "xllama/qualification_profiles.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 9,
+      "style": "\"",
+      "include": "xllama/qualification_receipts.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 10,
+      "style": "\"",
+      "include": "xllama/qualification_release.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 11,
+      "style": "\"",
+      "include": "xllama/qualification_release_window.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 12,
+      "style": "\"",
+      "include": "xllama/generation_runner.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 13,
+      "style": "<",
+      "include": "winrt/Windows.ApplicationModel.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 14,
+      "style": "<",
+      "include": "winrt/Windows.UI.Xaml.Controls.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 15,
+      "style": "<",
+      "include": "winrt/Windows.UI.Core.h"
+    },
+    {
+      "from": "uwp/qualification-shell.h",
+      "line": 16,
+      "style": "<",
+      "include": "thread"
     }
   ],
   "not_transitive_SDK_or_link_proof": true

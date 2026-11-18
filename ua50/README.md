@@ -3,12 +3,20 @@
 The patch rationale, implementation and evidence limits have one home:
 [Demand-loaded MoE experts](../docs/ua50-ssd-moe.md).
 
+## Current candidate status
+
+Patch33 replaces launch-file diagnostic dispatch with a safe minimal no-model qualification shell on every dev activation. MANUAL is immutable; diagnostic work requires a second exact-current-instance command with native-issued expiry and independent external authorization. No default model provisioning, MainPage initialization or LAN inference server starts in this shell. Retained historical tickets/claims are preserved and never replayed.
+
+Post-work resource review occurs while the process is alive and does not grant scientific acceptance. One fresh bounded release-window query reports the original600s/600-poll window without reset; release-v2 binds its exact response/challenge. Independent steady/poll horizons and native final checks after reads and claim durability refuse late/unknown release. Timing assumptions remain conditional postartifact qualification, not a completion guarantee.
+
+Patch32 produced unsigned Windows run44291441810 and signed1522; that installed version remains unchanged and its external-clock protected-UI route is unsupported by current tools. Patch33 has source/host pair review only, with no Windows compile or artifact yet. The external executable operator, keys, raw evidence, packages and author fixtures are private and excluded from this publication. Future artifact/PFN/QA and genuine independent issuer inputs remain unresolved until separately qualified.
+
 ## Pinned inputs
 
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
-- Current 32-patch App.cpp include-path correction source lock SHA-256:
-  `e8e83fa00031f532dbcc844a714096d82e4c2b23a49109b24ba3696424d1e58a`.
+- Current 33-patch no-model bootstrap/release-window source lock SHA-256:
+  `ee2b5f939e2ec7b069453ab8d8a3e4693e75258b256727264e757b5987cd3da9`.
 - The prior 17-patch lock `921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe`
   remains the binding for Windows run 43825061482; that build did not contain the followup fixes.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
@@ -48,7 +56,7 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-Existing successor signing receipts bind earlier artifacts, including signed 1520. The current 32-patch source cannot pass those old exact receipt guards. A future signed successor requires a new unsigned artifact, independent artifact QA and a derived signing input. This preparation does not select or sign a package.
+Existing successor signing receipts bind earlier artifacts, including signed 1520. The current 33-patch source cannot pass those old exact receipt guards. A future signed successor requires a new unsigned artifact, independent artifact QA and a derived signing input. This preparation does not select or sign a package.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -59,16 +67,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch e8e83fa00031f532dbcc844a714096d82e4c2b23a49109b24ba3696424d1e58a
+python operator/ua50/prepare_sources.py product operator/ua50 patch ee2b5f939e2ec7b069453ab8d8a3e4693e75258b256727264e757b5987cd3da9
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, thirty-two ordered patch files and source/import inventories. Old
+exact lock, thirty-three ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 96 selected shipping postimages,
+the pinned route once and checks all 102 selected shipping postimages,
 including shipping `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 

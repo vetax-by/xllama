@@ -1,0 +1,850 @@
+--- a/include/xllama/generation_result.h
++++ b/include/xllama/generation_result.h
+@@ -2,6 +2,13 @@
+ #include "generation_profile.h"
+ #include <charconv>
+ namespace xllama::generation {
++// Observation availability is distinct from GpuCounts default initialization.
++// Caller sets observed only after actual post-drain counts() succeeds.
++inline std::string gpu_terminal_fields(bool requested,bool observed,bool terminal){
++ return "\"GPU_terminal\":"+(!requested?std::string("true"):observed?std::string(terminal?"true":"false"):std::string("null"))+
++        ",\"GPU_terminal_status\":"+first_answer::quote(!requested?"NOT_REQUESTED":!observed?"UNAVAILABLE":terminal?"OBSERVED_TERMINAL":"OBSERVED_NOT_TERMINAL");
++}
++
+ struct ResultContext {
+  std::string config_sha,permit_sha,package,effective_json="null",prerequisites_json="null",counters_json="null",error;
+  uint32_t pid=0;bool native_success=false,pre_sha=false,post_sha=false,owner_closed=false,file_closed=false,monitor_joined=false,trace_complete=false;
+--- a/include/xllama/gpu_diagnostic_plan_v3.h
++++ b/include/xllama/gpu_diagnostic_plan_v3.h
+@@ -65,12 +65,14 @@
+   p.graph_memory=b.at("max_extra_memory_bytes").range(1u<<20,Plan::memory_ceiling);
+   p.graph_work=b.at("max_reference_work").range(1,Plan::work_ceiling);
+   p.graph_time_ms=uint32_t(b.at("max_time_ms").range(1000,Plan::time_ceiling_ms));
++  p.graph.reserve(8192);
+   p.graph_memory_upper=1048576;
+   p.graph_output_upper=4096;
+   for(uint32_t position=0;position<Plan::max_positions;++position)if(pos.contains(position,Plan::max_positions))
+    for(uint32_t layer=0;layer<Plan::max_layers;++layer)if(layers.contains(layer,Plan::max_layers))
+     for(const auto*point:chosen){
+      if(!point->layer&&layer!=0)continue;
++     dev_run::need(p.graph.size()<8192,"graph expanded bound before allocation");
+      p.graph.push_back({position,layer,point->key});
+      p.graph_memory_upper+=sizeof(gpu_proof::GraphWitness::Row)+sizeof(size_t)+uint64_t(point->max_elements)*8;
+      p.graph_output_upper+=gpu_proof::GraphWitness::max_encoded_row_bytes;
+--- /dev/null
++++ b/include/xllama/qualification_mailbox.h
+@@ -0,0 +1,126 @@
++#pragma once
++#include "dev_run_config.h"
++#include "ingress_reason_v2.h"
++#include <functional>
++#include <limits>
++#include <atomic>
++
++namespace xllama::qualification {
++inline constexpr size_t prepare_cap=4096, command_cap=4096, profile_cap=16384;
++inline constexpr size_t receipt_cap=16384, retained_charge=4u<<20;
++inline constexpr uint64_t control_output_charge=128u<<10;
++inline constexpr uint64_t ready_wait_ms=120000, manual_wait_ms=120000;
++inline constexpr uint64_t clock_slack_ms=2000, poll_ms=500, max_polls=240;
++inline constexpr char prepare_leaf[]="ua80-qualification-v1.prepare.json";
++enum class Stage { none, identity, proof, cpu_dev, generation };
++enum class Mode { manual, diagnostic };
++enum class Phase { manual, ready, claiming, running, returned, unknown, expired, abandoned };
++enum PreworkMask:uint32_t { absent_prepare=1u<<0,invalid_prepare=1u<<1,foreign_package=1u<<2,profile_refused=1u<<3,quota_refused=1u<<4,retained_namespace=1u<<5,clock_unavailable=1u<<6,wait_elapsed=1u<<7,poll_cap=1u<<8,io_unknown=1u<<9,clock_drift=1u<<10,explicit_manual=1u<<11,epoch_expired=1u<<12,receipt_unavailable=1u<<13,worker_setup=1u<<14 };
++inline const char* name(Stage s){switch(s){case Stage::none:return "none";case Stage::identity:return "identity";case Stage::proof:return "proof";case Stage::cpu_dev:return "cpu_dev";case Stage::generation:return "generation";}return "invalid";}
++inline const char* name(Phase p){switch(p){case Phase::manual:return "MANUAL";case Phase::ready:return "READY";case Phase::claiming:return "CLAIMING";case Phase::running:return "RUNNING";case Phase::returned:return "WORK_RETURNED_NOT_ACCEPTED";case Phase::unknown:return "UNKNOWN_NO_RETRY";case Phase::expired:return "READY_EXPIRED";case Phase::abandoned:return "ABANDONED_NO_ACCEPTANCE";}return "UNKNOWN";}
++inline std::string text(const dev_run::Json& j,const char* key,size_t cap){const auto&v=j.at(key);dev_run::need(v.type==dev_run::Json::Type::string&&v.text.size()<=cap,"mailbox string");return v.text;}
++inline std::string hash(const dev_run::Json&j,const char*k){auto s=text(j,k,64);dev_run::need(dev_run::hex(s,64),"mailbox hash");return s;}
++inline bool selection_id(const std::string&s){return !s.empty()&&s.size()<=64&&std::all_of(s.begin(),s.end(),[](char c){return(c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-';});}
++inline std::string bounded_detail(const std::string&s){if(!first_answer::utf8(s))return "diagnostic detail unavailable: invalid UTF8";auto out=s.substr(0,512);while(!out.empty()&&!first_answer::utf8(out))out.pop_back();return out;}
++inline Stage stage(const std::string&s){if(s=="none")return Stage::none;if(s=="identity")return Stage::identity;if(s=="proof")return Stage::proof;if(s=="cpu_dev")return Stage::cpu_dev;if(s=="generation")return Stage::generation;throw std::runtime_error("unknown mailbox stage");}
++inline std::string leaf(const std::string&run,const char*suffix){dev_run::need(dev_run::run_id(run),"mailbox run");return "ua80-qualification-v1."+run+"."+suffix;}
++struct Prepare {
++ Mode mode=Mode::manual;Stage work=Stage::none;
++ std::string run,selection,package,artifact_sha,profile_sha,prerequisite_sha,selection_sha;
++};
++inline Prepare prepare(const std::string&raw){
++ const auto j=dev_run::Parser(raw).parse(prepare_cap);
++ j.keys({"schema","mode","stage","run_id","selection_id","full_package_name","signed_artifact_sha256","profile_sha256","prerequisite_receipt_sha256","selection_receipt_sha256","issuer"});
++ j.at("schema").eq("xllama-qualification-prepare-v1");j.at("issuer").eq("nominated-ops-external-authority");
++ Prepare p;const auto mode=text(j,"mode",16);dev_run::need(mode=="manual"||mode=="diagnostic","mailbox mode");p.mode=mode=="manual"?Mode::manual:Mode::diagnostic;
++ p.work=stage(text(j,"stage",16));p.run=text(j,"run_id",32);dev_run::need(dev_run::run_id(p.run),"prepare run");
++ p.selection=text(j,"selection_id",64);dev_run::need(selection_id(p.selection),"prepare selection");
++ p.package=text(j,"full_package_name",160);dev_run::need(p.package.size()>=32,"prepare package");
++ p.artifact_sha=hash(j,"signed_artifact_sha256");p.profile_sha=hash(j,"profile_sha256");p.prerequisite_sha=hash(j,"prerequisite_receipt_sha256");p.selection_sha=hash(j,"selection_receipt_sha256");
++ dev_run::need((p.mode==Mode::manual)==(p.work==Stage::none),"mode/stage mismatch");return p;
++}
++struct Command {
++ std::string run,selection,package,instance,nonce,ready_sha,prepare_sha,config_sha,permit_sha,selection_sha,artifact_sha;
++ Stage work=Stage::none;uint64_t phase=0,issued_utc=0,expires=0;
++};
++inline Command command(const std::string&raw){
++ const auto j=dev_run::Parser(raw).parse(command_cap);
++ j.keys({"schema","stage","run_id","selection_id","full_package_name","signed_artifact_sha256","instance_id","nonce_sha256","ready_sha256","prepare_sha256","config_sha256","permit_sha256","selection_receipt_sha256","phase","issued_at_epoch_ms","expires_at_epoch_ms"});
++ j.at("schema").eq("xllama-qualification-command-v1");Command c;c.work=stage(text(j,"stage",16));
++ c.run=text(j,"run_id",32);dev_run::need(dev_run::run_id(c.run),"command run");c.selection=text(j,"selection_id",64);dev_run::need(selection_id(c.selection),"command selection");
++ c.package=text(j,"full_package_name",160);c.instance=text(j,"instance_id",32);dev_run::need(dev_run::run_id(c.instance),"command instance");
++ c.artifact_sha=hash(j,"signed_artifact_sha256");c.nonce=hash(j,"nonce_sha256");c.ready_sha=hash(j,"ready_sha256");c.prepare_sha=hash(j,"prepare_sha256");c.config_sha=hash(j,"config_sha256");c.permit_sha=hash(j,"permit_sha256");c.selection_sha=hash(j,"selection_receipt_sha256");
++ c.phase=j.at("phase").range(1,1);c.issued_utc=j.at("issued_at_epoch_ms").range(1,INT64_MAX);c.expires=j.at("expires_at_epoch_ms").range(1,INT64_MAX);return c;
++}
++struct Clock {uint64_t utc=0,steady=0;};
++struct Anchor {
++ Clock first;uint64_t expiry=0;
++ bool uncertain(Clock n)const noexcept{
++  if(!first.utc||!n.utc||!first.steady||!n.steady||n.steady<first.steady||n.utc<first.utc)return true;
++  const auto elapsed=n.steady-first.steady,wall=n.utc-first.utc;
++  return elapsed>wall?elapsed-wall>clock_slack_ms:wall-elapsed>clock_slack_ms;
++ }
++ bool valid(Clock n)const noexcept{return !uncertain(n)&&n.utc<expiry;}
++};
++struct Session {
++ Prepare selected;std::string actual_package,requested_package,instance,nonce,prepare_sha,ready_sha;Anchor clock;
++ uint32_t prework_mask=0;std::string prework_detail;Clock last_clock;bool clock_sampled=false;
++ struct Quota {uint64_t first=0,current=0,usage=0,bracket_first=0;uint32_t available=0,level=0;} quota;
++ Phase state=Phase::manual;uint64_t polls=0,dispatches=0;bool claim_attempted=false;
++ void initialize(const Prepare&p,const std::string&actual,const std::string&id,const std::string&n,const std::string&sha,Clock now){
++  dev_run::need(state==Phase::manual&&instance.empty(),"instance already latched");
++  dev_run::need(dev_run::run_id(id)&&dev_run::hex(n,64)&&dev_run::hex(sha,64),"native instance entropy shape");
++  instance=id;nonce=n;prepare_sha=sha;actual_package=actual;requested_package=p.package;selected=p;clock.first=now;last_clock=now;clock_sampled=true;
++  if(p.package!=actual){note(foreign_package,"requested PFN differs from actual native PFN");selected=Prepare{};selected.run=id;selected.package=actual;state=Phase::manual;return;}
++  if(p.mode!=Mode::diagnostic){note(explicit_manual,"explicit immutable manual mode");state=Phase::manual;return;}
++  if(!now.utc||!now.steady||now.utc>uint64_t(INT64_MAX)-1800000)note(clock_unavailable,"native UTC unavailable/overflow");
++  dev_run::need(now.utc&&now.steady&&now.utc<=uint64_t(INT64_MAX)-1800000,"native UTC unavailable/overflow");
++  clock.expiry=now.utc+(p.work==Stage::identity?300000:1800000);state=Phase::ready;
++ }
++ void note(uint32_t mask,const std::string&detail){prework_mask|=mask;prework_detail=bounded_detail(detail);}
++ void manual_fallback(uint32_t mask,const std::string&detail){
++  dev_run::need(!claim_attempted&&dispatches==0,"cannot downgrade work to manual");note(mask,detail);
++  selected=Prepare{};selected.run=instance;selected.package=actual_package;clock.expiry=0;state=Phase::manual;
++ }
++ bool poll(Clock now){if(state!=Phase::ready)return false;last_clock=now;uint32_t mask=0;
++  if(++polls>max_polls)mask|=poll_cap;
++  if(!clock.first.utc||!now.utc||!clock.first.steady||!now.steady)mask|=clock_unavailable;else if(clock.uncertain(now))mask|=clock_drift;
++  if(now.utc&&now.utc>=clock.expiry)mask|=epoch_expired;
++  if(now.steady>=clock.first.steady&&now.steady-clock.first.steady>=ready_wait_ms)mask|=wait_elapsed;
++  if(mask){note(mask,"readiness admission stopped; see exact predicate mask");state=Phase::expired;return false;}return true;}
++ void validate(const Command&c,Clock now)const{
++  dev_run::need(state==Phase::ready&&!claim_attempted&&clock.valid(now)&&now.steady-clock.first.steady<ready_wait_ms,"manual/spent/clock refused");
++  dev_run::need(c.run==selected.run&&c.selection==selected.selection&&c.package==selected.package&&c.artifact_sha==selected.artifact_sha&&c.instance==instance&&c.nonce==nonce&&c.ready_sha==ready_sha&&c.prepare_sha==prepare_sha&&c.work==selected.work&&c.selection_sha==selected.selection_sha&&c.phase==1&&c.issued_utc==clock.first.utc&&c.expires==clock.expiry,"command binding");
++ }
++ // The production caller and host fixtures use this same irreversible boundary.
++ // A failed durable claim is UNKNOWN and cannot be retried in this instance.
++ template<class Claim,class Dispatch>void execute(const Command&c,Clock now,Claim claim,Dispatch dispatch){
++  validate(c,now);claim_attempted=true;state=Phase::claiming;
++  try{claim();state=Phase::running;++dispatches;dispatch();state=Phase::returned;}
++  catch(...){state=Phase::unknown;throw;}
++ }
++ void refuse()noexcept{if(state==Phase::ready||state==Phase::claiming||state==Phase::running||state==Phase::returned)state=Phase::unknown;}
++ void abandon()noexcept{if(state!=Phase::running&&state!=Phase::claiming)state=Phase::abandoned;}
++};
++template<class Init,class Work,class Failure>bool worker_boundary(Init init,Work work,Failure failure)noexcept{
++ try{init();work();return true;}
++ catch(const std::exception&e){try{failure(e.what());}catch(...){}return false;}
++ catch(...){try{failure("unknown worker failure");}catch(...){}return false;}
++}
++struct RunGuard {
++ std::atomic<bool> active{false},abort{false};Anchor clock;ingress_reason_v2::Recorder reasons;
++ void start(const Anchor&a){dev_run::need(!active.load(),"qualification work owner busy");dev_run::need(!abort.load(),"qualification instance interrupted");clock=a;active.store(true,std::memory_order_release);}
++ uint32_t mask(Clock n)const noexcept{if(!active.load(std::memory_order_acquire))return 0;
++  return (abort.load()?uint32_t(ingress_reason_v2::abort_requested):0u)|
++   (n.utc&&n.utc>=clock.expiry?uint32_t(ingress_reason_v2::utc_expired):0u)|
++   (clock.uncertain(n)?uint32_t(ingress_reason_v2::clock_unknown):0u);
++ }
++ bool valid(Clock n)const noexcept{return mask(n)==0;}
++ void stop()noexcept{abort.store(true);}
++ // clear only after the caller has returned and retained owners are reconciled.
++ void clear()noexcept{active.store(false,std::memory_order_release);}
++};
++inline RunGuard run_guard;
++// A public nonce binds an instance, not an independent issuer. The selected
++// Portal principal/receipt verifier and cooperating roster remain external.
++}
+--- /dev/null
++++ b/include/xllama/qualification_profiles.h
+@@ -0,0 +1,38 @@
++#pragma once
++#include "qualification_mailbox.h"
++#include "gpu_identity.h"
++#include "gpu_run_config.h"
++#include "generation_profile.h"
++namespace xllama::qualification {
++inline bool same_generation_profile(const generation::Request&a,const generation::Request&b){const auto&x=a.profile;const auto&y=b.profile;return a.id==b.id&&a.prompt==b.prompt&&x.hybrid==y.hybrid&&x.workers==y.workers&&x.context==y.context&&x.prompt_cap==y.prompt_cap&&x.max_new==y.max_new&&x.slots==y.slots&&x.ceiling==y.ceiling;}
++inline void joint_diagnostic_envelope(const gpu_run::Config&c){
++ if(c.diagnostics_v3){const auto&p=*c.diagnostics_v3;
++  dev_run::need(p.base.memory_budget+p.graph_memory+p.cross_memory+p.held_memory+p.serializer_charge+retained_charge<=gpu_diagnostic::Plan::memory_ceiling,"mailbox plus optional diagnostic joint64MiB");
++  dev_run::need(p.base.output_budget+p.graph_output+p.cross_output+p.held_output+control_output_charge<=gpu_diagnostic::Plan::output_ceiling,"mailbox plus optional encoded output joint2MiB");
++ }else if(c.diagnostics){dev_run::need(c.diagnostics->memory_budget+retained_charge<=gpu_diagnostic::Plan::memory_ceiling&&c.diagnostics->output_budget+control_output_charge<=gpu_diagnostic::Plan::output_ceiling,"mailbox plus legacy diagnostic joint envelope");}
++}
++inline void validate_profile(Stage stage,const std::string&raw,const std::string&run){
++ if(stage==Stage::identity){const auto j=dev_run::Parser(raw).parse(profile_cap);j.keys({"schema","run_id","contract_sha256"});j.at("schema").eq("xllama-identity-profile-v1");j.at("run_id").eq(run.c_str());j.at("contract_sha256").eq(gpu_identity::contract_sha);}
++ else if(stage==Stage::proof){const auto c=gpu_run::parse(raw);dev_run::need(c.id==run,"proof profile run");joint_diagnostic_envelope(c);}
++ else if(stage==Stage::cpu_dev)dev_run::need(dev_run::parse_config(raw).id==run,"CPU profile run");
++ else if(stage==Stage::generation){const auto request=generation::parse(raw);dev_run::need(request.id==run&&request.permit_sha==std::string(64,'0'),"generation immutable profile placeholder");}
++ else throw std::runtime_error("no diagnostic stage");
++}
++inline std::string issued_ticket(const Command&c){
++ const auto q=first_answer::quote;
++ if(c.work==Stage::identity)return "{\"schema\":\"ua68-gpu-identity-request-v2\",\"contract_sha256\":"+q(gpu_identity::contract_sha)+",\"run_id\":"+q(c.run)+",\"selection_id\":"+q(c.selection)+",\"expires_at_epoch_ms\":"+std::to_string(c.expires)+"}";
++ dev_run::need(c.work==Stage::proof||c.work==Stage::cpu_dev,"native ticket stage");
++ return "{\"schema\":"+q(c.work==Stage::proof?"ua68-gpu-proof-ticket-v2":"xllama-dev-run-ticket-v2")+",\"selection_id\":"+q(c.selection)+",\"run_id\":"+q(c.run)+",\"config_sha256\":"+q(c.config_sha)+",\"engine_contract_sha256\":"+q(c.work==Stage::proof?gpu_run::engine_sha:dev_run::engine_digest)+",\"expires_at_epoch_ms\":"+std::to_string(c.expires)+"}";
++}
++inline void validate_final(const Prepare&p,const Command&c,const std::string&profile,const std::string&config,const std::string&permit,uint64_t now){
++ dev_run::need(c.work==p.work&&c.run==p.run,"final stage/run");
++ if(c.work==Stage::generation){
++  const auto a=generation::parse(profile),b=generation::parse(config);
++  dev_run::need(same_generation_profile(a,b)&&b.permit_sha==c.permit_sha,"generation final/profile permit binding");
++  const auto v=generation::permit(permit,now,p.package);
++  dev_run::need(v.expires==c.expires&&v.artifact==p.artifact_sha&&v.model2==p.prerequisite_sha,"generation issued expiry/artifact/prerequisite");
++ }else{dev_run::need(profile==config&&c.permit_sha==std::string(64,'0'),"exact static profile/config");validate_profile(c.work,config,c.run);
++  if(c.work==Stage::proof){const auto v=gpu_run::parse(config);if(v.stage==gpu_proof::Stage::Model2)dev_run::need(v.primitive_acceptance_sha==p.prerequisite_sha,"model2 prerequisite");}
++ }
++}
++}
+--- /dev/null
++++ b/include/xllama/qualification_receipts.h
+@@ -0,0 +1,12 @@
++#pragma once
++#include "qualification_mailbox.h"
++namespace xllama::qualification {
++inline std::string quoted(const std::string&s){return first_answer::quote(s);}
++inline std::string prework_fields(const Session&s){const auto n=s.last_clock;const bool steady=s.clock_sampled&&s.clock.first.steady&&n.steady>=s.clock.first.steady;return "\"prework_mask\":"+std::to_string(s.prework_mask)+",\"prework_detail\":"+quoted(s.prework_detail)+",\"device_utc_available\":"+(n.utc?"true":"false")+",\"device_utc_ms\":"+(n.utc?std::to_string(n.utc):std::string("null"))+",\"steady_elapsed_ms\":"+(steady?std::to_string(n.steady-s.clock.first.steady):std::string("null"));}
++inline std::string quota_fields(const Session&s){const auto&q=s.quota;return "\"quota_available_mask\":"+std::to_string(q.available)+",\"quota_first_limit\":"+((q.available&1)?std::to_string(q.first):std::string("null"))+",\"quota_current_limit\":"+((q.available&8)?std::to_string(q.current):std::string("null"))+",\"quota_usage\":"+((q.available&2)?std::to_string(q.usage):std::string("null"))+",\"quota_level\":"+((q.available&4)?std::to_string(q.level):std::string("null"))+",\"quota_bracket_initial_limit\":"+(q.bracket_first?std::to_string(q.bracket_first):std::string("null"));}
++inline std::string base_fields(const Session&s){const auto&p=s.selected;return "\"run_id\":"+quoted(p.run)+",\"selection_id\":"+quoted(p.selection)+",\"full_package_name\":"+quoted(s.actual_package)+",\"requested_full_package_name\":"+quoted(s.requested_package)+",\"signed_artifact_sha256\":"+quoted(p.artifact_sha)+",\"instance_id\":"+quoted(s.instance)+",\"nonce_sha256\":"+quoted(s.nonce)+",\"prepare_sha256\":"+quoted(s.prepare_sha)+",\"stage\":"+quoted(name(p.work));}
++inline std::string control_body(const Session&s,uint32_t pid,const std::string&phase,const std::string&command_sha,const std::string&completion_nonce,uint32_t stop_mask,const std::string&detail){
++ return "{\"schema\":\"xllama-qualification-receipt-v1\","+base_fields(s)+","+prework_fields(s)+","+quota_fields(s)+",\"phase\":"+quoted(phase)+",\"ready_sha256\":"+quoted(s.ready_sha)+",\"command_sha256\":"+quoted(command_sha)+",\"completion_nonce_sha256\":"+quoted(completion_nonce)+",\"pid\":"+std::to_string(pid)+",\"detail\":"+quoted(bounded_detail(detail))+",\"additional_stop_mask\":"+std::to_string(stop_mask)+",\"stage_reason_status\":\"SEE_NATIVE_REASON_OR_UNAVAILABLE\",\"native_resources_closed\":null,\"normal\":false,\"acceptance\":\"NOT_GRANTED\",\"external_issuer_verified\":false}";
++}
++inline std::string ready_body(const Session&s,uint32_t pid,bool stage_handlers=true){return "{\"schema\":\"xllama-qualification-ready-v1\","+base_fields(s)+","+prework_fields(s)+","+quota_fields(s)+",\"phase\":1,\"mode\":"+quoted(s.state==Phase::ready?"diagnostic":"manual")+",\"pid\":"+std::to_string(pid)+",\"issued_at_epoch_ms\":"+std::to_string(s.clock.first.utc)+",\"expires_at_epoch_ms\":"+std::to_string(s.clock.expiry)+",\"ready_wait_ms\":120000,\"retained_charge_bytes\":"+std::to_string(retained_charge)+",\"critical_receipt_cap\":16384,\"model_opened\":false,\"stage_started\":false,\"native_authenticates_external_issuer\":false,\"activation_origin_verified\":false,\"runtime_owner\":null,\"compiled_stage_handlers\":"+(stage_handlers?std::string("[\"identity\",\"proof_primitive16\",\"proof_model2_v1_v4\",\"cpu_dev\",\"generation_explicit_permit\"]"):std::string("[]"))+"}";}
++}
+--- /dev/null
++++ b/include/xllama/qualification_release.h
+@@ -0,0 +1,44 @@
++#pragma once
++#include "qualification_mailbox.h"
++namespace xllama::qualification {
++inline constexpr size_t closure_cap=16384, review_cap=65536;
++inline constexpr uint64_t release_wait_ms=600000,release_polls=600;
++struct Release {std::string run,selection,package,instance,receipt_sha,closure_sha,completion_nonce;};
++struct Closure {std::string run,selection,package,instance,command_sha,receipt_sha,output_sha,review_sha,artifact_sha,completion_nonce;Stage work=Stage::none;};
++inline Release release(const std::string&raw){
++ const auto j=dev_run::Parser(raw).parse(command_cap);
++ j.keys({"schema","run_id","selection_id","full_package_name","instance_id","receipt_sha256","closure_sha256","completion_nonce_sha256","phase","action"});
++ j.at("schema").eq("xllama-qualification-release-v1");j.at("phase").eq(int64_t(2));j.at("action").eq("exit_after_independent_native_closure");Release r;
++ r.run=text(j,"run_id",32);r.selection=text(j,"selection_id",64);r.package=text(j,"full_package_name",160);r.instance=text(j,"instance_id",32);r.completion_nonce=hash(j,"completion_nonce_sha256");r.receipt_sha=hash(j,"receipt_sha256");r.closure_sha=hash(j,"closure_sha256");dev_run::need(dev_run::run_id(r.run)&&dev_run::run_id(r.instance)&&selection_id(r.selection),"release identity");return r;
++}
++inline Closure closure(const std::string&raw){
++ const auto j=dev_run::Parser(raw).parse(closure_cap);
++ j.keys({"schema","run_id","selection_id","full_package_name","instance_id","stage","signed_artifact_sha256","command_sha256","receipt_sha256","native_output_sha256","completion_nonce_sha256","independent_review_sha256","native_resources_closed","issuer","post_work_review"});
++ j.at("schema").eq("xllama-qualification-closure-attestation-v1");j.at("issuer").eq("nominated-ops-external-authority");j.at("native_resources_closed").eq(true);j.at("post_work_review").eq(true);Closure c;
++ c.run=text(j,"run_id",32);c.selection=text(j,"selection_id",64);c.package=text(j,"full_package_name",160);c.instance=text(j,"instance_id",32);c.work=stage(text(j,"stage",16));c.artifact_sha=hash(j,"signed_artifact_sha256");c.command_sha=hash(j,"command_sha256");c.receipt_sha=hash(j,"receipt_sha256");c.completion_nonce=hash(j,"completion_nonce_sha256");c.output_sha=hash(j,"native_output_sha256");c.review_sha=hash(j,"independent_review_sha256");dev_run::need(dev_run::run_id(c.run)&&dev_run::run_id(c.instance)&&selection_id(c.selection),"closure identity");return c;
++}
++// Closed PRE-EXIT phase binding, NOT authentication of the external reviewer
++// or replacement for its stage-specific scientific-resource evidence check.
++inline void validate_resource_review(const std::string&raw,const Session&s,const Closure&c,uint32_t pid){
++ const auto j=dev_run::Parser(raw).parse(review_cap);
++ j.keys({"schema","phase","status","issuer","run_id","selection_id","instance_id","full_package_name","signed_artifact_sha256","stage","pid","instance_nonce_sha256","completion_nonce_sha256","command_sha256","control_receipt_sha256","native_output_sha256","native_terminal_sha256","trace_binding_sha256","trace_sha256","process_reply_sha256","evidence_manifest_sha256","resource_scope","resource_state","native_normal_reported","scientific_acceptance","process_state","process_closure","http_caller_closure","post_work_review"});
++ j.at("schema").eq("xllama-independent-pre-exit-resource-review-v1");j.at("phase").eq("PRE_EXIT_RESOURCE_ONLY");j.at("status").eq("STAGE_RESOURCES_CLOSED_PROCESS_PENDING");
++ j.at("resource_scope").eq("STAGE_OWNED_RESOURCES");j.at("resource_state").eq("CLOSED");j.at("scientific_acceptance").eq("NOT_GRANTED");j.at("process_state").eq("CURRENT_INSTANCE_ALIVE");j.at("process_closure").eq("PENDING");j.at("http_caller_closure").eq("PENDING");j.at("post_work_review").eq(true);
++ dev_run::need(!text(j,"issuer",256).empty(),"external reviewer identity unavailable");
++ j.at("run_id").eq(s.selected.run.c_str());j.at("selection_id").eq(s.selected.selection.c_str());j.at("instance_id").eq(s.instance.c_str());j.at("full_package_name").eq(s.actual_package.c_str());j.at("signed_artifact_sha256").eq(s.selected.artifact_sha.c_str());j.at("stage").eq(name(s.selected.work));j.at("pid").eq(int64_t(pid));j.at("instance_nonce_sha256").eq(s.nonce.c_str());
++ j.at("completion_nonce_sha256").eq(c.completion_nonce.c_str());j.at("command_sha256").eq(c.command_sha.c_str());j.at("control_receipt_sha256").eq(c.receipt_sha.c_str());j.at("native_output_sha256").eq(c.output_sha.c_str());
++ (void)hash(j,"process_reply_sha256");(void)hash(j,"evidence_manifest_sha256");dev_run::need(j.at("native_normal_reported").type==dev_run::Json::Type::boolean,"resource normal report type");
++ for(const char*k:{"native_terminal_sha256","trace_binding_sha256","trace_sha256"})if(j.at(k).type!=dev_run::Json::Type::null)(void)hash(j,k);
++ dev_run::need(s.selected.work==Stage::generation?j.at("native_terminal_sha256").type==dev_run::Json::Type::null:j.at("native_terminal_sha256").type==dev_run::Json::Type::string,"stage terminal evidence kind");
++ if(s.selected.work==Stage::generation){(void)hash(j,"trace_binding_sha256");(void)hash(j,"trace_sha256");}
++}
++inline void validate_release(const Session&s,const Release&r,const Closure&c,const std::string&receipt_sha,const std::string&output_sha,const std::string&command_sha,const std::string&completion_nonce){
++ dev_run::need(dev_run::hex(completion_nonce,64)&&r.completion_nonce==completion_nonce&&c.completion_nonce==completion_nonce,"release post-work nonce");
++ dev_run::need(s.state==Phase::returned&&s.claim_attempted&&s.dispatches==1,"release only after actual adapter return");
++ dev_run::need(r.run==s.selected.run&&r.selection==s.selected.selection&&r.package==s.actual_package&&r.instance==s.instance&&r.receipt_sha==receipt_sha,"release current instance");
++ dev_run::need(c.run==r.run&&c.selection==r.selection&&c.package==r.package&&c.instance==r.instance&&c.work==s.selected.work&&c.artifact_sha==s.selected.artifact_sha&&c.command_sha==command_sha&&c.receipt_sha==receipt_sha&&c.output_sha==output_sha,"closure current native binding");
++ // Issuer, independent review authenticity and post-work chronology MUST be
++ // verified externally before either upload. SHA matching is not proof of
++ // issuer or chronology and does not grant native/numerical acceptance.
++}
++}
+--- /dev/null
++++ b/include/xllama/qualification_release_window.h
+@@ -0,0 +1,81 @@
++#pragma once
++#include "qualification_release.h"
++#include "qualification_receipts.h"
++namespace xllama::qualification {
++inline constexpr size_t release_query_cap=4096,release_window_cap=4096;
++struct ReleaseQuery {
++ std::string run,selection,package,instance,artifact,command,control,completion,challenge;
++};
++inline ReleaseQuery release_query(const std::string&raw){
++ const auto j=dev_run::Parser(raw).parse(release_query_cap);
++ j.keys({"schema","run_id","selection_id","full_package_name","instance_id","signed_artifact_sha256","command_sha256","control_receipt_sha256","completion_nonce_sha256","host_challenge_sha256"});
++ j.at("schema").eq("xllama-qualification-release-window-query-v1");ReleaseQuery q;
++ q.run=text(j,"run_id",32);q.selection=text(j,"selection_id",64);q.package=text(j,"full_package_name",160);q.instance=text(j,"instance_id",32);
++ q.artifact=hash(j,"signed_artifact_sha256");q.command=hash(j,"command_sha256");q.control=hash(j,"control_receipt_sha256");q.completion=hash(j,"completion_nonce_sha256");q.challenge=hash(j,"host_challenge_sha256");
++ dev_run::need(dev_run::run_id(q.run)&&dev_run::run_id(q.instance)&&selection_id(q.selection),"release query identity");return q;
++}
++inline void validate_release_query(const ReleaseQuery&q,const Session&s,const std::string&command,const std::string&control,const std::string&completion){
++ dev_run::need(s.state==Phase::returned&&s.claim_attempted&&s.dispatches==1,"window only after actual adapter return");
++ dev_run::need(q.run==s.selected.run&&q.selection==s.selected.selection&&q.package==s.actual_package&&q.instance==s.instance&&q.artifact==s.selected.artifact_sha&&q.command==command&&q.control==control&&q.completion==completion&&dev_run::hex(completion,64),"window current completed instance");
++}
++enum ReleaseMask:uint32_t { release_not_started=1u,release_aborted=2u,release_clock_unavailable=4u,release_clock_rollback=8u,release_clock_drift=16u,release_time_exhausted=32u,release_polls_exhausted=64u };
++struct ReleaseObservation {uint32_t mask=0;Clock sample{};uint64_t elapsed=0,polls=0;bool elapsed_available=false,started=false,abort=false;};
++struct ReleaseStop:std::runtime_error {ReleaseObservation observation;explicit ReleaseStop(ReleaseObservation o):std::runtime_error("release stopped; see bounded release-window-refusal.json"),observation(o){}};
++inline std::string release_stop_body(const Session&s,uint32_t pid,const ReleaseObservation&o,const std::string&command,const std::string&completion){
++ return "{\"schema\":\"xllama-qualification-release-stop-v1\",\"status\":\"RELEASE_STOPPED_NO_ACCEPTANCE\",\"run_id\":"+quoted(s.selected.run)+",\"selection_id\":"+quoted(s.selected.selection)+",\"instance_id\":"+quoted(s.instance)+",\"full_package_name\":"+quoted(s.actual_package)+",\"signed_artifact_sha256\":"+quoted(s.selected.artifact_sha)+",\"stage\":"+quoted(name(s.selected.work))+",\"pid\":"+std::to_string(pid)+",\"command_sha256\":"+quoted(command)+",\"completion_nonce_sha256\":"+quoted(completion)+",\"release_mask\":"+std::to_string(o.mask)+",\"elapsed_ms\":"+(o.elapsed_available?std::to_string(o.elapsed):"null")+",\"polls_consumed\":"+std::to_string(o.polls)+",\"utc_available\":"+(o.sample.utc?"true":"false")+",\"steady_available\":"+(o.sample.steady?"true":"false")+",\"release_started\":"+(o.started?"true":"false")+",\"abort_requested\":"+(o.abort?"true":"false")+",\"native_resources_closed\":null,\"scientific_acceptance\":\"NOT_GRANTED\"}";
++}
++inline ReleaseObservation parse_release_stop(const std::string&raw){
++ const auto j=dev_run::Parser(raw).parse(release_window_cap);j.keys({"schema","status","run_id","selection_id","instance_id","full_package_name","signed_artifact_sha256","stage","pid","command_sha256","completion_nonce_sha256","release_mask","elapsed_ms","polls_consumed","utc_available","steady_available","release_started","abort_requested","native_resources_closed","scientific_acceptance"});
++ j.at("schema").eq("xllama-qualification-release-stop-v1");j.at("status").eq("RELEASE_STOPPED_NO_ACCEPTANCE");j.at("scientific_acceptance").eq("NOT_GRANTED");dev_run::need(j.at("native_resources_closed").type==dev_run::Json::Type::null,"stop not resource evidence");dev_run::need(dev_run::run_id(text(j,"run_id",32))&&dev_run::run_id(text(j,"instance_id",32))&&selection_id(text(j,"selection_id",64)),"stop identity");(void)text(j,"full_package_name",160);(void)stage(text(j,"stage",16));(void)hash(j,"signed_artifact_sha256");(void)hash(j,"command_sha256");(void)hash(j,"completion_nonce_sha256");(void)j.at("pid").range(1,UINT32_MAX);
++ ReleaseObservation o;o.mask=uint32_t(j.at("release_mask").range(1,127));o.polls=j.at("polls_consumed").range(0,release_polls);o.elapsed_available=j.at("elapsed_ms").type!=dev_run::Json::Type::null;if(o.elapsed_available)o.elapsed=j.at("elapsed_ms").range(0,INT64_MAX);
++ for(const char*k:{"utc_available","steady_available","release_started","abort_requested"})dev_run::need(j.at(k).type==dev_run::Json::Type::boolean,"stop boolean");o.started=j.at("release_started").flag;o.abort=j.at("abort_requested").flag;o.sample.utc=j.at("utc_available").flag?1:0;o.sample.steady=j.at("steady_available").flag?1:0;
++ dev_run::need(bool(o.mask&release_not_started)==!o.started&&bool(o.mask&release_aborted)==o.abort&&bool(o.mask&release_clock_unavailable)==(!o.sample.utc||!o.sample.steady)&&bool(o.mask&release_time_exhausted)==(o.elapsed_available&&o.elapsed>=release_wait_ms)&&bool(o.mask&release_polls_exhausted)==(o.polls>=release_polls),"stop predicate snapshot mismatch");return o;
++}
++// Timing-only owner. Work UTC expiry is NOT a release predicate. This fresh
++// clock anchor detects unknown/rollback/drift independently of work expiry.
++// Poll count is separately bounded; no assertion that one poll == one second.
++struct ReleaseWindow {
++ Clock first{},last{};uint64_t polls=0;bool started=false,query_seen=false;std::string response_sha,challenge;
++ void start(Clock n){dev_run::need(!started,"release window cannot restart");if(!n.utc||!n.steady)throw ReleaseStop(observation(n));first=last=n;started=true;}
++ ReleaseObservation observation(Clock n,bool abort=false)const {
++  ReleaseObservation o;o.sample=n;o.polls=polls;o.started=started;o.abort=abort;
++  o.elapsed_available=started&&n.steady&&n.steady>=first.steady;if(o.elapsed_available)o.elapsed=n.steady-first.steady;
++  if(!started)o.mask|=release_not_started;if(abort)o.mask|=release_aborted;if(!n.utc||!n.steady)o.mask|=release_clock_unavailable;
++  const bool rollback=started&&((n.steady&&n.steady<first.steady)||(n.utc&&n.utc<first.utc)||(n.steady&&n.steady<last.steady)||(n.utc&&n.utc<last.utc));if(rollback)o.mask|=release_clock_rollback;
++  Anchor clock;clock.first=first;if(started&&n.utc&&n.steady&&!rollback&&clock.uncertain(n))o.mask|=release_clock_drift;
++  if(o.elapsed_available&&o.elapsed>=release_wait_ms)o.mask|=release_time_exhausted;if(polls>=release_polls)o.mask|=release_polls_exhausted;return o;
++ }
++ void check(Clock n,bool abort=false){const auto o=observation(n,abort);if(o.mask)throw ReleaseStop(o);last=n;}
++ void tick(Clock n,bool abort=false){check(n,abort);++polls;}
++ void acquire_query(){dev_run::need(started&&!query_seen,"release query one use");query_seen=true;}
++ std::string response(const ReleaseQuery&q,const Session&s,uint32_t pid,const std::string&query_sha,Clock n,bool abort=false){
++  check(n,abort);dev_run::need(query_seen&&response_sha.empty(),"release response one use");
++  dev_run::need(s.clock.first.steady&&n.steady>=s.clock.first.steady,"window instance clock unavailable");
++  const auto left=release_wait_ms-(n.steady-first.steady),count=release_polls-polls;
++  return "{\"schema\":\"xllama-qualification-release-window-v1\",\"status\":\"TIMING_ONLY_NOT_RESOURCE_AUTHORITY\",\"run_id\":"+quoted(q.run)+",\"selection_id\":"+quoted(q.selection)+",\"full_package_name\":"+quoted(s.actual_package)+",\"instance_id\":"+quoted(s.instance)+",\"signed_artifact_sha256\":"+quoted(s.selected.artifact_sha)+",\"stage\":"+quoted(name(s.selected.work))+",\"pid\":"+std::to_string(pid)+",\"command_sha256\":"+quoted(q.command)+",\"control_receipt_sha256\":"+quoted(q.control)+",\"completion_nonce_sha256\":"+quoted(q.completion)+",\"query_sha256\":"+quoted(query_sha)+",\"host_challenge_sha256\":"+quoted(q.challenge)+",\"remaining_steady_ms\":"+std::to_string(left)+",\"remaining_polls\":"+std::to_string(count)+",\"sample_instance_steady_elapsed_ms\":"+std::to_string(n.steady-s.clock.first.steady)+",\"timer_reset\":false,\"resources_closed\":null,\"scientific_acceptance\":\"NOT_GRANTED\"}";
++ }
++ void published(const std::string&sha,const std::string&host_challenge){dev_run::need(query_seen&&response_sha.empty()&&dev_run::hex(sha,64)&&dev_run::hex(host_challenge,64),"release publication binding");response_sha=sha;challenge=host_challenge;}
++};
++// Portable receiver parser for the exact native wire; external code still
++// authenticates acquisition/context and computes conservative age from POST.
++struct WindowReply {ReleaseQuery query;Stage work=Stage::none;uint32_t pid=0;std::string query_sha;uint64_t remaining_ms=0,remaining_polls=0,instance_elapsed_ms=0;};
++inline WindowReply window_reply(const std::string&raw){
++ const auto j=dev_run::Parser(raw).parse(release_window_cap);
++ j.keys({"schema","status","run_id","selection_id","full_package_name","instance_id","signed_artifact_sha256","stage","pid","command_sha256","control_receipt_sha256","completion_nonce_sha256","query_sha256","host_challenge_sha256","remaining_steady_ms","remaining_polls","sample_instance_steady_elapsed_ms","timer_reset","resources_closed","scientific_acceptance"});
++ j.at("schema").eq("xllama-qualification-release-window-v1");j.at("status").eq("TIMING_ONLY_NOT_RESOURCE_AUTHORITY");j.at("timer_reset").eq(false);j.at("scientific_acceptance").eq("NOT_GRANTED");dev_run::need(j.at("resources_closed").type==dev_run::Json::Type::null,"window is not resource evidence");WindowReply r;auto&q=r.query;
++ q.run=text(j,"run_id",32);q.selection=text(j,"selection_id",64);q.package=text(j,"full_package_name",160);q.instance=text(j,"instance_id",32);q.artifact=hash(j,"signed_artifact_sha256");q.command=hash(j,"command_sha256");q.control=hash(j,"control_receipt_sha256");q.completion=hash(j,"completion_nonce_sha256");q.challenge=hash(j,"host_challenge_sha256");
++ dev_run::need(dev_run::run_id(q.run)&&dev_run::run_id(q.instance)&&selection_id(q.selection),"window reply identity");r.work=stage(text(j,"stage",16));dev_run::need(r.work!=Stage::none,"window reply stage");r.pid=uint32_t(j.at("pid").range(1,UINT32_MAX));r.query_sha=hash(j,"query_sha256");r.remaining_ms=j.at("remaining_steady_ms").range(1,release_wait_ms);r.remaining_polls=j.at("remaining_polls").range(1,release_polls);r.instance_elapsed_ms=j.at("sample_instance_steady_elapsed_ms").range(1,INT64_MAX);return r;
++}
++inline void validate_window_reply(const WindowReply&r,const ReleaseQuery&q,Stage work,uint32_t pid,const std::string&query_sha){
++ const auto&a=r.query;dev_run::need(a.run==q.run&&a.selection==q.selection&&a.package==q.package&&a.instance==q.instance&&a.artifact==q.artifact&&a.command==q.command&&a.control==q.control&&a.completion==q.completion&&a.challenge==q.challenge&&r.work==work&&r.pid==pid&&r.query_sha==query_sha,"current one-use window reply");
++}
++struct TimedRelease {Release value;std::string window_sha,challenge;};
++inline TimedRelease timed_release(const std::string&raw){
++ const auto j=dev_run::Parser(raw).parse(command_cap);
++ j.keys({"schema","run_id","selection_id","full_package_name","instance_id","receipt_sha256","closure_sha256","completion_nonce_sha256","phase","action","release_window_sha256","host_challenge_sha256"});
++ j.at("schema").eq("xllama-qualification-release-v2");j.at("phase").eq(int64_t(2));j.at("action").eq("exit_after_independent_native_closure");TimedRelease t;auto&r=t.value;
++ r.run=text(j,"run_id",32);r.selection=text(j,"selection_id",64);r.package=text(j,"full_package_name",160);r.instance=text(j,"instance_id",32);r.receipt_sha=hash(j,"receipt_sha256");r.closure_sha=hash(j,"closure_sha256");r.completion_nonce=hash(j,"completion_nonce_sha256");t.window_sha=hash(j,"release_window_sha256");t.challenge=hash(j,"host_challenge_sha256");
++ dev_run::need(dev_run::run_id(r.run)&&dev_run::run_id(r.instance)&&selection_id(r.selection),"timed release identity");return t;
++}
++inline void validate_timed_release(const TimedRelease&t,ReleaseWindow&w,Clock n,bool abort){w.check(n,abort);dev_run::need(!w.response_sha.empty()&&t.window_sha==w.response_sha&&t.challenge==w.challenge,"release fresh window binding");}
++}
+--- a/uwp/App.cpp
++++ b/uwp/App.cpp
+@@ -17,9 +17,7 @@
+ #include <roapi.h> // RoInitialize — WinRT MTA (see wWinMain)
+ #ifndef XLLAMA_STORE_SKU
+ #include "api-server.h"
+-#include "protected-ui-v2-scan.h"
+-#include "ingress-v2-scanner.h"
+-#include "ingress-route-budget.h"
++#include "qualification-shell.h"
+ #include <winrt/Windows.Foundation.Metadata.h>
+ #endif
+ // clang-format on
+@@ -176,6 +174,11 @@
+ // ---------------------------------------------------------------------------
+ 
+ App::App() {
++#ifndef XLLAMA_STORE_SKU
++    RequiresPointerMode(ApplicationRequiresPointerMode::WhenRequested);
++    RequestedTheme(ApplicationTheme::Dark);
++    return; // Critical shell readiness precedes all optional application logging/probes.
++#endif
+     log_init();
+     log_write("[xllama] App::App()\n");
+ 
+@@ -210,6 +213,10 @@
+ }
+ 
+ void App::OnLaunched(LaunchActivatedEventArgs const&) {
++#ifndef XLLAMA_STORE_SKU
++    ::xllama::bridge::qualification_shell::show();
++    return; // Immutable qualification shell; never construct MainPage or consumers.
++#endif
+     log_write("[xllama] App::OnLaunched\n");
+ 
+     try {
+@@ -440,65 +447,9 @@
+         // real WinRT MTA — without it Start fails as 0x8027025b (gotcha 17).
+         winrt::check_hresult(RoInitialize(RO_INIT_MULTITHREADED));
+         winrt::init_apartment(); // CoInitializeEx MTA; pairs with RoInitialize
+-    #ifndef XLLAMA_STORE_SKU
+-        // A separately selected manual Game/UI window takes precedence over
+-        // every historical file-triggered headless route. Claim before XAML;
+-        // any uncertain/consumed UI intent refuses instead of falling through.
+-        const std::filesystem::path ui_root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());
+-        const auto actual_package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
+-        ::xllama::bridge::IngressRouteQuota ui_route_quota(::xllama::ingress_v2::ui_memory_charge);
+-        auto ui_scan=::xllama::bridge::scan_protected_ui_v2(ui_root,actual_package,::xllama::bridge::dev_utc_ms());
+-        ui_route_quota.finish();
+-        if(ui_scan.state==::xllama::bridge::ProtectedUiScan::State::refuse){::xllama::log_output("[ingress-v2] protected UI intent refused; no headless fallback\n");return 1;}
+-        const bool protected_ui=ui_scan.state==::xllama::bridge::ProtectedUiScan::State::selected;
+-        if(protected_ui){::xllama::bridge::commit_protected_ui_claim(ui_root,ui_scan);if(!::xllama::ingress_v2::ui_time_admitted(::xllama::bridge::dev_utc_ms(),ui_scan.selected.expires))throw std::runtime_error("protected UI expired after claim");::xllama::bridge::protected_ui_v2::latch();::xllama::log_output("[ingress-v2] protected UI intent claimed and latched\n");}
+-        if(!protected_ui){
+-            // One bounded scanner owns every diagnostic route in this successor.
+-            // Old fixed tickets and experimental flags are inventory/conflict
+-            // inputs; they are never consumed or replayed by this dispatcher.
+-            // Closed UI history remains held during this second scan, so the
+-            // joint reservation includes both route inventories.
+-            ::xllama::bridge::IngressRouteQuota headless_route_quota(
+-                ::xllama::ingress_v2::route_memory_charge+::xllama::ingress_v2::ui_memory_charge);
+-            auto scan=::xllama::bridge::scan_ingress_v2(ui_root,actual_package,false);
+-            headless_route_quota.finish();
+-            using S=::xllama::ingress_v2::State;
+-            if(scan.decision.state==S::selected){
+-#if defined(XLLAMA_USE_LLAMA)
+-                if(!identity_api_marker_safe())return 1;
+-                auto selected=std::move(scan.entries.at(scan.decision.selected));
+-                const auto selected_intent=selected.intent;
+-                const auto stage=selected.intent.stage;
+-                const auto result=::xllama::ingress_v2::result_prefix(stage,selected.intent.run);
+-                const auto attempt=ui_root/std::filesystem::path(std::wstring(result.begin(),result.end())+L"attempt-v2.json");
+-                ::xllama::bridge::commit_ingress_attempt(attempt,selected.intent);
+-                // The durable attempt commits this activation. Release every
+-                // unselected scan lease before entering the model stage; only
+-                // the selected exact intent/window/config/ticket lease moves on.
+-                scan.entries.clear();
+-                scan.inventory.candidates.clear();
+-                scan.held_legacy_identity.close();
+-                ui_scan.held.clear();
+-                ::xllama::bridge::install_selected_ingress(std::move(selected));
+-                using T=::xllama::ingress_v2::Stage;
+-                void (*entry)()=stage==T::identity?&::xllama::bridge::run_gpu_capability_identity:
+-                    stage==T::proof?&::xllama::bridge::run_expert_gpu_proof_configured:
+-                    &::xllama::bridge::run_cpu_expert_configured;
+-                const char* label=stage==T::identity?"gpu-identity-v2":stage==T::proof?"gpu-proof-v2":"cpu-dev-v2";
+-                winrt::Windows::ApplicationModel::Core::CoreApplication::Run(winrt::make<HeadlessView>(entry,label,selected_intent,ui_root));
+-                return 0;
+-#else
+-                ::xllama::log_output("[ingress-v2] REFUSED selected stage unavailable in this build\n");
+-                return 1;
+-#endif
+-            }
+-            if(scan.decision.state!=S::absent&&scan.decision.state!=S::inert_spent_v1){
+-                ::xllama::log_output(std::string("[ingress-v2] REFUSED ")+scan.decision.reason+"; no legacy fallback\n");
+-                return 1;
+-            }
+-        }
+-        if(protected_ui&&!::xllama::ingress_v2::ui_time_admitted(::xllama::bridge::dev_utc_ms(),ui_scan.selected.expires))throw std::runtime_error("protected UI expired before XAML");
+-    #endif // !XLLAMA_STORE_SKU
++    // Every OS activation enters XAML. No file, flag, legacy history or
++    // package clock can select a headless route before the safe shell.
++
+         // Keep the MTA from init_apartment() through Application::Start.
+         // XAML requires the *first* Application access to come from the MTA
+         // (uwp-crossbuild gotcha 17 / hello-uwp). Do NOT uninit_apartment()
+--- a/uwp/cpu-expert-pilot.cpp
++++ b/uwp/cpu-expert-pilot.cpp
+@@ -61,7 +61,7 @@
+         if(!ingress_reason)return;
+         ingress_reason_v2::Event e;e.mask=mask;e.stopped=stopped;e.old_limit=old_limit;e.new_limit=new_limit;e.usage=usage;e.pressure=pressure;e.limit_available=limits_available;e.usage_available=usage_available;
+         const auto now=ua50::uwp::Clock::now();if(now>=ingress_reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-ingress_reason_start).count());}
+-        e.utc_available=true;e.device_utc_ms=dev_utc_ms();ingress_reason->record(e);
++        e.device_utc_ms=dev_utc_ms();e.utc_available=e.device_utc_ms!=0;ingress_reason->record(e);
+     }
+     Quota snapshot(const char* phase) {
+         using M=winrt::Windows::System::MemoryManager;
+@@ -82,10 +82,12 @@
+         return q;
+     }
+     void phase(const char* name,uint64_t pending=0) {
++        pending=ua50::add(pending,qualification::run_guard.active.load()?qualification::retained_charge:0);
+         if(abort->load() || ua50::uwp::Clock::now()>=deadline || (ticket_expiry&&dev_utc_ms()>=ticket_expiry)){
+             if(ingress_reason){const bool aborted=abort->load(),steady=ua50::uwp::Clock::now()>=deadline,utc=ticket_expiry&&dev_utc_ms()>=ticket_expiry;record_ingress_reason((aborted?ingress_reason_v2::abort_requested:0)|(steady?ingress_reason_v2::steady_deadline:0)|(utc?ingress_reason_v2::utc_expired:0),true);}
+             throw std::runtime_error("pilot stop/deadline");
+         }
++        qualification_guard_check(ingress_reason.get());
+         if(ingress_reason)pending=ua50::add(pending,sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::serializer_capacity_cap+ingress_reason_v2::Recorder::descriptor_charge);
+         const auto progress=gpu_progress_ns.load();if(progress>0){const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(ua50::uwp::Clock::now().time_since_epoch()).count();if(now<progress||now-progress>180000000000ll)throw std::runtime_error("GPU proof watchdog/clock");}
+         const auto q=snapshot(name);
+--- a/uwp/dev-run-input.h
++++ b/uwp/dev-run-input.h
+@@ -3,6 +3,8 @@
+ #include "xllama/ingress_v2.h"
+ #include "xllama/first_answer_record.h"
+ #include "xllama/ingress_reason_v2.h"
++#include "xllama/qualification_mailbox.h"
++#include <chrono>
+ #include <windows.h>
+ #include <bcrypt.h>
+ #include <array>
+@@ -20,7 +22,10 @@
+  ~DevHandle(){if(value!=INVALID_HANDLE_VALUE)CloseHandle(value);}
+  void close(){HANDLE v=value;value=INVALID_HANDLE_VALUE;if(v!=INVALID_HANDLE_VALUE&&!CloseHandle(v))throw std::runtime_error("native handle close failure");}
+ };
+-inline uint64_t dev_utc_ms(){FILETIME f{};GetSystemTimeAsFileTime(&f);ULARGE_INTEGER v{};v.LowPart=f.dwLowDateTime;v.HighPart=f.dwHighDateTime;return (v.QuadPart-116444736000000000ull)/10000;}
++inline uint64_t dev_utc_ms(){FILETIME f{};GetSystemTimeAsFileTime(&f);ULARGE_INTEGER v{};v.LowPart=f.dwLowDateTime;v.HighPart=f.dwHighDateTime;return v.QuadPart<116444736000000000ull?0:(v.QuadPart-116444736000000000ull)/10000;}
++inline qualification::Clock qualification_now(){const auto steady=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();return {dev_utc_ms(),steady>0?uint64_t(steady):0};}
++inline void qualification_guard_check(ingress_reason_v2::Recorder* recorder=nullptr){const auto n=qualification_now();const auto mask=qualification::run_guard.mask(n);if(!mask)return;
++ ingress_reason_v2::Event e;e.mask=mask;e.stopped=true;e.utc_available=n.utc!=0;e.device_utc_ms=n.utc;const auto first=qualification::run_guard.clock.first.steady;if(n.steady>=first&&n.steady-first<=UINT64_MAX/1000000){e.steady_available=true;e.steady_elapsed_ns=(n.steady-first)*1000000;}qualification::run_guard.reasons.record(e);if(recorder)recorder->record(e);throw std::runtime_error("qualification stop predicate mask="+std::to_string(mask));}
+ inline std::string dev_sha(const std::string& bytes){
+  BCRYPT_ALG_HANDLE alg=nullptr;BCRYPT_HASH_HANDLE hash=nullptr;std::vector<unsigned char> object;std::array<unsigned char,32> sum{};
+  auto check=[](NTSTATUS s){if(s<0)throw std::runtime_error("config BCrypt SHA");};
+@@ -35,6 +40,7 @@
+  std::string raw(size_t(before.EndOfFile.QuadPart),'\0');DWORD got=0;if(!ReadFile(h.value,raw.data(),DWORD(raw.size()),&got,nullptr)||got!=raw.size())throw std::runtime_error("config/ticket short read");unsigned char extra=0;DWORD trailing=0;if(!ReadFile(h.value,&extra,1,&trailing,nullptr)||trailing)throw std::runtime_error("config/ticket trailing read");FILE_STANDARD_INFO after{};if(!GetFileInformationByHandleEx(h.value,FileStandardInfo,&after,sizeof(after))||!GetFileInformationByHandleEx(h.value,FileIdInfo,&postid,sizeof(postid))||after.EndOfFile.QuadPart!=before.EndOfFile.QuadPart||memcmp(&id,&postid,sizeof(id)))throw std::runtime_error("config/ticket held identity changed");return raw;
+ }
+ struct SelectedIngress {
++ bool native_command=false;DevHandle command_file;std::string command_raw,command_sha;
+  ingress_v2::Intent intent;DevHandle ticket,config,intent_file,window_file;std::string intent_raw,ticket_raw,ticket_sha,config_raw,config_sha,window_raw,window_sha;
+  SelectedIngress()=default;SelectedIngress(const SelectedIngress&)=delete;SelectedIngress&operator=(const SelectedIngress&)=delete;
+  SelectedIngress(SelectedIngress&&)=default;SelectedIngress&operator=(SelectedIngress&&)=default;
+@@ -43,11 +49,14 @@
+ inline std::unique_ptr<SelectedIngress> selected_ingress;
+ inline ingress_reason_v2::Recorder& selected_preclaim_reason(){static thread_local ingress_reason_v2::Recorder reason;return reason;}
+ inline void record_selected_preclaim_reason(uint32_t mask,uint64_t limit=0,uint64_t usage=0,bool quota_known=false){
+- ingress_reason_v2::Event e;e.mask=mask;e.stopped=true;e.utc_available=true;e.device_utc_ms=dev_utc_ms();e.limit_available=quota_known;e.usage_available=quota_known;e.old_limit=limit;e.new_limit=limit;e.usage=usage;e.pressure=(mask&ingress_reason_v2::pressure_or_headroom)!=0;selected_preclaim_reason().record(e);
++ ingress_reason_v2::Event e;e.mask=mask;e.stopped=true;e.device_utc_ms=dev_utc_ms();e.utc_available=e.device_utc_ms!=0;e.limit_available=quota_known;e.usage_available=quota_known;e.old_limit=limit;e.new_limit=limit;e.usage=usage;e.pressure=(mask&ingress_reason_v2::pressure_or_headroom)!=0;selected_preclaim_reason().record(e);
+ }
+ inline void install_selected_ingress(SelectedIngress&& s){std::lock_guard<std::mutex> lock(selected_ingress_mutex);dev_run::need(!selected_ingress,"selected ingress already installed");selected_ingress=std::make_unique<SelectedIngress>(std::move(s));}
+ inline SelectedIngress take_selected_ingress(ingress_v2::Stage stage){std::lock_guard<std::mutex> lock(selected_ingress_mutex);dev_run::need(selected_ingress&&selected_ingress->intent.stage==stage,"selected ingress stage missing/mismatch");SelectedIngress out(std::move(*selected_ingress));selected_ingress.reset();return out;}
+-inline void verify_selected_ingress(const SelectedIngress& s){dev_run::need(s.intent_file.value!=INVALID_HANDLE_VALUE&&ingress_v2::parse_intent(s.intent_raw).run==s.intent.run,"selected intent lease/binding");dev_run::need(s.ticket.value!=INVALID_HANDLE_VALUE&&s.ticket_sha==s.intent.ticket_sha&&dev_sha(s.ticket_raw)==s.ticket_sha,"selected ticket lease/hash");dev_run::need(s.window_file.value!=INVALID_HANDLE_VALUE&&s.window_sha==dev_sha(s.window_raw),"selected operator window lease/hash");const auto w=ingress_v2::parse_operator_window(s.window_raw);dev_run::need(w.run==s.intent.run&&w.selection==s.intent.selection&&w.intent_sha==dev_sha(s.intent_raw)&&w.package==s.intent.package&&w.expires==s.intent.expires,"selected operator window binding");}
++inline void verify_selected_ingress(const SelectedIngress& s){if(s.native_command){
++ qualification_guard_check();dev_run::need(qualification::run_guard.active.load()&&s.command_file.value!=INVALID_HANDLE_VALUE&&dev_sha(s.command_raw)==s.command_sha,"native command lease");
++ const auto c=qualification::command(s.command_raw);dev_run::need(c.run==s.intent.run&&c.selection==s.intent.selection&&c.package==s.intent.package&&c.expires==s.intent.expires&&s.ticket.value!=INVALID_HANDLE_VALUE&&dev_sha(s.ticket_raw)==s.ticket_sha&&s.ticket_sha==s.intent.ticket_sha,"native issued ticket binding");return;}
++dev_run::need(s.intent_file.value!=INVALID_HANDLE_VALUE&&ingress_v2::parse_intent(s.intent_raw).run==s.intent.run,"selected intent lease/binding");dev_run::need(s.ticket.value!=INVALID_HANDLE_VALUE&&s.ticket_sha==s.intent.ticket_sha&&dev_sha(s.ticket_raw)==s.ticket_sha,"selected ticket lease/hash");dev_run::need(s.window_file.value!=INVALID_HANDLE_VALUE&&s.window_sha==dev_sha(s.window_raw),"selected operator window lease/hash");const auto w=ingress_v2::parse_operator_window(s.window_raw);dev_run::need(w.run==s.intent.run&&w.selection==s.intent.selection&&w.intent_sha==dev_sha(s.intent_raw)&&w.package==s.intent.package&&w.expires==s.intent.expires,"selected operator window binding");}
+ inline void commit_ingress_attempt(const std::filesystem::path& path,const ingress_v2::Intent& i){
+  const auto quote=first_answer::quote;const std::string raw="{\"schema\":\"xllama-headless-attempt-v2\",\"stage\":"+quote(ingress_v2::stage_name(i.stage)) +",\"run_id\":"+quote(i.run)+",\"ticket_sha256\":"+quote(i.ticket_sha)+",\"full_package_name\":"+quote(i.package)+"}";
+  dev_run::need(raw.size()<=768,"attempt marker cap");DevHandle h(CreateFile2(path.c_str(),GENERIC_WRITE,0,CREATE_NEW,nullptr));if(h.value==INVALID_HANDLE_VALUE)throw std::runtime_error("attempt CREATE_NEW refused");DWORD n=0;if(!WriteFile(h.value,raw.data(),DWORD(raw.size()),&n,nullptr)||n!=raw.size()||!FlushFileBuffers(h.value))throw std::runtime_error("attempt durable write refused");h.close();
+--- a/uwp/generation-runner.inc
++++ b/uwp/generation-runner.inc
+@@ -52,10 +52,10 @@
+  generation::Request request;try{request=generation::parse(std::move(raw));}catch(const std::exception&e){return generation_error(400,e.what());}
+  const std::string tag="[generation-v1 run_id="+request.id+"]";
+  auto compute=try_acquire_compute_job();if(!compute)return generation_error(503,"compute busy");auto&hub=session_hub();std::unique_lock<std::mutex>hub_lock(hub.mtx,std::try_to_lock);if(!hub_lock||hub.session||hub.failed_expert_load)return generation_error(503,"existing hub owner; no unload/fallback");
+- auto state=std::make_shared<Pilot>();state->gpu_aggregate_quota=true;state->deadline=ua50::uwp::Clock::now()+std::chrono::minutes(20);
++ auto state=std::make_shared<Pilot>();if(qualification::run_guard.active.load())state->ingress_reason=std::make_shared<ingress_reason_v2::Recorder>();state->gpu_aggregate_quota=true;state->deadline=ua50::uwp::Clock::now()+std::chrono::minutes(20);
+  std::shared_ptr<generation::Active> active;std::shared_ptr<ua50::ExpertGpu> gpu;std::shared_ptr<generation::Trace> trace;auto record=std::make_shared<first_answer::Record>(first_answer::Profile::Configured);record->configure(request.profile.max_new,request.profile.prompt_cap);
+  std::shared_ptr<CpuExpertOptIn> opt;std::unique_ptr<Session> session;std::shared_ptr<ua50::uwp::WindowsInputCandidate> held;ModelWriteGate::Permit writer;DevHandle permit_file;generation::Permit permit;generation::ResultContext result;CpuExpertEffective effective{};ua50::Counters cache_counts{};ua50::GpuCounts gpu_counts{};ua50::GpuSnapshot gpu_info;cpu_pilot::MemoryPlan native_plan;
+- std::filesystem::path root;bool claimed=false,gpu_applied=false;uint64_t gpu_owned=0,sha_calls=0,sha_requested=0,sha_returned=0,sha_ns=0;
++ std::filesystem::path root;bool claimed=false,gpu_applied=false,gpu_terminal_observed=false;uint64_t gpu_owned=0,sha_calls=0,sha_requested=0,sha_returned=0,sha_ns=0;
+  auto fail=[&](const char*e){if(result.error.empty())result.error=std::string(e?e:"generation unknown failure").substr(0,2048);result.native_success=false;record->fail(e);};
+  try{
+   root=winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str();generation_directory(root);auto quota=state->snapshot("generation-prepermit");state->initial_limit=quota.limit;check(quota,quota.limit,probe_allowance);
+@@ -66,7 +66,7 @@
+   ULARGE_INTEGER free{},total{},all{};if(!GetDiskFreeSpaceExW(root.c_str(),&free,&total,&all)||free.QuadPart<(64ull<<20))throw std::runtime_error("generation output disk reserve unknown/refused");
+   generation_commit(generation_path(root,request.id,"claim"),result.config_sha.data(),result.config_sha.size());claimed=true;generation_commit(generation_path(root,request.id,"config.json"),request.raw.data(),request.raw.size());active=generation_registry.start(request.id,result.config_sha);
+   std::weak_ptr<Pilot> weak_state=state;active->bind_stop([weak_state]{if(auto s=weak_state.lock())s->request_stop();});
+-  std::weak_ptr<generation::Active> weak_active=active;state->limit_changed=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[weak_state,weak_active](const auto&,const winrt::Windows::System::AppMemoryUsageLimitChangingEventArgs&a)noexcept{if(auto s=weak_state.lock())if(a.NewLimit()!=s->initial_limit){try{if(auto run=weak_active.lock()){(void)run->stop();return;}}catch(...){}s->request_stop();}});state->start_monitor();
++  std::weak_ptr<generation::Active> weak_active=active;state->limit_changed=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[weak_state,weak_active](const auto&,const winrt::Windows::System::AppMemoryUsageLimitChangingEventArgs&a)noexcept{if(auto s=weak_state.lock()){const auto next=a.NewLimit();const bool stops=next!=s->initial_limit;s->record_ingress_reason(ingress_reason_v2::limit_event|(stops?ingress_reason_v2::limit_changed:0),stops,s->initial_limit,next,0,false,true,false);if(stops){try{if(auto run=weak_active.lock()){(void)run->stop();return;}}catch(...){}s->request_stop();}}});state->start_monitor();
+   result.prerequisites_json="{\"external_signed_artifact_sha256\":"+first_answer::quote(permit.artifact)+",\"primitive_acceptance_sha256\":"+first_answer::quote(permit.primitive)+",\"model2_acceptance_sha256\":"+first_answer::quote(permit.model2)+",\"native_authenticates_receipts\":false}";
+   state->phase("generation-owned-input-plan",add(request.owned_bytes()+permit.owned_bytes(),generation::Trace::owned_bytes()+(4u<<20)));trace=std::make_shared<generation::Trace>(GetCurrentProcessId(),request,result.config_sha,result.permit_sha);
+   require_matching_catalogue();for(const auto&dir:{root/L"models",root/L"models"/L"lfm25-24b-a2b-q4-k-m"})generation_directory(dir);writer=ModelDownloader::WriterGate().try_acquire();if(!writer.owns_lock())throw std::runtime_error("generation model writer busy");
+@@ -94,7 +94,7 @@
+  if(session){session->request_stop();while(!session->close_expert_terminal())std::this_thread::yield();result.owner_closed=true;session.reset();}
+  if(gpu){
+   gpu->drain(); // noexcept: UNKNOWN remains in this drain, with every anchor retained
+-  try{gpu_counts=gpu->counts();if(!gpu_counts.terminal||gpu->error()[0])fail(gpu->error()[0]?gpu->error():"generation GPU not terminal");gpu_info=gpu->snapshot();}
++  try{gpu_counts=gpu->counts();gpu_terminal_observed=true;if(!gpu_counts.terminal||gpu->error()[0])fail(gpu->error()[0]?gpu->error():"generation GPU not terminal");gpu_info=gpu->snapshot();}
+   catch(const std::exception&e){fail(e.what());}catch(...){fail("generation terminal GPU telemetry failure");}
+  }
+  if(!session&&!held&&!result.pre_sha)result.owner_closed=true; // no native owner was created, not a destructor claim
+@@ -107,7 +107,7 @@
+   if(result.native_success&&(sha_calls!=2*((bytes+65535)/65536+1)||sha_requested!=2*(bytes+1)||sha_returned!=2*bytes))fail("generation held SHA aggregate coverage");
+   if(trace){trace->seal(result.native_success&&result.error.empty(),uint32_t(record->prompt_ids.size()),uint32_t(record->samples.size()));result.trace_complete=trace->complete();result.trace_fnv=trace->fnv();if(result.native_success&&!result.trace_complete)fail("generation trace incomplete");generation_commit(generation_path(root,request.id,"trace.bin"),trace->data(),trace->file_bytes);log_output(tag+(result.trace_complete?" TRACE_COMMITTED complete\n":" TRACE_COMMITTED partial\n"));}
+   if(effective.context){result.effective_json="{\"compute\":"+first_answer::quote(gpu_applied?"hybrid_selected_expert_sync":"cpu")+",\"context\":"+std::to_string(effective.context)+",\"workers\":"+std::to_string(effective.threads)+",\"workers_batch\":"+std::to_string(effective.threads_batch)+",\"cache_slots\":"+std::to_string(effective.slots)+",\"cache_owned_ceiling\":"+std::to_string(effective.ceiling)+",\"required_owned_bytes\":"+std::to_string(effective.owned)+",\"arena_bytes\":"+std::to_string(effective.arena)+",\"metadata_bytes\":"+std::to_string(effective.metadata)+",\"GPU_slots\":"+(gpu_applied?"1":"0")+",\"adapter_luid\":"+(gpu_applied?first_answer::quote(gpu_info.adapter_luid):std::string("null"))+",\"compiled_shader_sha256\":"+(gpu_applied?first_answer::quote(gpu_info.shader_sha256):std::string("null"))+",\"prompt_tokens\":"+std::to_string(record->prompt_ids.size())+",\"max_new\":"+std::to_string(record->max_new())+",\"output_max_bytes\":262144,\"main_gpu\":-1,\"nonfused\":true,\"sampler\":\"greedy\",\"fallback\":false}";}
+-  result.counters_json="{\"route_requests\":"+std::to_string(cache_counts.requests)+",\"hits\":"+std::to_string(cache_counts.hits)+",\"misses\":"+std::to_string(cache_counts.misses)+",\"logical_reader_calls\":"+std::to_string(cache_counts.read_calls)+",\"logical_reader_bytes\":"+std::to_string(cache_counts.read_bytes)+",\"Reader_ns\":"+std::to_string(cache_counts.reader_ns_total)+",\"acquire_ns\":"+std::to_string(cache_counts.acquire_ns_total)+",\"GPU_submits\":"+std::to_string(gpu_counts.submits)+",\"GPU_completed\":"+std::to_string(gpu_counts.completed)+",\"GPU_published\":"+std::to_string(gpu_counts.published)+",\"fence_poll_wait_ns\":"+std::to_string(gpu_counts.fence_wait_ns)+",\"copy_CPU_ns\":"+std::to_string(gpu_counts.copy_cpu_ns)+",\"GPU_compute_ns\":null,\"GPU_timestamps_status\":\"not_collected_first_slice\",\"SHA_calls\":"+std::to_string(sha_calls)+",\"SHA_requested\":"+std::to_string(sha_requested)+",\"SHA_returned\":"+std::to_string(sha_returned)+",\"SHA_elapsed_ns\":"+std::to_string(sha_ns)+",\"GPU_required_owned_bytes\":"+std::to_string(gpu_owned)+",\"GPU_app_limit\":"+std::to_string(gpu_info.app_limit)+",\"GPU_app_usage\":"+std::to_string(gpu_info.app_usage)+",\"DXGI_budget\":"+std::to_string(gpu_info.dxgi_budget)+",\"DXGI_usage\":"+std::to_string(gpu_info.dxgi_usage)+",\"cache_coherent_UMA\":"+(gpu_info.cache_coherent_uma?"true":"false")+",\"DXGI_is_extra_RAM\":false,\"native_plan_total\":"+std::to_string(native_plan.total())+",\"quota_limit\":"+std::to_string(state->initial_limit)+",\"sampled_usage_not_peak\":"+std::to_string(state->max_sampled_usage.load())+",\"reserve\":536870912,\"probe\":268435456,\"physical_SSD_metrics\":null,\"partial_Reader_bytes_available\":false,\"metadata_load_FILE_IO\":\"unobserved\"}";
++  result.counters_json="{"+generation::gpu_terminal_fields(request.profile.hybrid,gpu_terminal_observed,gpu_counts.terminal)+",\"route_requests\":"+std::to_string(cache_counts.requests)+",\"hits\":"+std::to_string(cache_counts.hits)+",\"misses\":"+std::to_string(cache_counts.misses)+",\"logical_reader_calls\":"+std::to_string(cache_counts.read_calls)+",\"logical_reader_bytes\":"+std::to_string(cache_counts.read_bytes)+",\"Reader_ns\":"+std::to_string(cache_counts.reader_ns_total)+",\"acquire_ns\":"+std::to_string(cache_counts.acquire_ns_total)+",\"GPU_submits\":"+std::to_string(gpu_counts.submits)+",\"GPU_completed\":"+std::to_string(gpu_counts.completed)+",\"GPU_published\":"+std::to_string(gpu_counts.published)+",\"fence_poll_wait_ns\":"+std::to_string(gpu_counts.fence_wait_ns)+",\"copy_CPU_ns\":"+std::to_string(gpu_counts.copy_cpu_ns)+",\"GPU_compute_ns\":null,\"GPU_timestamps_status\":\"not_collected_first_slice\",\"SHA_calls\":"+std::to_string(sha_calls)+",\"SHA_requested\":"+std::to_string(sha_requested)+",\"SHA_returned\":"+std::to_string(sha_returned)+",\"SHA_elapsed_ns\":"+std::to_string(sha_ns)+",\"GPU_required_owned_bytes\":"+std::to_string(gpu_owned)+",\"GPU_app_limit\":"+std::to_string(gpu_info.app_limit)+",\"GPU_app_usage\":"+std::to_string(gpu_info.app_usage)+",\"DXGI_budget\":"+std::to_string(gpu_info.dxgi_budget)+",\"DXGI_usage\":"+std::to_string(gpu_info.dxgi_usage)+",\"cache_coherent_UMA\":"+(gpu_info.cache_coherent_uma?"true":"false")+",\"DXGI_is_extra_RAM\":false,\"native_plan_total\":"+std::to_string(native_plan.total())+",\"quota_limit\":"+std::to_string(state->initial_limit)+",\"sampled_usage_not_peak\":"+std::to_string(state->max_sampled_usage.load())+",\"reserve\":536870912,\"probe\":268435456,\"physical_SSD_metrics\":null,\"partial_Reader_bytes_available\":false,\"metadata_load_FILE_IO\":\"unobserved\"}";
+   auto body=generation::serialize(request,*record,result);
+   if(trace){
+    const std::string trace_bytes(reinterpret_cast<const char*>(trace->data()),trace->file_bytes);
+@@ -117,6 +117,7 @@
+   }
+   generation_commit(generation_path(root,request.id,"output.json"),body.data(),body.size());const bool normal=result.normal(*record);log_output(tag+(normal?" OUTPUT_COMMITTED normal owner/file/writer closed\n":" OUTPUT_COMMITTED partial/refused/error owner/file/writer closed\n"));reply={normal?200:422,std::move(body)};
+  }catch(const std::exception&e){fail(e.what());log_output(tag+" OUTPUT_FAILED: "+result.error+"\n");reply=generation_error(422,result.error);}catch(...){fail("generation unknown output failure");log_output(tag+" OUTPUT_FAILED unknown\n");reply=generation_error(422,result.error);}
++ if(state->ingress_reason&&!root.empty()&&claimed)try{DevHandle oh;open_dev_file(oh,generation_path(root,request.id,"output.json"),false);const auto body=read_dev_file(oh,generation::result_cap);oh.close();commit_ingress_reason(generation_path(root,request.id,"reason-v2.json"),*state->ingress_reason,ingress_reason_v2::Stage::generation,request.id,result.config_sha,dev_sha(body),permit.expires);}catch(const std::exception&e){log_output(tag+" REASON_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
+  if(active)generation_registry.closed(active);log_output(tag+(result.normal(*record)?" terminal normal\n":" terminal stopped; no retry\n"));return reply;
+ }
+ #endif
+--- a/uwp/gpu-identity-pilot.inc
++++ b/uwp/gpu-identity-pilot.inc
+@@ -1,18 +1,23 @@
+ // Identity only; included once by existing pilot TU. Never enters model/catalogue/Reader.
+ void run_gpu_capability_identity(){
+  const std::string tag="[gpu-identity-v1]";char first[256]{};auto fail=[&](const char*s){if(!first[0])std::snprintf(first,sizeof(first),"%s",s?s:"unknown identity failure");};
+- bool normal=false,resources_closed=true;auto limit_changed=std::make_shared<std::atomic<bool>>(false);auto reason=std::make_shared<ingress_reason_v2::Recorder>();const auto reason_start=ua50::uwp::Clock::now();uint64_t metadata=0,initial_limit=0;std::optional<gpu_identity::Observation> observation;
++ bool normal=false,resources_closed=true;auto limit_changed=std::make_shared<std::atomic<bool>>(false);auto reason=std::make_shared<ingress_reason_v2::Recorder>();const auto reason_start=ua50::uwp::Clock::now();auto callback_initial_limit=std::make_shared<std::atomic<uint64_t>>(0);uint64_t metadata=0,initial_limit=0;std::optional<gpu_identity::Observation> observation;
+  std::shared_ptr<GpuIdentityInput> input;std::string package;auto wall=ua50::uwp::Clock::now()+std::chrono::seconds(30);
+  // RAII for parse/claim failure; no output path is trusted until strict parse returns.
+  try{
+   auto compute=try_acquire_compute_job();if(!compute)throw std::runtime_error("identity compute lane busy");
+-  auto limit_event=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[limit_changed,reason,reason_start](const auto&,const auto&)noexcept{ingress_reason_v2::Event e;e.mask=ingress_reason_v2::limit_event;e.stopped=true;e.utc_available=true;e.device_utc_ms=dev_utc_ms();const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);limit_changed->store(true);});
+-  auto q=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();auto usage=winrt::Windows::System::MemoryManager::AppMemoryUsage();initial_limit=q;
+-  if(!q||usage>q||q-usage<gpu_identity::reserve+gpu_identity::probe+(256u<<10)+sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::descriptor_charge){record_selected_preclaim_reason((!q||usage>q?ingress_reason_v2::quota_unstable:ingress_reason_v2::pressure_or_headroom),q,usage,q!=0);throw std::runtime_error("identity preparse quota refused");}
++  auto limit_event=winrt::Windows::System::MemoryManager::AppMemoryUsageLimitChanging(winrt::auto_revoke,[limit_changed,reason,reason_start,callback_initial_limit](const auto&,const auto&args)noexcept{
++   ingress_reason_v2::Event e;e.mask=ingress_reason_v2::limit_event;e.stopped=true;e.device_utc_ms=dev_utc_ms();e.utc_available=e.device_utc_ms!=0;
++   try{const auto initial=callback_initial_limit->load();e.new_limit=args.NewLimit();e.old_limit=initial;e.limit_available=initial!=0;}catch(...){e.limit_available=false;}
++   const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);limit_changed->store(true);
++  });
++  auto q=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();auto usage=winrt::Windows::System::MemoryManager::AppMemoryUsage();initial_limit=q;callback_initial_limit->store(q);
++  if(!q||usage>q||q-usage<gpu_identity::reserve+gpu_identity::probe+(qualification::run_guard.active.load()?qualification::retained_charge:0)+(256u<<10)+sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::descriptor_charge){record_selected_preclaim_reason((!q||usage>q?ingress_reason_v2::quota_unstable:ingress_reason_v2::pressure_or_headroom),q,usage,q!=0);throw std::runtime_error("identity preparse quota refused");}
+   const std::filesystem::path root(winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str());input=std::make_shared<GpuIdentityInput>(root,take_selected_ingress(ingress_v2::Stage::identity));
+-  auto record_stop=[&](uint32_t mask,uint64_t current_limit=0,uint64_t usage=0,bool quota_known=false,bool pressure=false){if(!input->request.ingress_v2)return;ingress_reason_v2::Event e;e.mask=mask;e.stopped=true;e.utc_available=true;e.device_utc_ms=dev_utc_ms();e.limit_available=quota_known;e.usage_available=quota_known;e.old_limit=initial_limit;e.new_limit=current_limit;e.usage=usage;e.pressure=pressure;const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);};
++  auto record_stop=[&](uint32_t mask,uint64_t current_limit=0,uint64_t usage=0,bool quota_known=false,bool pressure=false){if(!input->request.ingress_v2)return;ingress_reason_v2::Event e;e.mask=mask;e.stopped=true;e.device_utc_ms=dev_utc_ms();e.utc_available=e.device_utc_ms!=0;e.limit_available=quota_known;e.usage_available=quota_known;e.old_limit=initial_limit;e.new_limit=current_limit;e.usage=usage;e.pressure=pressure;const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);};
+   auto check=[&]{
+    if(limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires){const bool limit=limit_changed->load(),steady=ua50::uwp::Clock::now()>=wall,utc=dev_utc_ms()>=input->request.expires;record_stop((limit?ingress_reason_v2::limit_event:0)|(steady?ingress_reason_v2::steady_deadline:0)|(utc?ingress_reason_v2::utc_expired:0));throw std::runtime_error("identity original deadline/expiry stop");}
++   qualification_guard_check(reason.get());
+    const auto stop=input->path("stop");DWORD a=GetFileAttributesW(stop.c_str());if(a!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND){record_stop(a!=INVALID_FILE_ATTRIBUTES?ingress_reason_v2::abort_requested:ingress_reason_v2::file_state_unknown);throw std::runtime_error("identity stop requested/query unknown");}
+    using M=winrt::Windows::System::MemoryManager;const auto l=M::AppMemoryUsageLimit(),u=M::AppMemoryUsage();const auto level=M::AppMemoryUsageLevel();
+    const bool changed=l!=initial_limit,unstable=!l||u>l||l!=M::AppMemoryUsageLimit();
+@@ -20,7 +25,7 @@
+    const bool headroom=metadata>UINT64_MAX-gpu_identity::reserve-gpu_identity::probe||(!unstable&&l-u<metadata+gpu_identity::reserve+gpu_identity::probe);
+    if(changed||unstable||pressure||headroom){record_stop((changed?ingress_reason_v2::limit_changed:0)|(unstable?ingress_reason_v2::quota_unstable:0)|(pressure||headroom?ingress_reason_v2::pressure_or_headroom:0),l,u,l!=0,pressure);throw std::runtime_error("identity limit/usage/pressure/metadata stop");}
+   };
+-  metadata=add(input->owned_bytes(),sizeof(gpu_identity::Observation)+gpu_identity::serialization_capacity_cap+65536+8192+sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::serializer_capacity_cap+ingress_reason_v2::Recorder::descriptor_charge);check();
++  metadata=add(64+sizeof(std::atomic<uint64_t>)+input->owned_bytes()+(qualification::run_guard.active.load()?qualification::retained_charge:0),sizeof(gpu_identity::Observation)+gpu_identity::serialization_capacity_cap+65536+8192+sizeof(ingress_reason_v2::Recorder)+ingress_reason_v2::Recorder::serializer_capacity_cap+ingress_reason_v2::Recorder::descriptor_charge);check();
+   const auto output=input->path("output.json");DWORD old=GetFileAttributesW(output.c_str());if(old!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)throw std::runtime_error("identity old output/query unknown");
+   package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());if(package.empty()||package.size()>1024)throw std::runtime_error("identity package bound");
+   input->spend();check();resources_closed=false;
+@@ -39,7 +44,7 @@
+   body+=",\"accounting\":{\"request_owned_bytes\":"+std::to_string(input->owned_bytes())+",\"metadata_charge_bytes\":"+std::to_string(metadata)+",\"serialization_capacity_cap\":65536,\"reserve_bytes\":536870912,\"probe_bytes\":268435456,\"sampled_not_peak\":true,\"UMA_extra_RAM\":false,\"model_plan_admitted\":false},\"model_opened\":false,\"model_bytes_read\":0,\"GPU_submits\":0,\"signed_artifact_authenticated_by_native\":false,\"driver_JIT_machinecode_identity_available\":false}";
+   if(body.size()>gpu_identity::result_cap||body.capacity()>gpu_identity::serialization_capacity_cap)throw std::length_error("identity serialized output bound");
+   // Even final serialization delay cannot publish normal after expiry/stop. Recheck without a new query.
+-  if(normal){DWORD s=GetFileAttributesW(input->path("stop").c_str());if(s!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND||limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires||winrt::Windows::System::MemoryManager::AppMemoryUsageLimit()!=initial_limit){if(input->request.ingress_v2){const auto final_limit=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();const bool limit=limit_changed->load(),steady=ua50::uwp::Clock::now()>=wall,utc=dev_utc_ms()>=input->request.expires,quota=final_limit!=initial_limit;ingress_reason_v2::Event e;e.mask=(limit?ingress_reason_v2::limit_event:0)|(steady?ingress_reason_v2::steady_deadline:0)|(utc?ingress_reason_v2::utc_expired:0)|(quota?ingress_reason_v2::quota_unstable:0)|(s!=INVALID_FILE_ATTRIBUTES?ingress_reason_v2::abort_requested:0);e.stopped=true;e.limit_available=true;e.old_limit=initial_limit;e.new_limit=final_limit;e.utc_available=true;e.device_utc_ms=dev_utc_ms();const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);}throw std::runtime_error("identity final publication stop");}}
++  if(normal){DWORD s=GetFileAttributesW(input->path("stop").c_str());if(s!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND||limit_changed->load()||ua50::uwp::Clock::now()>=wall||dev_utc_ms()>=input->request.expires||winrt::Windows::System::MemoryManager::AppMemoryUsageLimit()!=initial_limit){if(input->request.ingress_v2){const auto final_limit=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();const bool limit=limit_changed->load(),steady=ua50::uwp::Clock::now()>=wall,utc=dev_utc_ms()>=input->request.expires,quota=final_limit!=initial_limit;ingress_reason_v2::Event e;e.mask=(limit?ingress_reason_v2::limit_event:0)|(steady?ingress_reason_v2::steady_deadline:0)|(utc?ingress_reason_v2::utc_expired:0)|(quota?ingress_reason_v2::quota_unstable:0)|(s!=INVALID_FILE_ATTRIBUTES?ingress_reason_v2::abort_requested:0);e.stopped=true;e.limit_available=true;e.old_limit=initial_limit;e.new_limit=final_limit;e.device_utc_ms=dev_utc_ms();e.utc_available=e.device_utc_ms!=0;const auto now=ua50::uwp::Clock::now();if(now>=reason_start){e.steady_available=true;e.steady_elapsed_ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-reason_start).count());}reason->record(e);}throw std::runtime_error("identity final publication stop");}qualification_guard_check(reason.get());}
+   if(input->held.value!=INVALID_HANDLE_VALUE){input->held.close();if(normal)throw std::runtime_error("identity unconsumed ticket cannot be normal");}
+   DevHandle out(CreateFile2(input->path("output.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr));if(out.value==INVALID_HANDLE_VALUE)throw std::runtime_error("identity output CREATE_NEW failed");DWORD n=0;if(!WriteFile(out.value,body.data(),DWORD(body.size()),&n,nullptr)||n!=body.size()||!FlushFileBuffers(out.value))throw std::runtime_error("identity output write/flush failed");out.close();
+   if(input->request.ingress_v2)try{commit_ingress_reason(input->path("reason-v2.json"),*reason,ingress_reason_v2::Stage::identity,input->request.id,input->request_sha,dev_sha(body),input->request.expires);}catch(const std::exception&e){log_output(tag+" REASON_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
+--- /dev/null
++++ b/uwp/qualification-shell.h
+@@ -0,0 +1,222 @@
++#pragma once
++// Developer qualification entry. No MainPage, Session, API listener, model
++// downloader or legacy scanner is constructed by this shell.
++#include "dev-run-input.h"
++#include "gpu-identity-input.h"
++#include "gpu-proof-input.h"
++#include "ingress-route-budget.h"
++#include "xllama/qualification_profiles.h"
++#include "xllama/qualification_receipts.h"
++#include "xllama/qualification_release.h"
++#include "xllama/qualification_release_window.h"
++#include "xllama/generation_runner.h"
++#include <winrt/Windows.ApplicationModel.h>
++#include <winrt/Windows.UI.Xaml.Controls.h>
++#include <winrt/Windows.UI.Core.h>
++#include <thread>
++
++namespace xllama::bridge::qualification_shell {
++using namespace qualification;
++#if defined(XLLAMA_USE_LLAMA)
++inline constexpr bool stage_handlers=true;
++#else
++inline constexpr bool stage_handlers=false;
++#endif
++inline std::filesystem::path path(const std::filesystem::path&r,const std::string&name){return r/std::filesystem::path(std::wstring(name.begin(),name.end()));}
++inline bool present(const std::filesystem::path&p){const auto a=GetFileAttributesW(p.c_str());if(a==INVALID_FILE_ATTRIBUTES){dev_run::need(GetLastError()==ERROR_FILE_NOT_FOUND,"mailbox file state unknown");return false;}dev_run::need(!(a&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DEVICE)),"mailbox file shape");return true;}
++inline void absent(const std::filesystem::path&p){dev_run::need(!present(p),"spent namespace retained; use new run");}
++inline std::string read(DevHandle&h,const std::filesystem::path&p,size_t cap){open_dev_file(h,p,false);auto raw=read_dev_file(h,cap);
++ alignas(FILE_NAME_INFO) std::array<unsigned char,4096> storage{};
++ dev_run::need(GetFileInformationByHandleEx(h.value,FileNameInfo,storage.data(),DWORD(storage.size())),"mailbox canonical held name unavailable");
++ const auto*info=reinterpret_cast<const FILE_NAME_INFO*>(storage.data());dev_run::need(info->FileNameLength%sizeof(wchar_t)==0&&info->FileNameLength<=storage.size()-offsetof(FILE_NAME_INFO,FileName),"mailbox held name length");
++ const std::wstring final_name(info->FileName,info->FileNameLength/sizeof(wchar_t));dev_run::need(std::filesystem::path(final_name).filename().native()==p.filename().native(),"mailbox noncanonical case/name");return raw;}
++inline DevHandle write_new(const std::filesystem::path&p,const std::string&b,size_t cap,bool ticket=false){
++ dev_run::need(!b.empty()&&b.size()<=cap,"native mailbox receipt cap");
++ DevHandle h(CreateFile2(p.c_str(),GENERIC_READ|GENERIC_WRITE|(ticket?DELETE:0),0,CREATE_NEW,nullptr));
++ dev_run::need(h.value!=INVALID_HANDLE_VALUE,"native mailbox CREATE_NEW unavailable");DWORD n=0;
++ dev_run::need(WriteFile(h.value,b.data(),DWORD(b.size()),&n,nullptr)&&n==b.size()&&FlushFileBuffers(h.value),"native mailbox durable publication failed");
++ LARGE_INTEGER zero{};dev_run::need(SetFilePointerEx(h.value,zero,nullptr,FILE_BEGIN),"native mailbox rewind");return h;
++}
++inline std::string random_hex(size_t n){dev_run::need(n<=32,"entropy cap");std::array<unsigned char,32>b{};dev_run::need(BCryptGenRandom(nullptr,b.data(),ULONG(n),BCRYPT_USE_SYSTEM_PREFERRED_RNG)>=0,"native entropy unavailable");std::string out;for(size_t i=0;i<n;++i){out+="0123456789abcdef"[b[i]>>4];out+="0123456789abcdef"[b[i]&15];}return out;}
++struct QuotaBracket {
++ qualification::Session& session;uint64_t initial=0;
++ static uint64_t sample(qualification::Session&s){using M=winrt::Windows::System::MemoryManager;auto&q=s.quota;q.available=0;
++  q.first=M::AppMemoryUsageLimit();q.available|=1;q.usage=M::AppMemoryUsage();q.available|=2;const auto level=M::AppMemoryUsageLevel();q.level=uint32_t(level);q.available|=4;q.current=M::AppMemoryUsageLimit();q.available|=8;
++  dev_run::need(ingress_v2::route_quota_admitted(q.first,q.current,q.usage,level==winrt::Windows::System::AppMemoryUsageLevel::Low||level==winrt::Windows::System::AppMemoryUsageLevel::Medium,retained_charge),"qualification sampled quota/headroom refused");return q.current;
++ }
++ explicit QuotaBracket(qualification::Session&s):session(s){session.quota.bracket_first=0;initial=sample(s);session.quota.bracket_first=initial;}
++ void finish(){const auto after=sample(session);dev_run::need(initial==after,"qualification quota changed across bracket");}
++};
++struct Runtime:std::enable_shared_from_this<Runtime> {
++ qualification::Session session;std::filesystem::path root;std::string actual_package,profile_raw,profile_sha,command_sha,completion_nonce;
++ DevHandle held_prepare,held_profile;winrt::Windows::UI::Xaml::DispatcherTimer timer{nullptr};
++ winrt::Windows::UI::Xaml::Controls::TextBlock label{nullptr};std::atomic<bool> started{false},work_done{false};qualification::ReleaseWindow release_window;
++ static std::shared_ptr<Runtime>& owner(){static std::shared_ptr<Runtime> p;return p;}
++ void status(const std::wstring&text){label.Text(winrt::hstring(text));}
++ void receipt(const char*suffix,const std::string&status,const std::string&detail=""){
++  session.last_clock=qualification_now();
++  const auto b=qualification::control_body(session,GetCurrentProcessId(),status,command_sha,completion_nonce,qualification::run_guard.reasons.stop_observed_mask.load(),detail);
++  auto h=write_new(path(root,leaf(session.selected.run,suffix)),b,receipt_cap);h.close();
++ }
++ // Completion/UNKNOWN is a control receipt. Existing native stage output,
++ // trace, SHA/numerical/closure gates remain the acceptance authority.
++ void start(){
++  actual_package=winrt::to_string(winrt::Windows::ApplicationModel::Package::Current().Id().FullName());
++  root=winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path().c_str();
++  session.instance=random_hex(16);session.nonce=random_hex(32);session.selected.run=session.instance;session.selected.package=actual_package;
++  const auto id=session.instance,nonce=session.nonce;session.instance.clear();
++  Prepare p;p.run=id;p.package=actual_package;std::string raw;bool has_prepare=false;uint32_t pending_reason=io_unknown;
++  try{
++   if(present(path(root,prepare_leaf))){has_prepare=true;pending_reason=invalid_prepare;raw=read(held_prepare,path(root,prepare_leaf),prepare_cap);p=qualification::prepare(raw);}
++   session.initialize(p,actual_package,id,nonce,raw.empty()?std::string(64,'0'):dev_sha(raw),qualification_now());
++   if(!has_prepare){session.prework_mask=absent_prepare;session.prework_detail="no prepare; immutable unselected manual";}
++   if(session.state==Phase::ready){
++    pending_reason=invalid_prepare;dev_run::need(stage_handlers,"stage handlers unavailable in this build");
++    pending_reason=quota_refused;QuotaBracket quota(session);
++    pending_reason=profile_refused;profile_raw=read(held_profile,path(root,leaf(p.run,"profile.json")),profile_cap);profile_sha=dev_sha(profile_raw);
++    dev_run::need(profile_sha==p.profile_sha,"prepare/profile SHA mismatch");validate_profile(p.work,profile_raw,p.run);if(p.work==Stage::proof){const auto parsed=gpu_run::parse(profile_raw);if(parsed.stage==gpu_proof::Stage::Model2)dev_run::need(parsed.primitive_acceptance_sha==p.prerequisite_sha,"model2 prerequisite/profile mismatch");}pending_reason=quota_refused;quota.finish();
++    pending_reason=retained_namespace;for(const char*s:{"claim.json","receipt.json","refusal.json","command.json","abandon.json","release-window-query.json","release-window.json","release-window-refusal.json","release.json","closure.json","review.json","release-claim.json","release-refusal.json"})absent(path(root,leaf(p.run,s)));
++   }
++   if(session.state==Phase::ready){pending_reason=0;dev_run::need(session.poll(qualification_now()),"readiness expired during native setup");}
++  }catch(const std::exception&e){
++   // Preserve known prework masks, including native clock/wait failures.
++   // Rejected correlation cannot retain diagnostic stage/expiry/authority.
++   session.instance=id;session.nonce=nonce;session.actual_package=actual_package;session.requested_package=p.package;session.prepare_sha=raw.empty()?std::string(64,'0'):dev_sha(raw);
++   session.manual_fallback(session.prework_mask?0:(pending_reason?pending_reason:io_unknown),e.what());
++  }
++  try{const auto b=ready_body(session,GetCurrentProcessId(),stage_handlers);auto h=write_new(path(root,leaf(session.selected.run,"ready.json")),b,receipt_cap);h.close();session.ready_sha=dev_sha(b);}
++  catch(...){session.note(receipt_unavailable,"native critical readiness publication unavailable");session.state=Phase::manual;status(L"Qualification shell — manual. Receipt unavailable; no diagnostics.");return;}
++  if(session.state!=Phase::ready){status(L"Qualification shell — immutable manual mode. No model or diagnostics.");return;}
++  status(L"Qualification shell — diagnostic READY. Waiting for one exact instance command.");
++  timer=winrt::Windows::UI::Xaml::DispatcherTimer();timer.Interval(std::chrono::milliseconds(poll_ms));
++  std::weak_ptr<Runtime> weak=shared_from_this();timer.Tick([weak](auto const&,auto const&){if(auto self=weak.lock())self->tick();});timer.Start();
++ }
++ void tick(){
++  try{
++   if(qualification::run_guard.abort.load()){session.refuse();throw std::runtime_error("qualification instance hidden/suspended");}
++   if(!session.poll(qualification_now())){timer.Stop();status(L"Readiness expired — no work. Use a new selection.");try{receipt("refusal.json","READY_EXPIRED");}catch(...){}return;}
++   if(present(path(root,leaf(session.selected.run,"abandon.json")))){
++    DevHandle h;const auto raw=read(h,path(root,leaf(session.selected.run,"abandon.json")),command_cap);const auto j=dev_run::Parser(raw).parse(command_cap);
++    j.keys({"schema","run_id","instance_id","ready_sha256","selection_receipt_sha256"});j.at("schema").eq("xllama-qualification-abandon-v1");j.at("run_id").eq(session.selected.run.c_str());j.at("instance_id").eq(session.instance.c_str());j.at("ready_sha256").eq(session.ready_sha.c_str());j.at("selection_receipt_sha256").eq(session.selected.selection_sha.c_str());
++    session.abandon();timer.Stop();receipt("receipt.json","ABANDONED_NO_ACCEPTANCE");status(L"Selection administratively abandoned. No native closure or replay granted.");return;
++   }
++   const auto cp=path(root,leaf(session.selected.run,"command.json"));if(!present(cp))return;
++   // First visible command is acquired ONCE. Any sharing/partial/parse/SHA
++   // error spends this instance; no poll retry of an uncertain publication.
++   timer.Stop();DevHandle held;const auto raw=read(held,cp,command_cap);const auto c=qualification::command(raw);session.validate(c,qualification_now());command_sha=dev_sha(raw);
++   DevHandle config;const auto config_raw=read(config,path(root,leaf(c.run,"config.json")),profile_cap);dev_run::need(dev_sha(config_raw)==c.config_sha,"command final CONFIG SHA");
++   DevHandle permit;std::string permit_raw;
++   if(c.work==Stage::generation){
++    const auto template_request=generation::parse(profile_raw),final_request=generation::parse(config_raw);dev_run::need(same_generation_profile(template_request,final_request),"generation profile changed");
++    const auto permit_name="ua68-generation-v1."+c.run+".permit.json";permit_raw=read(permit,path(root,permit_name),generation::permit_cap);
++    dev_run::need(c.permit_sha==dev_sha(permit_raw)&&final_request.permit_sha==c.permit_sha,"generation permit SHA binding");const auto p=generation::permit(permit_raw,dev_utc_ms(),actual_package);dev_run::need(p.expires==c.expires&&p.artifact==c.artifact_sha&&p.model2==session.selected.prerequisite_sha,"generation native expiry/artifact/prerequisite binding");
++   }else dev_run::need(c.config_sha==profile_sha&&config_raw==profile_raw&&c.permit_sha==std::string(64,'0'),"command exact profile/config");
++   qualification::validate_final(session.selected,c,profile_raw,config_raw,permit_raw,dev_utc_ms());
++   QuotaBracket quota(session);quota.finish();
++   // Worker ownership is retained by shared_ptr through return/UNKNOWN. No
++   // MainPage callback, second CoreApplication::Run, or automatic app exit.
++   auto self=shared_from_this();const auto clock=qualification_now();
++   session.validate(c,clock);started.store(true);status(L"Selected command accepted for admission. Work remains gated.");
++   std::thread([self,c,raw,config_raw,clock,held=std::move(held),config=std::move(config),permit=std::move(permit)]()mutable{
++    qualification::worker_boundary([]{winrt::init_apartment();},[&]{
++     self->session.execute(c,qualification_now(),[&]{self->receipt("claim.json","CLAIMED_BEFORE_WORK");},[&]{
++      qualification::run_guard.start(self->session.clock);
++      self->dispatch(c,raw,config_raw,std::move(held),std::move(config));
++     });self->completion_nonce=random_hex(32);self->receipt("receipt.json","WORK_RETURNED_NOT_ACCEPTED");
++    },[&](const char*error){if(!self->session.claim_attempted)self->session.note(worker_setup,error);self->session.refuse();self->receipt("refusal.json","UNKNOWN_NO_RETRY",error);});
++    self->work_done.store(true,std::memory_order_release);
++    try{self->label.Dispatcher().RunAsync(winrt::Windows::UI::Core::CoreDispatcherPriority::Normal,[self]{self->begin_release_wait();});}catch(...){}
++    // No further work command is accepted in this process, even after return.
++   }).detach();
++  }catch(const std::exception&e){session.refuse();if(timer)timer.Stop();try{receipt("refusal.json","UNKNOWN_NO_RETRY",e.what());}catch(...){}status(L"Command refused/unknown. No retry; preserve evidence.");}
++ }
++ void release_failure(const char*detail,const qualification::ReleaseObservation*observation=nullptr){
++  if(timer)timer.Stop();
++  // Structured release-local stop is critical and never hidden in bounded detail.
++  if(observation)try{const auto raw=qualification::release_stop_body(session,GetCurrentProcessId(),*observation,command_sha,completion_nonce);auto h=write_new(path(root,leaf(session.selected.run,"release-window-refusal.json")),raw,release_window_cap);h.close();}catch(...){}
++  try{receipt("release-refusal.json","RELEASE_UNKNOWN_NO_RETRY",detail);}catch(...){}
++  status(L"Release refused/unknown — shell retained. No force-exit or retry.");
++ }
++ void begin_release_wait(){
++  if(!work_done.load(std::memory_order_acquire)||session.state!=Phase::returned){status(L"Worker unavailable/UNKNOWN — preserve evidence; no automatic exit.");return;}
++  status(L"Work returned. Collect native evidence; explicit reviewed release required for process exit.");
++  try{release_window.start(qualification_now());timer=winrt::Windows::UI::Xaml::DispatcherTimer();timer.Interval(std::chrono::milliseconds(1000));
++  std::weak_ptr<Runtime> weak=shared_from_this();timer.Tick([weak](auto const&,auto const&){if(auto self=weak.lock())self->release_tick();});timer.Start();}
++  catch(const qualification::ReleaseStop&e){release_failure(e.what(),&e.observation);}catch(const std::exception&e){release_failure(e.what());}
++ }
++ void release_tick(){
++  try{
++   release_window.tick(qualification_now(),qualification::run_guard.abort.load());
++   const auto query_path=path(root,leaf(session.selected.run,"release-window-query.json"));
++   if(!release_window.query_seen&&present(query_path)){
++    // First visible query spends this run's ONE timing request even if partial.
++    release_window.acquire_query();DevHandle qh,control;
++    const auto qr=read(qh,query_path,release_query_cap);const auto q=qualification::release_query(qr);
++    const auto cr=read(control,path(root,leaf(session.selected.run,"receipt.json")),receipt_cap);
++    qualification::validate_release_query(q,session,command_sha,dev_sha(cr),completion_nonce);
++    const auto response=release_window.response(q,session,GetCurrentProcessId(),dev_sha(qr),qualification_now(),qualification::run_guard.abort.load());
++    auto published=write_new(path(root,leaf(session.selected.run,"release-window.json")),response,release_window_cap);published.close();
++    release_window.published(dev_sha(response),q.challenge);
++    release_window.check(qualification_now(),qualification::run_guard.abort.load());
++   }
++   const auto selected=path(root,leaf(session.selected.run,"release.json"));if(!present(selected))return;timer.Stop();
++   DevHandle rh,ch,review,receipt_file,output_file;const auto raw=read(rh,selected,command_cap);const auto timed=qualification::timed_release(raw);const auto&r=timed.value;qualification::validate_timed_release(timed,release_window,qualification_now(),qualification::run_guard.abort.load());dev_run::need(r.run==session.selected.run&&r.instance==session.instance&&r.selection==session.selected.selection&&r.package==actual_package,"foreign release before related reads");
++   const auto cr=read(ch,path(root,leaf(r.run,"closure.json")),closure_cap);dev_run::need(dev_sha(cr)==r.closure_sha,"release closure SHA");const auto closure=qualification::closure(cr);
++   const auto reviewed=read(review,path(root,leaf(r.run,"review.json")),review_cap);dev_run::need(dev_sha(reviewed)==closure.review_sha,"release raw independent review SHA");
++   const auto rr=read(receipt_file,path(root,leaf(r.run,"receipt.json")),receipt_cap);
++   const auto science=session.selected.work==Stage::generation?"ua68-generation-v1."+r.run+".output.json":ingress_v2::result_prefix(session.selected.work==Stage::identity?ingress_v2::Stage::identity:session.selected.work==Stage::proof?ingress_v2::Stage::proof:ingress_v2::Stage::cpu_dev,r.run)+"output.json";
++   const auto output=read(output_file,path(root,science),session.selected.work==Stage::identity?gpu_identity::result_cap:262144);
++   qualification::validate_release(session,r,closure,dev_sha(rr),dev_sha(output),command_sha,completion_nonce);
++   qualification::validate_resource_review(reviewed,session,closure,GetCurrentProcessId());
++   // These staged authority/chronology assertions are explicitly external.
++   // No new normal/closed result or acceptance is emitted by this exit gate.
++   qualification::validate_timed_release(timed,release_window,qualification_now(),qualification::run_guard.abort.load());
++   receipt("release-claim.json","EXIT_AUTHORIZED_BY_EXTERNAL_REVIEW");
++   // Release claim persistence may block. Expiry here retains a claimed shell,
++   // never grants Exit/closure, never refreshes the original release timer.
++   qualification::validate_timed_release(timed,release_window,qualification_now(),qualification::run_guard.abort.load());
++   timer.Stop();winrt::Windows::UI::Xaml::Application::Current().Exit();
++  }catch(const qualification::ReleaseStop&e){release_failure(e.what(),&e.observation);}catch(const std::exception&e){release_failure(e.what());}
++ }
++ void dispatch(const Command&c,const std::string&raw,const std::string&config_raw,DevHandle command_file,DevHandle config_file){
++  qualification_guard_check();
++#if !defined(XLLAMA_USE_LLAMA)
++  throw std::runtime_error("stage handlers unavailable");
++#else
++  if(c.work==Stage::generation){
++   for(const char*s:{"claim","output.json","config.json","trace.bin","trace.binding"})absent(path(root,"ua68-generation-v1."+c.run+"."+s));
++   // Existing synchronous runner still requires its held, unconsumed permit
++   // and original primitive/model2/artifact prerequisite fields. No LAN.
++   const auto result=run_configured_generation(config_raw);dev_run::need(result.http_status==200||result.http_status==422,"generation admission/unknown refusal");return;
++  }
++  const auto st=c.work==Stage::identity?ingress_v2::Stage::identity:c.work==Stage::proof?ingress_v2::Stage::proof:ingress_v2::Stage::cpu_dev;
++  const auto result_prefix=ingress_v2::result_prefix(st,c.run);
++  for(const char*s:{"claim","output.json","terminal-v2.json","attempt-v2.json","reason-v2.json","trace.bin","diagnostics.json"})absent(path(root,result_prefix+s));
++  SelectedIngress selected;selected.native_command=true;selected.command_raw=raw;selected.command_sha=dev_sha(raw);selected.command_file=std::move(command_file);
++  auto&i=selected.intent;i.stage=st;i.run=c.run;i.selection=c.selection;i.package=c.package;i.expires=c.expires;i.config_sha=st==ingress_v2::Stage::identity?"":c.config_sha;
++  selected.config=std::move(config_file);selected.config_raw=config_raw;selected.config_sha=c.config_sha;
++  selected.ticket_raw=qualification::issued_ticket(c);
++  selected.ticket_sha=dev_sha(selected.ticket_raw);i.ticket_sha=selected.ticket_sha;
++  // Native CREATE_NEW ticket is consumed only by the unchanged stage OneUse
++  // claim/consume boundary. Mailbox command/profile/history are preserved.
++  selected.ticket=write_new(path(root,ingress_v2::ticket_leaf(st,c.run)),selected.ticket_raw,4096,true);
++  const auto intent=i;commit_ingress_attempt(path(root,result_prefix+"attempt-v2.json"),intent);install_selected_ingress(std::move(selected));
++  if(st==ingress_v2::Stage::identity)run_gpu_capability_identity();else if(st==ingress_v2::Stage::proof)run_expert_gpu_proof_configured();else run_cpu_expert_configured();
++  // Existing finalizer can close exact unclaimed native ticket refusals. It
++  // never manufactures normal or closes a claimed/orphan native resource.
++  (void)finalize_selected_preclaim_refusal(root,intent);
++#endif
++ }
++};
++inline void show(){
++ using namespace winrt::Windows::UI::Xaml;using namespace winrt::Windows::UI::Xaml::Controls;
++ if(Runtime::owner())return;auto runtime=std::make_shared<Runtime>();Runtime::owner()=runtime;
++ runtime->label=TextBlock();runtime->label.FontSize(24);runtime->label.TextWrapping(TextWrapping::Wrap);runtime->label.Margin(Thickness{48,48,48,48});runtime->label.Text(L"Qualification shell — safe manual mode. No model loaded.");
++ Window::Current().Content(runtime->label);Window::Current().Activate();
++ // A suspension/visibility transition can only request stop. It never marks
++ // native drain/closure, resets timers, or resumes a command.
++ winrt::Windows::UI::Xaml::Application::Current().Suspending([](auto const&,auto const&){qualification::run_guard.stop();});
++ Window::Current().VisibilityChanged([](auto const&,auto const&e){if(!e.Visible())qualification::run_guard.stop();});
++ try{runtime->start();}catch(...){runtime->session.state=Phase::manual;runtime->status(L"Qualification shell — manual. Native readiness unavailable.");}
++}
++}

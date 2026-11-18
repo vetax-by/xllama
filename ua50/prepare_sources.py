@@ -45,11 +45,11 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = 'e8e83fa00031f532dbcc844a714096d82e4c2b23a49109b24ba3696424d1e58a'
+CURRENT_PATCH_LOCK = 'ee2b5f939e2ec7b069453ab8d8a3e4693e75258b256727264e757b5987cd3da9'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current runtime-ingress App include fix source lock admitted; older locks refused')
+        raise ValueError('only current no-model bootstrap release-window source lock admitted; older locks refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
@@ -79,7 +79,8 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/model2-held-weight-cross-input-root.patch', 'xllama'),
             ('patch/model2-held-weight-cross-input-native.patch', 'llama'),
             ('patch/runtime-ingress-successor-root.patch', 'xllama'),
-            ('patch/runtime-ingress-app-include-root.patch', 'xllama')]:
+            ('patch/runtime-ingress-app-include-root.patch', 'xllama'),
+            ('patch/no-model-bootstrap-root.patch', 'xllama')]:
         raise ValueError('exact accepted parent twenty-four plus configurable diagnostics patches required')
     if lock.get('parent20_patch_lock_sha256') != '62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7' or lock.get('parent20_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent20 required')
@@ -99,13 +100,15 @@ def admitted_runtime_lock(operator, lock_sha):
         raise ValueError('exact accepted parent30 required')
     if lock.get('parent31_patch_lock_sha256') != '3e10513f81b557e90ecdf73f2527bc4c51394daa3c4f0e05c280fc1d997101e0' or lock.get('parent31_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent31 required')
+    if lock.get('parent32_patch_lock_sha256') != 'e8e83fa00031f532dbcc844a714096d82e4c2b23a49109b24ba3696424d1e58a' or lock.get('parent32_reused_not_replayed') is not True:
+        raise ValueError('exact accepted parent32 required')
     for entry in lock['patches']:
         patch = checked_patch(operator, entry)
         if patch.stat().st_size != entry['bytes']:
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = '23c10a5338465e7bf4bdbf66e2597c33c3c73aca2516369cd17fa132b513274f'
+SHIPPING_INVENTORY_SHA = '97da89f2a3fdc93070519b2c282563481356b6bdc70356f28b013c8267a6ac7f'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):
@@ -116,11 +119,11 @@ def admitted_shipping_inventory(operator):
     if hashlib.sha256(imports).hexdigest() != COMPILER_INVENTORY_SHA:
         raise ValueError('compiler/import declarations changed')
     includes = (operator / 'INCLUDE-DEPENDENCY-INVENTORY.json').read_bytes()
-    if hashlib.sha256(includes).hexdigest() != '1c3701f4d96762f14ed98efd8e455108ce85535ba70a6fb6c360301362e5e841' or len(json.loads(includes)['direct_includes_only']) != 801:
-        raise ValueError('exact current 801 direct source includes required')
+    if hashlib.sha256(includes).hexdigest() != 'd417f4e7fc7cb712d47c30340b9b19306af31ecc7fcb28fe25dd2ad1a6c4e97f' or len(json.loads(includes)['direct_includes_only']) != 827:
+        raise ValueError('exact current 827 direct source includes required')
     entries = json.loads(raw)['selected_source_files']
-    if len(entries) != 96:
-        raise ValueError('exact ninety-six selected shipping files required')
+    if len(entries) != 102:
+        raise ValueError('exact 102 selected shipping files required')
     seen = set()
     for entry in entries:
         target, path = entry['target'], entry['target_path']
