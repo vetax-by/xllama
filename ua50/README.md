@@ -7,8 +7,8 @@ The patch rationale, implementation and evidence limits have one home:
 
 - xllama: `4db51522c850e62d0bb24234dfeb48e55f4017d7`.
 - llama.cpp: `d81235049384534c167caea52b85a694f6103d14`.
-- Current 31-patch runtime ingress successor source lock SHA-256:
-  `147016a8c2dd08487186467548cd6e9daac0db61580082f28698885d52a0c061`.
+- Current 32-patch App.cpp include-path correction source lock SHA-256:
+  `e8e83fa00031f532dbcc844a714096d82e4c2b23a49109b24ba3696424d1e58a`.
 - The prior 17-patch lock `921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe`
   remains the binding for Windows run 43825061482; that build did not contain the followup fixes.
 - [`PROVENANCE.json`](PROVENANCE.json) records the source-review identities.
@@ -22,7 +22,7 @@ the ten historical entries. Two further configurable-runner patches add a
 strict typed developer entrypoint, explicit successor records and bounded I/O
 aggregates; those twelve entries are retained. Two additional root/native GPU bridge patches
 bring the historical GPU route to fourteen entries. One further root identity patch
-brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches brought the historical route to seventeen entries and 77 selected shipping files. Two source-only followup patches then brought the recipe to nineteen entries and 79 selected postimages: the root patch fixes the `EnsureModelAsync` return type and signed prompt-cap comparison, and the pinned llama.cpp patch fixes the unsigned layer comparison. A twentieth patch adds byte-safe trace retrieval and per-run permit storage. The twenty-first patch requests logits on every model2 proof decode so final-layer MoE routes remain observable on nonfinal prefill tokens. Signed 1510 then passed the 456-route gate but closed with native numerical and route mismatch; that run is spent and model2 remains unaccepted. A twenty-second root patch adds a bounded model2-only layer-output witness and optional SHA-bound diagnostic sidecar. It retains the accepted main result schema, the strict 456-route and numerical gates, and all earlier patch bytes. That 22-patch source produced the saved unsigned run 43988466126 and signed 1512. Signed 1512 model2 closed with a numerical refusal; its saved optional layer sidecar localized an early tolerance crossing, but did not establish a causal instruction. The run is spent and model2 remains unaccepted. Two further root/native patches add an optional first-position 12-vector diagnostic using the same held hybrid Q8 input and weight lease, a CPU vec_dot oracle, and post-fence GPU output. Diagnostic failure latches sidecar unavailable while core GPU publication and prior proof gates retain their behavior. That 24-patch source produced signed 1514; its model2 run closed with numerical refusal and its claim is spent. Patches 25 and 26 added configurable model2 diagnostics, selecting 84 postimages and 718 direct includes; they produced signed 1516, whose two model2 runs closed with numerical refusal. Patches 27 and 28 extended graph and cross-arm diagnostics, selecting 90 postimages and 760 direct includes. That 28-patch source was built and signed as 1518; its model2 runs closed with numerical refusal and spent claims. The held-weight pair added patches 29 and 30, keeping 90 postimages with 761 direct includes; that source was built and signed as 1520, whose identity run refused before model work. Patch 31 adds runtime ingress and selects 96 postimages with 801 direct include records. It has source/host evidence only, without a Windows or native result for this new source. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
+brings that historical route to fifteen entries and 69 selected shipping files. Two generation patches brought the historical route to seventeen entries and 77 selected shipping files. Two source-only followup patches then brought the recipe to nineteen entries and 79 selected postimages: the root patch fixes the `EnsureModelAsync` return type and signed prompt-cap comparison, and the pinned llama.cpp patch fixes the unsigned layer comparison. A twentieth patch adds byte-safe trace retrieval and per-run permit storage. The twenty-first patch requests logits on every model2 proof decode so final-layer MoE routes remain observable on nonfinal prefill tokens. Signed 1510 then passed the 456-route gate but closed with native numerical and route mismatch; that run is spent and model2 remains unaccepted. A twenty-second root patch adds a bounded model2-only layer-output witness and optional SHA-bound diagnostic sidecar. It retains the accepted main result schema, the strict 456-route and numerical gates, and all earlier patch bytes. That 22-patch source produced the saved unsigned run 43988466126 and signed 1512. Signed 1512 model2 closed with a numerical refusal; its saved optional layer sidecar localized an early tolerance crossing, but did not establish a causal instruction. The run is spent and model2 remains unaccepted. Two further root/native patches add an optional first-position 12-vector diagnostic using the same held hybrid Q8 input and weight lease, a CPU vec_dot oracle, and post-fence GPU output. Diagnostic failure latches sidecar unavailable while core GPU publication and prior proof gates retain their behavior. That 24-patch source produced signed 1514; its model2 run closed with numerical refusal and its claim is spent. Patches 25 and 26 added configurable model2 diagnostics, selecting 84 postimages and 718 direct includes; they produced signed 1516, whose two model2 runs closed with numerical refusal. Patches 27 and 28 extended graph and cross-arm diagnostics, selecting 90 postimages and 760 direct includes. That 28-patch source was built and signed as 1518; its model2 runs closed with numerical refusal and spent claims. The held-weight pair added patches 29 and 30, keeping 90 postimages with 761 direct includes; that source was built and signed as 1520, whose identity run refused before model work. Patch 31 adds runtime ingress and selects 96 postimages with 801 direct include records. Its one Windows build, run 44287852328/attempt 1, failed at MSVC C1083 before packaging and produced no artifact; no native result exists for this source. Named cache presets resolve to complete configs on the same CPU engine. The unsigned build and
 package-guard commands are unchanged; the public receipt omits captured absolute tool-installation paths. The workflow enforces LF
 checkout before both source checkouts. `prepare_sources.py` explicitly selects
 Git for Windows Bash instead of the WSL stub; it refuses a missing or unexpected
@@ -48,7 +48,7 @@ unchanged accepted baseline artifact can be reused; the new patched source
 requires its own build and inspection with the exact lock above. Do not
 automatically retry, retarget a missing SDK, sign or install a package.
 
-Existing successor signing receipts bind earlier artifacts, including signed 1520. This new 31-patch source cannot pass those old exact receipt guards. A future signed successor requires a new unsigned artifact, independent artifact QA and a derived signing input. This preparation does not select or sign a package.
+Existing successor signing receipts bind earlier artifacts, including signed 1520. The current 32-patch source cannot pass those old exact receipt guards. A future signed successor requires a new unsigned artifact, independent artifact QA and a derived signing input. This preparation does not select or sign a package.
 
 Equivalent commands on a properly provisioned Windows host, from a directory
 containing this fork checkout as `operator` and a **separate clean pinned**
@@ -59,16 +59,16 @@ python operator/ua50/prepare_sources.py product operator/ua50 baseline
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-baseline -Track baseline
 
 # Use a second CLEAN pinned product checkout for the patch track.
-python operator/ua50/prepare_sources.py product operator/ua50 patch 8769d6d7337fd15baf0793fbf25dba12a7af889751e8056c3b86230b8d45ed4e
+python operator/ua50/prepare_sources.py product operator/ua50 patch e8e83fa00031f532dbcc844a714096d82e4c2b23a49109b24ba3696424d1e58a
 & operator/ua50/build_unsigned.ps1 -Source product -Output result-patch -Track patch
 ```
 
 ## What preparation checks
 
 Before git/network operations for the patch track, the operator admits the
-exact lock, thirty ordered patch files and source/import inventories. Old
+exact lock, thirty-two ordered patch files and source/import inventories. Old
 standalone runtime locks are refused. It verifies the stock guard, applies
-the pinned route once and checks all 90 selected shipping postimages,
+the pinned route once and checks all 96 selected shipping postimages,
 including shipping `.inc` dependencies and the gated Windows CPU-pilot unit, before
 writing its source receipt.
 
@@ -306,3 +306,5 @@ The 30-patch source was built and signed as 1520. Its identity attempt closed wi
 Patch 31 adds one bounded per-run headless scanner for identity, proof and CPU dev. Exact intent/window/ticket bytes bind a fresh finite selection. Attempt/output/terminal evidence distinguishes closed spent from orphan; uncertain state refuses and is never replayed or automatically cleaned. Identity v2 ticket and result filenames have separate canonical prefixes. Historical fixed tickets remain intact, and LAN generation keeps explicit POST and retained permit.
 
 A bounded reason envelope records stage-specific stop predicates, first observed stop, clock and quota availability without changing native proof gates. A separately selected protected UI intent is claimed and latched before XAML and suppresses late experimental flag consumers. Its close needs external independent issuer, selected-run and chronology checks; staged file contents alone do not establish those facts or exclude another writer. Source/host checks do not establish Windows handle sharing, activation races, native memory peak or runtime acceptance. A future artifact needs Windows build and independent QA, signing, preserving install, exact version/full-PFN GET, then Stan's later Game/manual launch-and-exit report before app/native launch. Identity, primitive and model2 remain fresh same-artifact stages.
+
+The published 31-patch source produced Windows run `44287852328/attempt1`, which ended in MSVC C1083 while compiling `App.cpp` and published no artifact. Patch 32 adds `llama.cpp/src` to that compile item’s include search path so its new ingress scanner can resolve `ua50/cross_arm_observer.h`. This is a source-only candidate; a new Windows compile and independent artifact QA remain required. The failed run stays terminal, with no automatic retry.

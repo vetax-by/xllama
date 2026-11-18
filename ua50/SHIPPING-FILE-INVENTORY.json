@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_RUNTIME_INGRESS_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_RUNTIME_INGRESS_APP_INCLUDE_FIX_SOURCE_CANDIDATE",
   "selected_source_files": [
     {
       "file": "CMakeLists.txt",
@@ -670,8 +670,8 @@
       "file": "uwp/xllama.vcxproj",
       "target": "xllama",
       "target_path": "uwp/xllama.vcxproj",
-      "bytes": 23615,
-      "sha256": "54666608e42077fbecd3216f472bb8cafe682ccbe5e610c98ead379b18bdfa5d"
+      "bytes": 23759,
+      "sha256": "e728abd132d92c433ce9323301038dce1d2aa59738d12b488572a6905833c54f"
     }
   ]
 }

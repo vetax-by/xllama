@@ -45,11 +45,11 @@ def checked_patch(operator, entry):
         raise ValueError('patch target')
     return path.resolve()
 
-CURRENT_PATCH_LOCK = '3e10513f81b557e90ecdf73f2527bc4c51394daa3c4f0e05c280fc1d997101e0'
+CURRENT_PATCH_LOCK = 'e8e83fa00031f532dbcc844a714096d82e4c2b23a49109b24ba3696424d1e58a'
 STOCK_GUARD_SHA = '1041743635f5d67e8c64591727b627095532c62d832646ca49468cadd9ff8ccb'
 def admitted_runtime_lock(operator, lock_sha):
     if lock_sha != CURRENT_PATCH_LOCK:
-        raise ValueError('only current runtime-ingress successor source lock admitted; older locks refused')
+        raise ValueError('only current runtime-ingress App include fix source lock admitted; older locks refused')
     raw = (operator / 'PATCH-LOCK.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != CURRENT_PATCH_LOCK:
         raise ValueError('current patch lock bytes changed')
@@ -78,7 +78,8 @@ def admitted_runtime_lock(operator, lock_sha):
             ('patch/model2-consolidated-diagnostics-native.patch', 'llama'),
             ('patch/model2-held-weight-cross-input-root.patch', 'xllama'),
             ('patch/model2-held-weight-cross-input-native.patch', 'llama'),
-            ('patch/runtime-ingress-successor-root.patch', 'xllama')]:
+            ('patch/runtime-ingress-successor-root.patch', 'xllama'),
+            ('patch/runtime-ingress-app-include-root.patch', 'xllama')]:
         raise ValueError('exact accepted parent twenty-four plus configurable diagnostics patches required')
     if lock.get('parent20_patch_lock_sha256') != '62437bdcd1a46c3460cef01b7b7d7d63fae5723df6e326d8baad57ada71fd1d7' or lock.get('parent20_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent20 required')
@@ -96,13 +97,15 @@ def admitted_runtime_lock(operator, lock_sha):
         raise ValueError('exact accepted parent14 required')
     if lock.get('parent30_patch_lock_sha256') != '8769d6d7337fd15baf0793fbf25dba12a7af889751e8056c3b86230b8d45ed4e' or lock.get('parent30_reused_not_replayed') is not True:
         raise ValueError('exact accepted parent30 required')
+    if lock.get('parent31_patch_lock_sha256') != '3e10513f81b557e90ecdf73f2527bc4c51394daa3c4f0e05c280fc1d997101e0' or lock.get('parent31_reused_not_replayed') is not True:
+        raise ValueError('exact accepted parent31 required')
     for entry in lock['patches']:
         patch = checked_patch(operator, entry)
         if patch.stat().st_size != entry['bytes']:
             raise ValueError('patch byte count mismatch')
     return lock
 
-SHIPPING_INVENTORY_SHA = 'fda41ddad07fe73c8bfbc774f98b0de003e1a27c1bdf79a5d2707fd05bb6f8f0'
+SHIPPING_INVENTORY_SHA = '23c10a5338465e7bf4bdbf66e2597c33c3c73aca2516369cd17fa132b513274f'
 COMPILER_INVENTORY_SHA = 'bf30c8cddcfa4ac0e773499000e03b964299b9332650858147f5a8afebd0e815'
 
 def admitted_shipping_inventory(operator):

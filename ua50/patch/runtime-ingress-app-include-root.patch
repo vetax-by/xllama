@@ -1,0 +1,13 @@
+--- a/uwp/xllama.vcxproj
++++ b/uwp/xllama.vcxproj
+@@ -377,7 +377,9 @@
+ 
+   <!-- xllama UWP app -->
+   <ItemGroup>
+-    <ClCompile Include="App.cpp" />
++    <ClCompile Include="App.cpp">
++      <AdditionalIncludeDirectories>$(ProjectDir)..\llama.cpp\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
++    </ClCompile>
+     <!-- LAN API is Dev Mode only; omit from Store SKU link (docs/release-readiness.md). -->
+     <ClCompile Include="api-server.cpp" Condition="'$(XllamaStoreSku)' != 'true'" />
+     <ClCompile Include="chat-history.cpp" />
