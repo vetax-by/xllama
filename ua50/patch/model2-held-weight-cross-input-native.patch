@@ -1,0 +1,98 @@
+diff --git a/src/ua50/cross_arm_observer.h b/src/ua50/cross_arm_observer.h
+index 916db136696b83d6bdb22ac071862a6a3a7be30a..54a411bdc791a76485307f1b9122f1a3dfcafe2f 100644
+--- a/src/ua50/cross_arm_observer.h
++++ b/src/ua50/cross_arm_observer.h
+@@ -3,6 +3,11 @@
+ #include <cstdint>
+ 
+ namespace ua50 {
++struct HeldWeightQuery {
++    uint32_t phase=0,position=0,layer=0,role=0,expert=0,slot=0,input_row=0,occurrence=0;
++    int32_t token=-1;
++    size_t row_index=0;
++};
+ // Diagnostic-only observer. Each call is synchronous, while the expert lease,
+ // packed workspace and graph output remain live. Implementations must copy any
+ // value they retain and must never throw across the C/ggml worker boundary.
+@@ -14,5 +19,14 @@ struct CrossArmObserver {
+     virtual void output(uint32_t role,uint32_t expert,uint32_t slot,uint32_t input_row,
+                         const float * values,size_t n) noexcept = 0;
+     virtual void unavailable(const char * reason) noexcept = 0;
++    // Optional held-weight diagnostic. The caller supplies a bounded copy buffer;
++    // no pointer into an observer or lease escapes this synchronous call.
++    virtual bool held_reference(uint32_t,uint32_t,const unsigned char *,size_t,
++                                unsigned char *,size_t,HeldWeightQuery &) noexcept { return false; }
++    virtual void held_result(const HeldWeightQuery &,const float *,const float *,
++                             const float *,size_t) noexcept {}
++    virtual void held_unavailable(const HeldWeightQuery &,const char *) noexcept {}
++    virtual void held_charge(const HeldWeightQuery &,uint64_t,uint64_t) noexcept {}
++    virtual void held_vector_done() noexcept {}
+ };
+ }
+diff --git a/src/ua50/native_provider.cpp b/src/ua50/native_provider.cpp
+index 4b0fd2bfbd1462b2979b0731c684bea50ea8ec0e..fd8440c9a8a9957799e727d10e434855c29390ff 100644
+--- a/src/ua50/native_provider.cpp
++++ b/src/ua50/native_provider.cpp
+@@ -2,6 +2,7 @@
+ #include <cstdio>
+ #include <cstring>
+ #include <exception>
++#include <chrono>
+ #include "ggml-cpu.h"
+ 
+ namespace {
+@@ -159,6 +160,36 @@ bool NativeProvider::gpu_vector(const ggml_tensor*t,const void*q,size_t bytes,fl
+   for(size_t i=0;i<count_;++i)if(records_[i].tensor==t){const auto&d=records_[i].layout;
+    const ExpertVector request{d.quant,d.id,uint32_t(active_expert_),uint32_t(d.columns),uint32_t(d.rows),active_.data(),active_.size(),static_cast<const unsigned char*>(q),bytes};
+    check_vector(request);
++   // Optional, synchronous diagnostic under the authentic held lease. A copied
++   // CPU-arm Q8 row is matched by semantic identity and exact hybrid Q8 bytes.
++   // Neither input nor the GPU publication buffer is modified.
++   ua50::HeldWeightQuery held_key{};std::array<unsigned char,2336> cpu_q8{};
++   std::array<float,2048> held_x{},held_h{};bool held_ready=false;
++   if(cross_arm_observer_&&cross_arm_observer_->held_reference(d.id,uint32_t(active_expert_),
++       request.q8,request.q8_bytes,cpu_q8.data(),cpu_q8.size(),held_key)){
++    const auto started=std::chrono::steady_clock::now();
++    uint64_t completed_dots=0;
++    try{
++     const auto*trait=ggml_get_type_traits_cpu(t->type);
++     if(!trait||trait->vec_dot_type!=GGML_TYPE_Q8_K||!trait->vec_dot||
++        !(d.quant==Quant::q4_k||d.quant==Quant::q6_k)||
++        !(d.columns==1536||d.columns==2048)||d.rows>held_x.size()||
++        d.nb01>SIZE_MAX/d.rows||d.nb01*d.rows!=request.weight_bytes)
++      throw std::runtime_error("held-weight diagnostic layout refused");
++     for(size_t row=0;row<d.rows;++row){
++      const auto*weight=request.weights+row*d.nb01;
++      trait->vec_dot(int(request.k),held_x.data()+row,0,weight,0,cpu_q8.data(),0,1);
++      ++completed_dots;
++      trait->vec_dot(int(request.k),held_h.data()+row,0,weight,0,request.q8,0,1);
++      ++completed_dots;
++     }
++     held_ready=true;
++    }catch(...){cross_arm_observer_->held_unavailable(held_key,"HELD_ORACLE_EXCEPTION");}
++    const auto elapsed=std::chrono::duration_cast<std::chrono::nanoseconds>(
++      std::chrono::steady_clock::now()-started).count();
++    const uint64_t units=uint64_t(d.columns)*completed_dots;
++    cross_arm_observer_->held_charge(held_key,units,elapsed<0?UINT64_MAX:uint64_t(elapsed));
++   }
+    std::array<float,2048> oracle;
+    const bool selected=diagnostic_oracle(vector_observer_.get(),request,[&]{
+     const auto*trait=ggml_get_type_traits_cpu(t->type);
+@@ -169,11 +200,15 @@ bool NativeProvider::gpu_vector(const ggml_tensor*t,const void*q,size_t bytes,fl
+       trait->vec_dot(int(request.k),oracle.data()+row,0,request.weights+row*d.nb01,0,request.q8,0,1);
+    });
+    const float* result=gpu_->execute(request);
++   if(held_ready){if(gpu_->terminal()&&result)cross_arm_observer_->held_result(
++      held_key,held_x.data(),held_h.data(),result,d.rows);
++     else cross_arm_observer_->held_unavailable(held_key,"HELD_GPU_RESULT_UNAVAILABLE");}
++   if(cross_arm_observer_)cross_arm_observer_->held_vector_done();
+    if(selected){if(gpu_->terminal()&&result)diagnostic_result(vector_observer_.get(),true,request,oracle.data(),result);else vector_observer_->unavailable();}
+    if(n!=d.rows||!gpu_->publish(result,dst,n))throw std::runtime_error("GPU stopped/nonfinite graph publication refused");return true;}
+   throw std::logic_error("GPU vector unregistered role");
+- }catch(const std::exception&e){if(!error_[0])std::snprintf(error_,sizeof(error_),"%s",e.what());}
+- catch(...){if(!error_[0])std::snprintf(error_,sizeof(error_),"GPU unknown provider failure");}
++ }catch(const std::exception&e){if(cross_arm_observer_)cross_arm_observer_->held_vector_done();if(!error_[0])std::snprintf(error_,sizeof(error_),"%s",e.what());}
++ catch(...){if(cross_arm_observer_)cross_arm_observer_->held_vector_done();if(!error_[0])std::snprintf(error_,sizeof(error_),"GPU unknown provider failure");}
+  gpu_->request_stop();gpu_->drain();return false;
+ }
+ const char * NativeProvider::data(const ggml_tensor * t) const noexcept {

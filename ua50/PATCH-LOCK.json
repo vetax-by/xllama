@@ -1,5 +1,5 @@
 {
-  "status": "UNCOMPILED_CONSOLIDATED_MODEL2_DIAGNOSTICS_SOURCE_CANDIDATE",
+  "status": "UNCOMPILED_HELD_WEIGHT_CROSS_INPUT_SOURCE_CANDIDATE",
   "parent_patch_lock_sha256": "921fc2a5d9724fc28851146266fc67b7627e54a45c8a10775f30c52eb2a20ebe",
   "parent12_reused_not_replayed": true,
   "patches": [
@@ -170,6 +170,18 @@
       "target": "llama",
       "bytes": 14178,
       "sha256": "55645ba8e0a229dec774f5e7227a34b52e4a39595c895658e4fce54d20eae7d8"
+    },
+    {
+      "file": "patch/model2-held-weight-cross-input-root.patch",
+      "target": "xllama",
+      "bytes": 36644,
+      "sha256": "e0e10ead629bf626df30e06fb6c57052155d15568752d7af518607121ac666df"
+    },
+    {
+      "file": "patch/model2-held-weight-cross-input-native.patch",
+      "target": "llama",
+      "bytes": 5980,
+      "sha256": "2c2310fe5d21ca45aaa40f08792e8825cacd908ef56f4abb44646541e4b57059"
     }
   ],
   "parent14_reused_not_replayed": true,
@@ -183,5 +195,7 @@
   "parent24_patch_lock_sha256": "9b9659dc28c63383aa89c10eafc9a8c625ee6d5d659030941c808f4303d9c372",
   "parent24_reused_not_replayed": true,
   "parent26_patch_lock_sha256": "f035c9cd3b672ac2b441eecd65d171ef2175c33ea9c34045644d61c0d85957e0",
-  "parent26_reused_not_replayed": true
+  "parent26_reused_not_replayed": true,
+  "parent28_patch_lock_sha256": "75da7c5e339b7b5528d688dbbdd4d8aa2e031ac33cda36d3f33e4eb8971a02c0",
+  "parent28_reused_not_replayed": true
 }

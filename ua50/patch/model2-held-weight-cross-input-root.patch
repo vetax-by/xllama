@@ -1,0 +1,389 @@
+diff --git a/include/xllama/gpu_cross_arm_witness.h b/include/xllama/gpu_cross_arm_witness.h
+index 2d4bcd34378ef6656324bb8f3afcb3d23170eb84..4771ec23dd4f7df95d605662c2b74da2744c2186 100644
+--- a/include/xllama/gpu_cross_arm_witness.h
++++ b/include/xllama/gpu_cross_arm_witness.h
+@@ -18,6 +18,16 @@ class CrossArmWitness final : public ua50::CrossArmObserver {
+ public:
+  struct Key {uint32_t position,role,expert,slot,input_row,occurrence;};
+  static constexpr uint32_t any_slot=4;
++ struct HeldSelection {Key key;uint32_t layer;int32_t token;};
++ struct HeldRow {
++  HeldSelection selected{};size_t cross_index=0;
++  bool cpu_input=false,hybrid_input=false,computed=false;
++  const char* gap=nullptr;uint32_t observed_slot[2]{any_slot,any_slot};
++  uint32_t n=0,bit_differences[4]{},violations[4]{};
++  double max_abs[4]{};uint64_t hash[4]{};
++  std::array<unsigned char,2336> hybrid_q8{};
++  std::array<float,2048> raw_x{},raw_h{};
++ };
+  struct Record {
+   Key key{};int32_t token[2]{-1,-1};uint32_t observed_slot[2]{any_slot,any_slot};uint32_t input_calls[2]{},output_calls[2]{};
+   bool input_seen[2]{},output_seen[2]{};bool q8_equal=false,f32_equal=false,output_equal=false;
+@@ -31,7 +41,9 @@ public:
+  };
+  static constexpr size_t max_records=16,max_q8_bytes=2336;
+ private:
+- std::vector<Record> rows_;uint32_t phase_=0,position_=0,prompt_count_=UINT32_MAX;int32_t token_=-1;
++ std::vector<Record> rows_;std::vector<HeldRow> held_;bool held_raw_=false;
++ uint32_t phase_=0,position_=0,prompt_count_=UINT32_MAX;int32_t token_=-1;
++ size_t last_hybrid_=SIZE_MAX;uint64_t held_work_=0,held_ns_=0,held_work_cap_=0,held_ns_cap_=0;
+  bool unavailable_=false,raw_=false;const char*reason_=nullptr;uint64_t work_ns_=0,work_units_=0;
+  uint64_t max_work_,max_time_ns_;uint32_t abs_ppm_,rel_ppm_;
+  static uint64_t hash(const void*data,size_t n)noexcept{
+@@ -41,6 +53,13 @@ private:
+  static bool same(const Key&a,const Key&b)noexcept{
+   return a.position==b.position&&a.role==b.role&&a.expert==b.expert&&a.slot==b.slot&&a.input_row==b.input_row&&a.occurrence==b.occurrence;
+  }
++ static void compare_held(const float*a,const float*b,size_t n,uint32_t abs_ppm,uint32_t rel_ppm,
++                          uint32_t&bits,uint32_t&violations,double&maximum)noexcept{
++  for(size_t i=0;i<n;++i){uint32_t x=0,y=0;std::memcpy(&x,a+i,4);std::memcpy(&y,b+i,4);
++   bits+=x!=y;const double delta=std::abs(double(a[i])-double(b[i]));maximum=std::max(maximum,delta);
++   violations+=delta>(double(abs_ppm)+double(rel_ppm)*std::abs(double(a[i])))/1e6;
++  }
++ }
+  void fail(const char*why)noexcept{unavailable_=true;if(!reason_)reason_=why;}
+  void charge(std::chrono::steady_clock::time_point start,uint64_t units)noexcept{
+   auto ns=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-start).count();
+@@ -69,6 +88,24 @@ private:
+  }
+ public:
+  void configure(uint32_t prompt_count)noexcept{prompt_count_=prompt_count;}
++ void select_held(std::vector<HeldSelection> chosen,uint64_t max_work,uint32_t max_time_ms,bool raw){
++  if(chosen.empty()||chosen.size()>8||!held_.empty()||max_work==0||max_work>120000000||
++     max_time_ms<1000||max_time_ms>120000)throw std::invalid_argument("held-weight selection bounds");
++  if(raw&&(!raw_||chosen.size()!=1))throw std::invalid_argument("held-weight private raw bound");
++  held_raw_=raw;
++  held_work_cap_=max_work;held_ns_cap_=uint64_t(max_time_ms)*1000000;
++  for(const auto&s:chosen){
++   if(s.layer<2||s.layer>39||s.key.role/3!=s.layer-2||s.token<0||s.token>=128000)
++    throw std::invalid_argument("held-weight layer/token/role identity");
++   size_t found=SIZE_MAX;
++   for(size_t i=0;i<rows_.size();++i)if(same(s.key,rows_[i].key)){
++    if(found!=SIZE_MAX)throw std::invalid_argument("held-weight ambiguous cross key");found=i;
++   }
++   if(found==SIZE_MAX)throw std::invalid_argument("held-weight row requires exact cross selection");
++   for(const auto&h:held_)if(same(s.key,h.selected.key))throw std::invalid_argument("duplicate held-weight selection");
++   held_.emplace_back();held_.back().selected=s;held_.back().cross_index=found;
++  }
++ }
+  CrossArmWitness(std::vector<Key>keys,uint32_t abs_ppm,uint32_t rel_ppm,uint64_t max_work,uint32_t max_time_ms,bool raw=false)
+   :raw_(raw),max_work_(max_work),max_time_ns_(uint64_t(max_time_ms)*1000000),abs_ppm_(abs_ppm),rel_ppm_(rel_ppm){
+   if(keys.empty()||keys.size()>max_records||(raw&&keys.size()>8)||max_time_ms<1000||max_time_ms>120000||max_work==0||max_work>120000000||abs_ppm>1000000||rel_ppm>1000000)throw std::invalid_argument("cross-arm bounds");
+@@ -83,7 +120,7 @@ public:
+  }
+  void frame(uint32_t phase,uint32_t position,int32_t token)noexcept override{
+   if((phase!=1&&phase!=2)||position>128||token<0){fail("FRAME_IDENTITY");return;}
+-  phase_=phase;position_=position;token_=token;
++  phase_=phase;position_=position;token_=token;last_hybrid_=SIZE_MAX;
+  }
+  void input(uint32_t role,uint32_t expert,uint32_t slot,uint32_t input_row,const float*f32,size_t k,
+             const unsigned char*q8,size_t bytes)noexcept override{
+@@ -96,7 +133,8 @@ public:
+    r.input_seen[arm]=true;r.token[arm]=token_;r.observed_slot[arm]=slot;r.k=uint32_t(k);
+    r.f32_hash[arm]=hash(f32,k*4);r.q8_hash[arm]=hash(q8,bytes);
+    q8_check(q8,k,r.zero_blocks[arm],r.bad_bsums[arm],r.nonfinite_scales[arm]);
+-   if(arm==0){std::memcpy(r.cpu_f32.data(),f32,k*4);std::memcpy(r.cpu_q8.data(),q8,bytes);}
++   if(arm==0){std::memcpy(r.cpu_f32.data(),f32,k*4);std::memcpy(r.cpu_q8.data(),q8,bytes);
++    const size_t index=size_t(&r-rows_.data());for(auto&h:held_)if(h.cross_index==index)h.observed_slot[0]=slot;}
+    else if(r.input_seen[0]&&r.token[0]==token_){
+     if(raw_){std::memcpy(r.hybrid_f32.data(),f32,k*4);std::memcpy(r.hybrid_q8.data(),q8,bytes);}
+     compare(r.cpu_f32.data(),f32,k,abs_ppm_,rel_ppm_,r.f32_equal,r.f32_violations,r.f32_max_abs);
+@@ -108,6 +146,14 @@ public:
+      for(size_t i=260;i<292;++i)if(old[i]!=now[i])++r.bsums_diff_bytes;
+     }
+    }
++   if(arm==1){
++    last_hybrid_=size_t(&r-rows_.data());
++    for(auto&h:held_)if(h.cross_index==last_hybrid_){
++     h.hybrid_input=true;h.observed_slot[0]=r.observed_slot[0];h.observed_slot[1]=slot;
++     if(h.selected.token!=token_||!r.input_seen[0]||r.token[0]!=token_){h.gap="TOKEN_OR_CPU_INPUT_UNPAIRED";continue;}
++     std::memcpy(h.hybrid_q8.data(),q8,bytes);
++    }
++   }
+    charge(start,2*k+bytes);return;
+   }
+  }
+@@ -128,6 +174,96 @@ public:
+   }
+  }
+  void unavailable(const char*reason)noexcept override{fail(reason?reason:"DIAGNOSTIC_UNAVAILABLE");}
++ bool held_reference(uint32_t role,uint32_t expert,const unsigned char*q8,size_t bytes,
++                     unsigned char*copy,size_t capacity,ua50::HeldWeightQuery&query)noexcept override{
++  if(phase_!=2||last_hybrid_==SIZE_MAX||!q8||!copy)return false;
++  for(size_t i=0;i<held_.size();++i){auto&h=held_[i];if(h.cross_index!=last_hybrid_)continue;
++   const auto&r=rows_[h.cross_index];const auto&key=h.selected.key;
++   if(key.role!=role||key.expert!=expert||key.position!=position_||h.selected.token!=token_||
++      !r.input_seen[0]||!r.input_seen[1]||!r.output_seen[0]||r.token[0]!=token_||
++      r.observed_slot[0]!=r.observed_slot[1]&&key.slot!=any_slot){if(!h.gap)h.gap="SEMANTIC_OR_CPU_OUTPUT_UNPAIRED";return false;}
++   const size_t required=size_t(r.k)/256*292;
++   if(r.k<1||required!=bytes||required>capacity||required>max_q8_bytes||
++      std::memcmp(q8,h.hybrid_q8.data(),bytes)!=0){if(!h.gap)h.gap="HYBRID_Q8_IDENTITY_UNPAIRED";return false;}
++   if(h.computed){if(!h.gap)h.gap="DUPLICATE_HELD_QUERY";return false;}
++   std::memcpy(copy,r.cpu_q8.data(),bytes);h.cpu_input=true;
++   query={2,position_,h.selected.layer,role,expert,r.observed_slot[1],key.input_row,key.occurrence,
++          token_,i};
++   last_hybrid_=SIZE_MAX;return true;
++  }
++  return false;
++ }
++ void held_result(const ua50::HeldWeightQuery&q,const float*x,const float*h,const float*g,size_t n)noexcept override{
++  if(q.row_index>=held_.size())return;auto&row=held_[q.row_index];
++  if(row.gap)return;
++  if(!x||!h||!g||n==0||n>2048||row.computed){row.gap="HELD_RESULT_UNAVAILABLE";return;}
++  const auto&base=rows_[row.cross_index];if(q.phase!=2||q.position!=row.selected.key.position||
++    q.layer!=row.selected.layer||q.role!=row.selected.key.role||q.expert!=row.selected.key.expert||
++    q.token!=row.selected.token||q.slot!=row.observed_slot[1]||n!=base.n){row.gap="HELD_RESULT_IDENTITY_UNPAIRED";return;}
++  for(size_t i=0;i<n;++i)if(!std::isfinite(x[i])||!std::isfinite(h[i])||!std::isfinite(g[i])){
++   row.gap="NONFINITE_HELD_RESULT";return;}
++  row.n=uint32_t(n);row.hash[0]=hash(base.cpu_output.data(),n*4);row.hash[1]=hash(x,n*4);
++  row.hash[2]=hash(h,n*4);row.hash[3]=hash(g,n*4);
++  if(held_raw_){std::memcpy(row.raw_x.data(),x,n*4);std::memcpy(row.raw_h.data(),h,n*4);}
++  compare_held(base.cpu_output.data(),x,n,abs_ppm_,rel_ppm_,row.bit_differences[0],row.violations[0],row.max_abs[0]);
++  compare_held(x,h,n,abs_ppm_,rel_ppm_,row.bit_differences[1],row.violations[1],row.max_abs[1]);
++  compare_held(h,g,n,abs_ppm_,rel_ppm_,row.bit_differences[2],row.violations[2],row.max_abs[2]);
++  compare_held(base.cpu_output.data(),g,n,abs_ppm_,rel_ppm_,row.bit_differences[3],row.violations[3],row.max_abs[3]);
++  row.computed=true;
++ }
++ void held_unavailable(const ua50::HeldWeightQuery&q,const char*why)noexcept override{
++  if(q.row_index<held_.size()&&!held_[q.row_index].gap)held_[q.row_index].gap=why?why:"HELD_UNAVAILABLE";
++ }
++ void held_vector_done()noexcept override{last_hybrid_=SIZE_MAX;}
++ void held_charge(const ua50::HeldWeightQuery&q,uint64_t work,uint64_t ns)noexcept override{
++  if(q.row_index>=held_.size())return;
++  if(work>UINT64_MAX-held_work_||ns>UINT64_MAX-held_ns_){if(!held_[q.row_index].gap)held_[q.row_index].gap="HELD_ACCOUNTING";return;}
++  held_work_+=work;held_ns_+=ns;
++  if(held_work_>held_work_cap_||held_ns_>held_ns_cap_)held_[q.row_index].gap="HELD_BUDGET";
++ }
++ uint64_t held_work()const noexcept{return held_work_;}
++ uint64_t held_ns()const noexcept{return held_ns_;}
++ const std::vector<HeldRow>&held_rows()const noexcept{return held_;}
++ std::string held_summary(uint64_t cap)const{
++  if(cap<4096||cap>(2u<<20))throw std::invalid_argument("held-weight output cap");
++  std::string s="{\"schema\":\"ua68-held-weight-cross-input-v1\",\"selected\":"+
++  std::to_string(held_.size())+",\"diagnostic_work_ns\":"+std::to_string(held_ns_)+
++   ",\"diagnostic_work_units\":"+std::to_string(held_work_)+
++   ",\"raw_private\":"+(held_raw_?"true":"false")+",\"rows\":[";
++  auto real=[](double d){char b[64];auto x=std::to_chars(b,b+sizeof(b),d,std::chars_format::general,17);
++   if(x.ec!=std::errc{})throw std::runtime_error("held-weight numeric serialization");return std::string(b,x.ptr);};
++  for(size_t i=0;i<held_.size();++i){const auto&h=held_[i];const auto&k=h.selected.key;
++   if(i)s+=',';const char*gap=k.position>prompt_count_?"POSITION_OUTSIDE_WORKLOAD":
++    h.gap?h.gap:!h.hybrid_input?"HYBRID_INPUT_NOT_OBSERVED":
++    !h.cpu_input?"HELD_QUERY_NOT_OBSERVED":!h.computed?"HELD_RESULT_NOT_OBSERVED":"";
++   s+="{\"phase\":2,\"position\":"+std::to_string(k.position)+
++    ",\"layer\":"+std::to_string(h.selected.layer)+",\"token\":"+std::to_string(h.selected.token)+
++    ",\"role\":"+std::to_string(k.role)+",\"expert\":"+std::to_string(k.expert)+
++    ",\"slot\":"+(k.slot==any_slot?"null":std::to_string(k.slot))+
++    ",\"CPU_slot\":"+(rows_[h.cross_index].input_seen[0]?std::to_string(h.observed_slot[0]):"null")+
++    ",\"hybrid_slot\":"+(h.hybrid_input?std::to_string(h.observed_slot[1]):"null")+
++    ",\"input_row\":"+std::to_string(k.input_row)+",\"occurrence\":"+std::to_string(k.occurrence)+
++    ",\"CPU_input_seen\":"+(rows_[h.cross_index].input_seen[0]?"true":"false")+
++    ",\"hybrid_input_seen\":"+(h.hybrid_input?"true":"false")+
++    ",\"computed\":"+(h.computed?"true":"false")+",\"gap\":\""+gap+"\",\"n\":"+
++    std::to_string(h.computed?h.n:0)+",\"hashes\":[";
++   for(size_t j=0;j<4;++j){if(j)s+=',';s+=std::to_string(h.computed?h.hash[j]:0);}s+="],\"bit_differences\":[";
++   for(size_t j=0;j<4;++j){if(j)s+=',';s+=std::to_string(h.computed?h.bit_differences[j]:0);}s+="],\"violations\":[";
++   for(size_t j=0;j<4;++j){if(j)s+=',';s+=std::to_string(h.computed?h.violations[j]:0);}s+="],\"max_abs\":[";
++   for(size_t j=0;j<4;++j){if(j)s+=',';s+=real(h.computed?h.max_abs[j]:0);}s+="]";
++   if(held_raw_&&h.computed){
++    static constexpr char digits[]="0123456789abcdef";
++    auto hex=[&](const float*data){const auto*bytes=reinterpret_cast<const unsigned char*>(data);
++     const size_t count=size_t(h.n)*4;if(count>(cap-s.size())/2)throw std::length_error("held raw cap");
++     for(size_t j=0;j<count;++j){s+=digits[bytes[j]>>4];s+=digits[bytes[j]&15];}};
++    s+=",\"X_hex\":\"";hex(h.raw_x.data());s+='"';
++    s+=",\"H_hex\":\"";hex(h.raw_h.data());s+='"';
++   }
++   s+='}';
++   if(s.size()>cap)throw std::length_error("held-weight output cap");
++  }
++  s+="]}";if(s.size()>cap)throw std::length_error("held-weight output cap");return s;
++ }
+  bool available()const noexcept{return !unavailable_;}
+  const char*reason()const noexcept{return reason_;}
+  uint64_t work_ns()const noexcept{return work_ns_;}
+diff --git a/include/xllama/gpu_diagnostic_plan_v3.h b/include/xllama/gpu_diagnostic_plan_v3.h
+index 68255ae98316df0a06ab2e77c0b2d3008a2ef5ab..68395e638b2ceb5b0ad20b1cf02611a6399395e5 100644
+--- a/include/xllama/gpu_diagnostic_plan_v3.h
++++ b/include/xllama/gpu_diagnostic_plan_v3.h
+@@ -13,23 +13,28 @@ struct PlanV3 {
+  Plan base;
+  std::vector<gpu_proof::GraphWitness::Selection> graph;
+  std::vector<gpu_proof::CrossArmWitness::Key> cross_arm;
+- bool graph_workload_axis=false,raw_private=false;
++ std::vector<gpu_proof::CrossArmWitness::HeldSelection> held_weight;
++ bool graph_workload_axis=false,raw_private=false,held_raw_private=false;
+  uint32_t graph_abs_ppm=1000,graph_rel_ppm=1000,cross_abs_ppm=1000,cross_rel_ppm=1000;
+  uint64_t graph_memory=0,graph_output=0,graph_work=0,cross_memory=0,cross_output=0,cross_work=0;
+  uint32_t graph_time_ms=0,cross_time_ms=0;
++ uint64_t held_memory=0,held_output=0,held_work=0,held_output_upper=0;
++ uint32_t held_time_ms=0;
+  uint64_t graph_memory_upper=0,graph_output_upper=0,graph_work_upper=0,cross_output_upper=0;
+  uint64_t serializer_charge=0;
+  size_t owned_bytes()const noexcept{
+   size_t n=sizeof(*this)+graph.capacity()*sizeof(gpu_proof::GraphWitness::Selection)+
+-   cross_arm.capacity()*sizeof(gpu_proof::CrossArmWitness::Key);
++   cross_arm.capacity()*sizeof(gpu_proof::CrossArmWitness::Key)+
++   held_weight.capacity()*sizeof(gpu_proof::CrossArmWitness::HeldSelection);
+   for(const auto&entry:graph)n+=entry.point.capacity();
+   return n;
+  }
+ };
+ inline PlanV3 parse_v3(const dev_run::Json&j){
+  using J=dev_run::Json;
+- j.keys({"schema","overview","vectors","sampling","analysis","output","budgets","graph","cross_arm"});
+- j.at("schema").eq("ua68-model2-diagnostics-v2");
++ const bool held_schema=j.at("schema").type==J::Type::string&&j.at("schema").text=="ua68-model2-diagnostics-v3";
++ if(held_schema)j.keys({"schema","overview","vectors","sampling","analysis","output","budgets","graph","cross_arm","held_weight"});
++ else{j.keys({"schema","overview","vectors","sampling","analysis","output","budgets","graph","cross_arm"});j.at("schema").eq("ua68-model2-diagnostics-v2");}
+  J old;old.type=J::Type::object;
+  J version;version.type=J::Type::string;version.text="ua68-model2-diagnostics-v1";
+  old.object.emplace_back("schema",std::move(version));
+@@ -110,15 +115,56 @@ inline PlanV3 parse_v3(const dev_run::Json&j){
+   dev_run::need(sizeof(gpu_proof::CrossArmWitness)+uint64_t(p.cross_arm.size())*sizeof(gpu_proof::CrossArmWitness::Record)+1048576<=p.cross_memory,"cross-arm memory bound");
+   dev_run::need(uint64_t(p.cross_arm.size())*2*(2*2048+2336+2048)<=p.cross_work,"cross-arm work bound");
+  }
+- const uint64_t output_charge=p.base.output_budget+p.graph_output+p.cross_output;
++ if(held_schema){
++  const auto&held=j.at("held_weight");
++  dev_run::need(held.type!=J::Type::null,"v3 held-weight selection required");
++  if(held.type!=J::Type::null){
++   dev_run::need(!p.cross_arm.empty(),"held-weight requires paired cross rows");
++   held.keys({"rows","raw_private","budgets"});const auto&rows=held.at("rows");
++   dev_run::need(rows.type==J::Type::array&&!rows.array.empty()&&rows.array.size()<=8,"held-weight rows bound");
++   for(const auto&entry:rows.array){
++    entry.keys({"phase","position","layer","token","role","expert","slot","input_row","occurrence"});
++    dev_run::need(entry.at("phase").range(2,2)==2,"held-weight hybrid phase only");
++    gpu_proof::CrossArmWitness::HeldSelection s{};
++    s.key={uint32_t(entry.at("position").range(0,128)),uint32_t(entry.at("role").range(0,113)),
++      uint32_t(entry.at("expert").range(0,63)),
++      entry.at("slot").type==J::Type::null?gpu_proof::CrossArmWitness::any_slot:uint32_t(entry.at("slot").range(0,3)),
++      uint32_t(entry.at("input_row").range(0,128)),uint32_t(entry.at("occurrence").range(0,3))};
++    s.layer=uint32_t(entry.at("layer").range(2,39));s.token=int32_t(entry.at("token").range(0,127999));
++    dev_run::need(s.key.role/3==s.layer-2,"held-weight registered role/layer");
++    size_t matches=0;for(const auto&c:p.cross_arm)matches+=
++      c.position==s.key.position&&c.role==s.key.role&&c.expert==s.key.expert&&
++      c.slot==s.key.slot&&c.input_row==s.key.input_row&&c.occurrence==s.key.occurrence;
++    dev_run::need(matches==1,"held-weight exact cross selection");
++    for(const auto&prior:p.held_weight)dev_run::need(!(prior.key.position==s.key.position&&
++      prior.key.role==s.key.role&&prior.key.expert==s.key.expert&&prior.key.slot==s.key.slot&&
++      prior.key.input_row==s.key.input_row&&prior.key.occurrence==s.key.occurrence),"held-weight duplicate");
++    p.held_weight.push_back(s);
++   }
++   const auto&b=held.at("budgets");b.keys({"max_output_bytes","max_extra_memory_bytes","max_reference_work","max_time_ms"});
++   dev_run::need(held.at("raw_private").type==J::Type::boolean,"held raw type");
++   p.held_raw_private=held.at("raw_private").flag;
++   dev_run::need(!p.held_raw_private||(p.raw_private&&p.held_weight.size()==1),"held raw requires one private paired row");
++   p.held_output=b.at("max_output_bytes").range(4096,Plan::output_ceiling);
++   p.held_memory=b.at("max_extra_memory_bytes").range(1u<<20,Plan::memory_ceiling);
++   p.held_work=b.at("max_reference_work").range(1,Plan::work_ceiling);
++   p.held_time_ms=uint32_t(b.at("max_time_ms").range(1000,Plan::time_ceiling_ms));
++   p.held_output_upper=4096+1600*p.held_weight.size()+(p.held_raw_private?32768:0);
++   dev_run::need(p.held_output_upper<=p.held_output&&
++      uint64_t(p.held_weight.size())*2*2048*1536<=p.held_work&&
++      1048576+uint64_t(p.held_weight.size())*sizeof(gpu_proof::CrossArmWitness::HeldRow)+32768<=p.held_memory,
++      "held-weight preflight bounds");
++  }
++ }
++ const uint64_t output_charge=p.base.output_budget+p.graph_output+p.cross_output+p.held_output;
+  p.serializer_charge=8*output_charge+(1u<<20);
+  // Summary strings, concatenation temporaries, sidecar and capacity coexist.
+  // Charge eight full output envelopes plus fixed serializer scratch.
+- dev_run::need(p.base.memory_budget+p.graph_memory+p.cross_memory+
++ dev_run::need(p.base.memory_budget+p.graph_memory+p.cross_memory+p.held_memory+
+   p.serializer_charge<=Plan::memory_ceiling,"joint diagnostic memory ceiling");
+  dev_run::need(output_charge<=Plan::output_ceiling,"joint diagnostic output ceiling");
+- dev_run::need(p.base.reference_work_budget+p.graph_work+p.cross_work<=Plan::work_ceiling,"joint diagnostic work ceiling");
+- dev_run::need(uint64_t(p.base.time_budget_ms)+p.graph_time_ms+p.cross_time_ms<=Plan::time_ceiling_ms,"joint diagnostic time ceiling");
++ dev_run::need(p.base.reference_work_budget+p.graph_work+p.cross_work+p.held_work<=Plan::work_ceiling,"joint diagnostic work ceiling");
++ dev_run::need(uint64_t(p.base.time_budget_ms)+p.graph_time_ms+p.cross_time_ms+p.held_time_ms<=Plan::time_ceiling_ms,"joint diagnostic time ceiling");
+  return p;
+ }
+ }
+diff --git a/include/xllama/gpu_proof_controller.h b/include/xllama/gpu_proof_controller.h
+index 88dce5fca9e67502476216879f5a01ac5d919090..4ff196a8a8f3a0ccf65998c0556c3fc4ece63ca6 100644
+--- a/include/xllama/gpu_proof_controller.h
++++ b/include/xllama/gpu_proof_controller.h
+@@ -132,6 +132,7 @@ public:
+  std::string selected_vector_summary()const{return selected_vectors_?selected_vectors_->summary():"null";}
+  std::string graph_summary()const{return graph_?graph_->summary():"null";}
+  std::string cross_arm_summary(uint64_t max_bytes)const{return cross_?cross_->summary(max_bytes):"null";}
++ std::string held_weight_summary(uint64_t max_bytes)const{return cross_?cross_->held_summary(max_bytes):"null";}
+  void seal(bool normal){trace_->seal(normal&&terminal(),uint32_t(prompt_count_),t0_,t1_,proof_->passed());}
+  uint32_t cpu_rows()const{return cpu_rows_;}uint32_t gpu_rows()const{return gpu_rows_;}size_t prompt_count()const{return prompt_count_;}const llama_token*prompt_ids()const{return prompt_.data();}llama_token t0()const{return t0_;}llama_token t1()const{return t1_;}llama_token g0()const{return g0_;}llama_token g1()const{return g1_;}
+ };
+diff --git a/include/xllama/gpu_run_config.h b/include/xllama/gpu_run_config.h
+index 4c2c0a080337b351df7e9080556b29651fc90d29..eae13a0c1dba4762e4ad1b1e3c027345bd1ac534 100644
+--- a/include/xllama/gpu_run_config.h
++++ b/include/xllama/gpu_run_config.h
+@@ -7,7 +7,7 @@
+ #include <memory>
+ namespace xllama::gpu_run {
+ inline constexpr char engine_sha[]="2b904dcee7f3dfc51f05724a1e493b6fdc22b333410608ad8321e170a8b98bd4";
+-inline constexpr char capabilities[]=R"UA68({"CPU_threads":1,"GPU_timestamps":"not_collected_first_slice","activation_tag":"gpu-expert-proof-v1","batch":1,"collector_charge":2097152,"config_max_bytes":16384,"config_schema":"ua68-gpu-proof-config-v1","diagnostic_config_schema":"ua68-model2-diagnostics-v1","config_schema_v2":"ua68-gpu-proof-config-v2","config_schema_v3":"ua68-gpu-proof-config-v3","diagnostic_config_schema_v2":"ua68-model2-diagnostics-v2","diagnostic_sidecar_schema_v3":"ua68-model2-consolidated-diagnostics-sidecar-v1","context":512,"contract":"ua68-expert-sync-contract-v1","driver_probe":268435456,"experts":64,"gpu_outstanding":1,"gpu_slots":1,"host_cache_slots":2,"main_cap":262144,"model_pairs":256000,"model_rows":2,"model_sha256":"d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d","native_wall_seconds":1200,"no_fallback":true,"output_schema":"ua68-gpu-proof-output-v1","primitive_pairs":28672,"primitive_rows":16,"proof_owned_cap":4194304,"quants":["Q4_K","Q6_K"],"raw_rows_saved":false,"reserve":536870912,"roles":114,"run_prefix":"ua68-gpu-proof-v1.","stages":["primitive16","model2"],"summary_cap":65536,"threshold":{"absolute":0.001,"relative_to_cpu":0.001},"ticket_leaf":"ua68-gpu-proof-v1.ticket.json","ticket_max_bytes":4096,"ticket_schema":"ua68-gpu-proof-ticket-v1","trace_cap":524288,"trace_file_bytes":254432,"trace_schema":"UA68TRC1","tuple":"cpu_graph_d3d12_expert_sync","unsupported":["fused","GPU_cache","async","prefetch","threads_not_1","alternate_model","history","UI","context_not_512","performance_sweep"],"watchdog_seconds":180}
++inline constexpr char capabilities[]=R"UA68({"CPU_threads":1,"GPU_timestamps":"not_collected_first_slice","activation_tag":"gpu-expert-proof-v1","batch":1,"collector_charge":2097152,"config_max_bytes":16384,"config_schema":"ua68-gpu-proof-config-v1","diagnostic_config_schema":"ua68-model2-diagnostics-v1","config_schema_v2":"ua68-gpu-proof-config-v2","config_schema_v3":"ua68-gpu-proof-config-v3","config_schema_v4":"ua68-gpu-proof-config-v4","diagnostic_config_schema_v2":"ua68-model2-diagnostics-v2","diagnostic_config_schema_v3":"ua68-model2-diagnostics-v3","diagnostic_sidecar_schema_v3":"ua68-model2-consolidated-diagnostics-sidecar-v1","diagnostic_sidecar_schema_v4":"ua68-model2-consolidated-diagnostics-sidecar-v2","context":512,"contract":"ua68-expert-sync-contract-v1","driver_probe":268435456,"experts":64,"gpu_outstanding":1,"gpu_slots":1,"host_cache_slots":2,"main_cap":262144,"model_pairs":256000,"model_rows":2,"model_sha256":"d3334405b96228eb9908cdebb5c6194908f2da64282bda852afc3a3910c64e7d","native_wall_seconds":1200,"no_fallback":true,"output_schema":"ua68-gpu-proof-output-v1","primitive_pairs":28672,"primitive_rows":16,"proof_owned_cap":4194304,"quants":["Q4_K","Q6_K"],"raw_rows_saved":false,"reserve":536870912,"roles":114,"run_prefix":"ua68-gpu-proof-v1.","stages":["primitive16","model2"],"summary_cap":65536,"threshold":{"absolute":0.001,"relative_to_cpu":0.001},"ticket_leaf":"ua68-gpu-proof-v1.ticket.json","ticket_max_bytes":4096,"ticket_schema":"ua68-gpu-proof-ticket-v1","trace_cap":524288,"trace_file_bytes":254432,"trace_schema":"UA68TRC1","tuple":"cpu_graph_d3d12_expert_sync","unsupported":["fused","GPU_cache","async","prefetch","threads_not_1","alternate_model","history","UI","context_not_512","performance_sweep"],"watchdog_seconds":180}
+ )UA68";
+ struct Config {
+  std::string raw,id,adapter_luid,shader_sha,primitive_acceptance_sha;dev_run::Config cpu;size_t parser_charge=0;
+@@ -20,7 +20,8 @@ struct Config {
+ inline Config parse(std::string raw){
+  auto j=dev_run::Parser(raw).parse(16384);const bool v2=j.at("schema").type==dev_run::Json::Type::string&&j.at("schema").text=="ua68-gpu-proof-config-v2";
+  const bool v3=j.at("schema").type==dev_run::Json::Type::string&&j.at("schema").text=="ua68-gpu-proof-config-v3";
+- if(v2||v3)j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256","diagnostics"});
++ const bool v4=j.at("schema").type==dev_run::Json::Type::string&&j.at("schema").text=="ua68-gpu-proof-config-v4";
++ if(v2||v3||v4)j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256","diagnostics"});
+  else{j.keys({"schema","engine_contract_sha256","run_id","stage","base_cpu_json","execution","prerequisite_primitive_acceptance_sha256"});j.at("schema").eq("ua68-gpu-proof-config-v1");}
+  j.at("engine_contract_sha256").eq(engine_sha);
+  Config c;c.raw=std::move(raw);c.parser_charge=j.owned();dev_run::need(j.at("run_id").type==dev_run::Json::Type::string&&dev_run::run_id(j.at("run_id").text),"GPU run id");c.id=j.at("run_id").text;
+@@ -32,8 +33,9 @@ inline Config parse(std::string raw){
+  dev_run::need(c.adapter_luid.size()==17&&c.adapter_luid[8]==':'&&dev_run::hex(c.adapter_luid.substr(0,8),8)&&dev_run::hex(c.adapter_luid.substr(9),8)&&dev_run::hex(c.shader_sha,64),"GPU exact identity");
+  auto&pr=j.at("prerequisite_primitive_acceptance_sha256");if(c.stage==gpu_proof::Stage::Model2){dev_run::need(pr.type==dev_run::Json::Type::string&&dev_run::hex(pr.text,64),"model2 externally accepted primitive prerequisite");c.primitive_acceptance_sha=pr.text;}else dev_run::need(pr.type==dev_run::Json::Type::null,"primitive has no prerequisite override");
+  if(v2){dev_run::need(c.stage==gpu_proof::Stage::Model2,"diagnostics only on model2");c.diagnostics=std::make_shared<gpu_diagnostic::Plan>(gpu_diagnostic::parse(j.at("diagnostics")));}
+- if(v3){dev_run::need(c.stage==gpu_proof::Stage::Model2,"diagnostics only on model2");
++ if(v3||v4){dev_run::need(c.stage==gpu_proof::Stage::Model2,"diagnostics only on model2");
+   c.diagnostics_v3=std::make_shared<gpu_diagnostic::PlanV3>(gpu_diagnostic::parse_v3(j.at("diagnostics")));
++  dev_run::need(v4==(j.at("diagnostics").at("schema").text=="ua68-model2-diagnostics-v3"),"outer/inner diagnostic version");
+   c.diagnostics=std::shared_ptr<const gpu_diagnostic::Plan>(c.diagnostics_v3,&c.diagnostics_v3->base);
+  }
+  return c;
+diff --git a/uwp/gpu-proof-pilot.inc b/uwp/gpu-proof-pilot.inc
+index 8faf8b9b6d11898dbeca1dcbbe7f09596d0552e1..8fcc08bd53e32afe6aa884c39c98e41c3b35a5a5 100644
+--- a/uwp/gpu-proof-pilot.inc
++++ b/uwp/gpu-proof-pilot.inc
+@@ -31,7 +31,7 @@ void run_expert_gpu_proof_configured(){
+   ExpertGpuAdmission admission{input->config.adapter_luid,input->config.shader_sha,[state](const ua50::GpuSnapshot&,uint64_t pending){state->phase("GPU-resource-admission",pending);}};
+   gpu=make_expert_gpu_d3d12(admission);gpu_effective=gpu->snapshot();
+   const uint64_t diagnostics_memory=input->config.diagnostics_v3?
+-   add(input->config.diagnostics_v3->serializer_charge,add(input->config.diagnostics_v3->base.memory_budget,add(input->config.diagnostics_v3->graph_memory,input->config.diagnostics_v3->cross_memory))):
++   add(input->config.diagnostics_v3->serializer_charge,add(input->config.diagnostics_v3->base.memory_budget,add(input->config.diagnostics_v3->graph_memory,add(input->config.diagnostics_v3->cross_memory,input->config.diagnostics_v3->held_memory)))):
+    input->config.diagnostics?input->config.diagnostics->memory_budget:gpu_proof::VectorWitness::charged_bytes;
+   state->phase("proof-storage-admission",add(add(4u<<20,gpu_proof::Trace::required_owned_bytes()),input->config.stage==gpu_proof::Stage::Model2?add(gpu_proof::LayerWitness::charged_bytes,diagnostics_memory):0));
+   proof=std::make_shared<gpu_proof::Proof>(input->config.stage);trace=std::make_shared<gpu_proof::Trace>(GetCurrentProcessId(),input->config.stage==gpu_proof::Stage::Primitive16?3:4,input->config.id,input->config_sha,input->ticket_sha,gpu_run::engine_sha,gpu_effective.shader_sha256);
+@@ -71,6 +71,7 @@ void run_expert_gpu_proof_configured(){
+   if(input->config.diagnostics_v3){const auto&p=*input->config.diagnostics_v3;
+    if(!p.graph.empty())graph=std::make_shared<gpu_proof::GraphWitness>(p.graph,p.graph_abs_ppm,p.graph_rel_ppm,p.graph_memory,p.graph_work,p.graph_time_ms,p.graph_output,p.graph_workload_axis);
+    if(!p.cross_arm.empty())cross=std::make_shared<gpu_proof::CrossArmWitness>(p.cross_arm,p.cross_abs_ppm,p.cross_rel_ppm,p.cross_work,p.cross_time_ms,p.raw_private);
++   if(!p.held_weight.empty())cross->select_held(p.held_weight,p.held_work,p.held_time_ms,p.held_raw_private);
+   }
+   controller=std::make_shared<gpu_proof::Controller>(proof,trace,gpu,progress,vectors,sweep,selected_vectors,cross,graph);{std::lock_guard<std::mutex>l(state->mutex);state->gpu_controller=controller;}
+   if(input->config.stage==gpu_proof::Stage::Primitive16)controller->primitive16(opt);else controller->model2(opt);
+@@ -79,7 +80,7 @@ void run_expert_gpu_proof_configured(){
+   controller->finish_normal();if(!proof->passed())fail("NUMERICAL_GATE_FAILED_OR_INCOMPLETE; inspect bounded coverage/witness");normal=proof->passed()&&controller->terminal()&&post_sha&&actual_effective[0].context==512&&(input->config.stage==gpu_proof::Stage::Primitive16||actual_effective[1].context==512);
+  }catch(const std::exception&e){fail(e.what());}catch(...){fail("GPU proof unknown failure");}
+  state->finish_monitor();if(state->abort->load())fail("final monitor stopped; no normal commit");
+- std::string layer_witness_json="null",vector_witness_json="null",sweep_json="null",selected_json="null",graph_json="null",cross_json="null";if(controller){if(!normal){controller->request_stop();controller->drain();}if(input&&input->config.stage==gpu_proof::Stage::Model2){try{layer_witness_json=controller->layer_witness_summary();}catch(const std::exception&e){fail(e.what());}try{vector_witness_json=controller->vector_witness_summary();}catch(const std::exception&e){log_output(marker+" FIRST_VECTOR_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}try{sweep_json=controller->sweep_witness_summary();selected_json=controller->selected_vector_summary();}catch(const std::exception&e){log_output(marker+" CONFIGURABLE_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}try{graph_json=controller->graph_summary();cross_json=controller->cross_arm_summary(input->config.diagnostics_v3?input->config.diagnostics_v3->cross_output:4096);}catch(const std::exception&e){log_output(marker+" V3_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
++ std::string layer_witness_json="null",vector_witness_json="null",sweep_json="null",selected_json="null",graph_json="null",cross_json="null",held_json="null";if(controller){if(!normal){controller->request_stop();controller->drain();}if(input&&input->config.stage==gpu_proof::Stage::Model2){try{layer_witness_json=controller->layer_witness_summary();}catch(const std::exception&e){fail(e.what());}try{vector_witness_json=controller->vector_witness_summary();}catch(const std::exception&e){log_output(marker+" FIRST_VECTOR_WITNESS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}try{sweep_json=controller->sweep_witness_summary();selected_json=controller->selected_vector_summary();}catch(const std::exception&e){log_output(marker+" CONFIGURABLE_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}try{graph_json=controller->graph_summary();cross_json=controller->cross_arm_summary(input->config.diagnostics_v3?input->config.diagnostics_v3->cross_output:4096);if(input->config.diagnostics_v3&&!input->config.diagnostics_v3->held_weight.empty())held_json=controller->held_weight_summary(input->config.diagnostics_v3->held_output);}catch(const std::exception&e){log_output(marker+" V3_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}}cpu_rows=controller->cpu_rows();gpu_rows=controller->gpu_rows();pcount=controller->prompt_count();if(pcount>128){fail("prompt trace bound");pcount=0;}else std::copy(controller->prompt_ids(),controller->prompt_ids()+pcount,prompt_ids.begin());t0=controller->t0();t1=controller->t1();g0=controller->g0();g1=controller->g1();}
+  if(gpu){gpu->drain();try{gpu_counts=gpu->counts();gpu_effective=gpu->snapshot();if(gpu->error()[0])fail(gpu->error());}catch(const std::exception&e){fail(e.what());}}
+  if(normal&&input){
+   const uint64_t hashes=input->config.stage==gpu_proof::Stage::Primitive16?3:4;
+@@ -149,9 +150,10 @@ void run_expert_gpu_proof_configured(){
+    log_output(marker+" CONFIGURABLE_DIAGNOSTICS_COMMITTED diagnostic_only\n");
+   }catch(const std::exception&e){log_output(marker+" CONFIGURABLE_DIAGNOSTICS_UNAVAILABLE diagnostic_only: "+e.what()+"\n");}
+   if(input->config.diagnostics_v3&&sweep_json!="null"&&selected_json!="null")try{
+-   state->phase("consolidated-diagnostics-sidecar",input->config.diagnostics_v3->base.output_budget+input->config.diagnostics_v3->graph_output+input->config.diagnostics_v3->cross_output);
++   state->phase("consolidated-diagnostics-sidecar",input->config.diagnostics_v3->base.output_budget+input->config.diagnostics_v3->graph_output+input->config.diagnostics_v3->cross_output+input->config.diagnostics_v3->held_output);
+    const std::string raw_trace(reinterpret_cast<const char*>(trace->data()),trace->file_bytes);
+-   const std::string sidecar="{\"schema\":\"ua68-model2-consolidated-diagnostics-sidecar-v1\",\"diagnostic_only\":true,\"external_signed_artifact_binding_required\":true,\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"output_sha256\":"+quote(dev_sha(json))+",\"trace_sha256\":"+quote(dev_sha(raw_trace))+",\"overview\":"+sweep_json+",\"vectors\":"+selected_json+",\"graph\":"+graph_json+",\"cross_arm\":"+cross_json+"}";
++   const bool with_held=!input->config.diagnostics_v3->held_weight.empty();
++   const std::string sidecar="{\"schema\":\""+std::string(with_held?"ua68-model2-consolidated-diagnostics-sidecar-v2":"ua68-model2-consolidated-diagnostics-sidecar-v1")+"\",\"diagnostic_only\":true,\"external_signed_artifact_binding_required\":true,\"run_id\":"+quote(input->config.id)+",\"config_sha256\":"+quote(input->config_sha)+",\"ticket_sha256\":"+quote(input->ticket_sha)+",\"output_sha256\":"+quote(dev_sha(json))+",\"trace_sha256\":"+quote(dev_sha(raw_trace))+",\"overview\":"+sweep_json+",\"vectors\":"+selected_json+",\"graph\":"+graph_json+",\"cross_arm\":"+cross_json+(with_held?",\"held_weight\":"+held_json:"")+"}";
+    if(sidecar.size()>(2u<<20))throw std::length_error("consolidated diagnostics sidecar cap");
+    DevHandle side(CreateFile2(input->path("diagnostics.json").c_str(),GENERIC_WRITE,FILE_SHARE_READ,CREATE_NEW,nullptr));
+    if(side.value==INVALID_HANDLE_VALUE)throw std::runtime_error("consolidated diagnostics sidecar CREATE_NEW");
