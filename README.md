@@ -3,6 +3,7 @@
 > **Experimental MoE fork:** demand-loaded CPU MoE expert weights for xllama.
 > See [what our patch changes and what has been validated](docs/ua50-ssd-moe.md).
 > The expert mode is disabled by default; this is not an Xbox-validated release.
+> Current diagnostic source/build status: [bounded diagnostic capture](docs/bounded-diagnostics.md).
 > Upstream project documentation follows below.
 
 **xllama — local LLM inference on an Xbox Series S in Developer Mode**

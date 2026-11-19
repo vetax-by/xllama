@@ -24,6 +24,8 @@ recipe and the boundary between tested behavior and future Xbox acceptance.
 
 The active consolidation program is [Engineering excellence execution — 2026-11-07](audit/excellence/execution-2026-11-07.md). Its dated discovery receipt does not replace the owners below.
 
+Current experimental MoE diagnostic source/build status: [Bounded diagnostic capture](bounded-diagnostics.md).
+
 ## Documentation ownership
 
 | Concern                                                                                  | Authoritative home                                                                                                                                                                                                                                        |

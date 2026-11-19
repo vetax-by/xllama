@@ -3,7 +3,21 @@
 The patch rationale, implementation and evidence limits have one home:
 [Demand-loaded MoE experts](../docs/ua50-ssd-moe.md).
 
-## Current candidate status
+## Selected bounded diagnostics build
+
+The current selected build is the explicit config-v6 / plan-v2 bounded source
+composition described in [Bounded diagnostic capture](../docs/bounded-diagnostics.md).
+The [source lock](bounded/SOURCE-LOCK.json) pins 136 public native postimages;
+[ua50-bounded.yml](../.github/workflows/ua50-bounded.yml) prepares a separate clean
+product via the historical 33-patch recipe before exact replacement and hash
+verification. Its source/local implementation review is complete; Windows build
+and target qualification remain separate. The private host operator is not
+published. No signing, install, model execution or binary release is selected.
+
+The historical recipe and its locks below remain unchanged as build inputs;
+they are not a claim that the bounded snapshot is already Windows-qualified.
+
+## Historical 33-patch candidate status
 
 Patch33 replaces launch-file diagnostic dispatch with a safe minimal no-model qualification shell on every dev activation. MANUAL is immutable; diagnostic work requires a second exact-current-instance command with native-issued expiry and independent external authorization. No default model provisioning, MainPage initialization or LAN inference server starts in this shell. Retained historical tickets/claims are preserved and never replayed.
 

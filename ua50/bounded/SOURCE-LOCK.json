@@ -1,0 +1,691 @@
+{
+  "base_patch_lock_sha256": "ee2b5f939e2ec7b069453ab8d8a3e4693e75258b256727264e757b5987cd3da9",
+  "engine_sha256": "3ff871e42a535507f089e94c567375984a480b85ce4feef1eb843d21ec26f868",
+  "focused_source_review_sha256": "9515d10730a6eb63356a2095552457936bd64a69e251ac5fe815d48a2ef5032a",
+  "llama": "d81235049384534c167caea52b85a694f6103d14",
+  "native_manifest_sha256": "48c3e5e31dc2d3e17e7f588ce18a793e1ee1bb5c097afa9019bcbedf9b375610",
+  "postimages": [
+    {
+      "bytes": 6282,
+      "path": "CMakeLists.txt",
+      "sha256": "1fa8327399ec34ceba287c527a34863be4f226d69f4f81ecf01d6bbf7908f64a"
+    },
+    {
+      "bytes": 8444,
+      "path": "include/xllama/bounded_arithmetic_capture.h",
+      "sha256": "bedc5331ec6a489b4975c2352e2c07937e89fff5670e5f680faf83eeecec1986"
+    },
+    {
+      "bytes": 9293,
+      "path": "include/xllama/bounded_capture.h",
+      "sha256": "64497a48bc33ba43d5ede2d39048ae6fab33750cd90ad0bf0f0a8407f0f1df7d"
+    },
+    {
+      "bytes": 3497,
+      "path": "include/xllama/bounded_catalog.h",
+      "sha256": "5385cc575ec113f45439bfac47751b60c29facfd63b5ac43f114fd2f1938f48e"
+    },
+    {
+      "bytes": 234,
+      "path": "include/xllama/bounded_contract.h",
+      "sha256": "e7161689d898175d659bb206a972670181832222107c033ca91420f66e0effd2"
+    },
+    {
+      "bytes": 6226,
+      "path": "include/xllama/bounded_edge_capture.h",
+      "sha256": "57527e23a7c5cd51d64c8fb042110bb1a029e7dd50dd9d878b3457177b4886ba"
+    },
+    {
+      "bytes": 20853,
+      "path": "include/xllama/bounded_expert_capture.h",
+      "sha256": "3e28cb2db2f75cfad72c44c63511875e3c63b440faf44f3c69026bdc7a397cd9"
+    },
+    {
+      "bytes": 14012,
+      "path": "include/xllama/bounded_graph_capture.h",
+      "sha256": "08e0b1ce35fbc5153df89c7b1269d439c9c988a3a4b9b3e50b0f1e1054d21bfa"
+    },
+    {
+      "bytes": 7140,
+      "path": "include/xllama/bounded_index.h",
+      "sha256": "13070d3c73972898cc4600768de2abe166dde057c28b030c128adc184c2ca2e8"
+    },
+    {
+      "bytes": 5664,
+      "path": "include/xllama/bounded_observer_capture.h",
+      "sha256": "e0a9122fb04e0f0ebf7423a32ba5a15ad3e220d462150e8c967047478f829b6b"
+    },
+    {
+      "bytes": 5762,
+      "path": "include/xllama/bounded_parameter_capture.h",
+      "sha256": "6ff9a9685bfe6be133a50aad9757904a8879226b0c45fe772fbbc296f6fc2928"
+    },
+    {
+      "bytes": 9106,
+      "path": "include/xllama/bounded_plan.h",
+      "sha256": "99c855128e07d96044fe25bf0c88253fc91ba47e676a62b5f5bd116f4146ecda"
+    },
+    {
+      "bytes": 3508,
+      "path": "include/xllama/bounded_publication.h",
+      "sha256": "630ba0d264b1d41354a6a409128f491c102b32945a47d43532087aef3ad3079a"
+    },
+    {
+      "bytes": 15884,
+      "path": "include/xllama/bounded_state_capture.h",
+      "sha256": "82c8329c8c05435e30b70d6615e816a84d580a64250e1df0a5db610a7c22031d"
+    },
+    {
+      "bytes": 6381,
+      "path": "include/xllama/bounded_worker_capture.h",
+      "sha256": "71be0fe75377f6474d6b6dc1afc055580edd576b4dcde903576981ea9b159a45"
+    },
+    {
+      "bytes": 6750,
+      "path": "include/xllama/cpu_expert_session.h",
+      "sha256": "8fb04f991453c775e73c16eb0efc244c3b35ffd034b9f629e30eeca414c6fcb9"
+    },
+    {
+      "bytes": 2555,
+      "path": "include/xllama/cpu_pilot_binding.h",
+      "sha256": "4ae3f4b1e31c0bd62c78b98a1d22560134e077225ae285b13a40ccfa98282a85"
+    },
+    {
+      "bytes": 2491,
+      "path": "include/xllama/cpu_pilot_policy.h",
+      "sha256": "72cd78b148c9f03205e2317ca93bc6bbb805ee4280255c9475ac73cd375458c4"
+    },
+    {
+      "bytes": 12610,
+      "path": "include/xllama/dev_run_config.h",
+      "sha256": "74be876c40e741a56b91e45b2e5ab95b8cff9ba11ecf361d17b40a7db68e1961"
+    },
+    {
+      "bytes": 512,
+      "path": "include/xllama/expert_gpu_d3d12.h",
+      "sha256": "b4a06c3c76070bff028bb8da0c04adc20f3a9c6268a37862fc23a203c4e0a2be"
+    },
+    {
+      "bytes": 10170,
+      "path": "include/xllama/first_answer_record.h",
+      "sha256": "d1ea51ef686945631c4ebab6b62c51406b55c6515ce2503189903011ae99e436"
+    },
+    {
+      "bytes": 6711,
+      "path": "include/xllama/first_answer_template.h",
+      "sha256": "4a50b7bdc1b8742a10eb6664ac884d17803b1c4942d6f0f02fff9cbea1b9f414"
+    },
+    {
+      "bytes": 1400,
+      "path": "include/xllama/generation_capabilities.h",
+      "sha256": "ee5aa15692eb62fb2939fb35d75fa9a0d2a4a600ab7e32fa0dc576b4eb02d70f"
+    },
+    {
+      "bytes": 7165,
+      "path": "include/xllama/generation_profile.h",
+      "sha256": "a8b7ca4f7e49c555943c569f4e90099670cf964b851411a1df51a88e9c66a28a"
+    },
+    {
+      "bytes": 5487,
+      "path": "include/xllama/generation_result.h",
+      "sha256": "9aea092515416bf635c406278877757208d3f3c66d236da84ca24943391eb66e"
+    },
+    {
+      "bytes": 466,
+      "path": "include/xllama/generation_runner.h",
+      "sha256": "b88a1b03ac99d6c9403b9aa976bb9055f1d260118f6c3a9e93ea31a975154a9b"
+    },
+    {
+      "bytes": 5016,
+      "path": "include/xllama/generation_trace.h",
+      "sha256": "184af14b2f643358fa36f7365b5f0c6dc1768f5e6bde7c6456777f87bd28f013"
+    },
+    {
+      "bytes": 7089,
+      "path": "include/xllama/ggml_d3d12.h",
+      "sha256": "26c11c17335064786ca5f97c5ad30abbedf866d95aa5402c6627fe99f27cfc26"
+    },
+    {
+      "bytes": 22361,
+      "path": "include/xllama/gpu_cross_arm_witness.h",
+      "sha256": "97df1005439b08e119236638948c85d792e96e8b27c98cd1e8953f227436ff64"
+    },
+    {
+      "bytes": 7565,
+      "path": "include/xllama/gpu_diagnostic_plan.h",
+      "sha256": "5e0d9471d52035010046a7770975c8b23984109b9734c3193d329e729dd251ba"
+    },
+    {
+      "bytes": 11380,
+      "path": "include/xllama/gpu_diagnostic_plan_v3.h",
+      "sha256": "61d1ab9ebdf3e3d3ae8549620095e9b8ecedfcebf41e7d885665db6829d65f6e"
+    },
+    {
+      "bytes": 18853,
+      "path": "include/xllama/gpu_graph_witness.h",
+      "sha256": "958a89b060f4aa6e137e662b1418b490624d78e932a5aeaedd80fe864cd9982c"
+    },
+    {
+      "bytes": 2617,
+      "path": "include/xllama/gpu_identity.h",
+      "sha256": "47191d643fa35b9323123f812a6f76ff110b3c15acd8ec069364bbfdc3f447fc"
+    },
+    {
+      "bytes": 7818,
+      "path": "include/xllama/gpu_layer_witness.h",
+      "sha256": "f1d5bdd42d309200235021084ffe7e8b9a431603ac6c2cb836bef8d163b443a7"
+    },
+    {
+      "bytes": 9285,
+      "path": "include/xllama/gpu_numeric_proof.h",
+      "sha256": "482e0c34618e36219fdca78d25370761091693542d3078347de8bba39db2030e"
+    },
+    {
+      "bytes": 447,
+      "path": "include/xllama/gpu_optional_observer.h",
+      "sha256": "ddc6be1c176de43771ece31283993cddbaedbed5b1da3ad39ce33c6bd33d6491"
+    },
+    {
+      "bytes": 586,
+      "path": "include/xllama/gpu_proof_build_pins.h",
+      "sha256": "78d0def57a6a32b4afe20cc066c37da433baf080c44bf31744e8b4fe84130f45"
+    },
+    {
+      "bytes": 15051,
+      "path": "include/xllama/gpu_proof_controller.h",
+      "sha256": "67caebb8a1cd4cbedc9e70f4b1c6af7cfe12721cae8bdd9a00c94642aae614bf"
+    },
+    {
+      "bytes": 7392,
+      "path": "include/xllama/gpu_proof_trace.h",
+      "sha256": "96caa6b3f2492b81aa8fee8141d0c6fee9a5b680404da779c322cdffd412c0c9"
+    },
+    {
+      "bytes": 8868,
+      "path": "include/xllama/gpu_run_config.h",
+      "sha256": "7ed17b0642b9b574273f25f2bd25ee56910e77351aa28f26bd89d60028d762df"
+    },
+    {
+      "bytes": 6563,
+      "path": "include/xllama/gpu_selected_vector_witness.h",
+      "sha256": "51487bf0910f02760261015f267e939c419bca199f1d8af401e6306220802d63"
+    },
+    {
+      "bytes": 10864,
+      "path": "include/xllama/gpu_sweep_witness.h",
+      "sha256": "06faff6b4fe42f66e683a16bee6006aad89ff1196f8f6fda3ac6e811c88893c8"
+    },
+    {
+      "bytes": 6187,
+      "path": "include/xllama/gpu_vector_witness.h",
+      "sha256": "518b2df255c5d30876ab0691e7d6eb11cd6e6557b44bce911ea4cf58adace0e6"
+    },
+    {
+      "bytes": 6072,
+      "path": "include/xllama/ingress_reason_v2.h",
+      "sha256": "025bb86382206eb21b3b8dd24ae669c9cee1d50d3a3393728e33cdba349e04e6"
+    },
+    {
+      "bytes": 19437,
+      "path": "include/xllama/ingress_v2.h",
+      "sha256": "8d64b13803cfcb319387aa5a5b0e529bc50739eaf0f6ab8572ec9ff97f78409e"
+    },
+    {
+      "bytes": 11310,
+      "path": "include/xllama/qualification_mailbox.h",
+      "sha256": "96d58f67f42ce7c5c8aab2cc314c369bb5740e4e2f977cb1565bc8533470f082"
+    },
+    {
+      "bytes": 3871,
+      "path": "include/xllama/qualification_profiles.h",
+      "sha256": "8bcf634862fb77bbcc17b1c2b1e4bda77a93ae86f9858f55cf302a31a78d6e74"
+    },
+    {
+      "bytes": 3409,
+      "path": "include/xllama/qualification_receipts.h",
+      "sha256": "705a2cde1dcf2d631721c1b94be5572095fe65bed1110abbc225bd5c5d260861"
+    },
+    {
+      "bytes": 6284,
+      "path": "include/xllama/qualification_release.h",
+      "sha256": "5941517722177fe3e14da4f992bcca615b47e7e3abcf93851556531b8c12aeba"
+    },
+    {
+      "bytes": 12549,
+      "path": "include/xllama/qualification_release_window.h",
+      "sha256": "4bf259c0ff9a42f346cac8a358cb489827733f80eeaf367c4a28117dde5d8a07"
+    },
+    {
+      "bytes": 10781,
+      "path": "include/xllama/session.h",
+      "sha256": "88f4930c94e231f67f8fb770cc12c3a19d335b3d1168a27480b045d7f9b7e9d5"
+    },
+    {
+      "bytes": 5937,
+      "path": "include/xllama/session_hub.h",
+      "sha256": "ffe039cb043dfb266d582b61cac55a8cbcccdc22deb41d7b6c200fe11d8e4f14"
+    },
+    {
+      "bytes": 2647,
+      "path": "include/xllama/session_spec.h",
+      "sha256": "a607bdd7929cb08bc781743849a55f2b8fe59fab76e6708a5d3db6984c9aa6d7"
+    },
+    {
+      "bytes": 82544,
+      "path": "llama.cpp/common/common.cpp",
+      "sha256": "9c29e758749c99bb87f9c42820dd447ec55bd25e92379dd2a09e89eceee88ff2"
+    },
+    {
+      "bytes": 52126,
+      "path": "llama.cpp/common/fit.cpp",
+      "sha256": "4286d5922a3ffc2370feb21a928d6739ebcb3f2c51ce7008cd2d3b3daa9d95ab"
+    },
+    {
+      "bytes": 25939,
+      "path": "llama.cpp/ggml/include/ggml-backend.h",
+      "sha256": "ce900772b4de3fa4b18e8b4ccd0cfda32d5aa08baafec436de1a834fb7c5f858"
+    },
+    {
+      "bytes": 2463,
+      "path": "llama.cpp/ggml/include/ggml-capture.h",
+      "sha256": "683995b3d5dc473e1a73f124f02657b5c47630353c2b226046136a9f23486ed1"
+    },
+    {
+      "bytes": 8100,
+      "path": "llama.cpp/ggml/include/ggml-cpu.h",
+      "sha256": "510542f47e7c969fb1dd476d9721477143c066631f5ce2cfe1cb2faa1351a096"
+    },
+    {
+      "bytes": 27327,
+      "path": "llama.cpp/ggml/src/CMakeLists.txt",
+      "sha256": "03e10b01aec941d0a8034686b62f8d84158b32e2d35425cd6f46effe75be4ca6"
+    },
+    {
+      "bytes": 45506,
+      "path": "llama.cpp/ggml/src/ggml-alloc.c",
+      "sha256": "0e29dbd6996055c4b5794b4bcda6e6ae69a5a6ff6dfc27a6964d2e3960b74399"
+    },
+    {
+      "bytes": 1563,
+      "path": "llama.cpp/ggml/src/ggml-backend-dl.cpp",
+      "sha256": "5e42eccc732317bc66b68c65d08a6cc0c610a2846507502a41e90309a86bb545"
+    },
+    {
+      "bytes": 108652,
+      "path": "llama.cpp/ggml/src/ggml-backend.cpp",
+      "sha256": "43c6bf6711251802e851c21376828e286ac01d04968575f2fe99fc8bfe5f1d65"
+    },
+    {
+      "bytes": 32985,
+      "path": "llama.cpp/ggml/src/ggml-cpu/CMakeLists.txt",
+      "sha256": "528ef8f8b09a1c51fb4fab9fbb3c374e4ad655bc2b79deb80525bb92100f0fc8"
+    },
+    {
+      "bytes": 13861,
+      "path": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu-impl.h",
+      "sha256": "b13ae319d8ed141dd3fe22969bb349dddf7a1a948ffbeb4a80221181f505e24e"
+    },
+    {
+      "bytes": 142511,
+      "path": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+      "sha256": "19451d90e86dd52d68f1b13b661cc93cf7a282ebaedfcfb6487cf17309e20120"
+    },
+    {
+      "bytes": 26254,
+      "path": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "sha256": "e5d8e41157ba232d318bba8a05c27c1618a007acf225b5fc22947de9e9359b42"
+    },
+    {
+      "bytes": 90057,
+      "path": "llama.cpp/include/llama.h",
+      "sha256": "b93569ebbf4fc46f6d10695311b965f885f3547e4c1888b9ba2d2f11da0f5383"
+    },
+    {
+      "bytes": 19850,
+      "path": "llama.cpp/src/llama-adapter.cpp",
+      "sha256": "c5f0d7edf9288a0cdbfd183c192ad1b90a592839e2c6e58172ad61df9e2996c2"
+    },
+    {
+      "bytes": 2459,
+      "path": "llama.cpp/src/llama-adapter.h",
+      "sha256": "f74c0c7e8a463f90bd91bb3c958bdf00e711a9977acf4fb015dcd6356c7bc0e1"
+    },
+    {
+      "bytes": 162444,
+      "path": "llama.cpp/src/llama-context.cpp",
+      "sha256": "8f6dcf279c147e3e438e5ceaa11382d82897c55170143ce7564e01dd8723bd1c"
+    },
+    {
+      "bytes": 2292,
+      "path": "llama.cpp/src/llama-cparams.h",
+      "sha256": "04157cef0a7aa7765c0f1ea80148f3de24ef0ec990aa0f6877252b7253b97d3a"
+    },
+    {
+      "bytes": 144375,
+      "path": "llama.cpp/src/llama-graph.cpp",
+      "sha256": "6ff6d1a4dcf4c23209e42086f702ec0c391904eead2c6c453f75d8b959c635c5"
+    },
+    {
+      "bytes": 30820,
+      "path": "llama.cpp/src/llama-mmap.cpp",
+      "sha256": "c31b69a511c1a68df45edd8e6d825f1c6deaf07949be624826143778852c4586"
+    },
+    {
+      "bytes": 79576,
+      "path": "llama.cpp/src/llama-model-loader.cpp",
+      "sha256": "7233f27b3c3542e94f3182ba28eac5c3c847785eab105756df2ea8831d66c6b9"
+    },
+    {
+      "bytes": 9728,
+      "path": "llama.cpp/src/llama-model-loader.h",
+      "sha256": "3623647877af946fef50ef85445ba9ab6c95228a709901c0e62f5498bdfa4c4f"
+    },
+    {
+      "bytes": 164650,
+      "path": "llama.cpp/src/llama-model.cpp",
+      "sha256": "560b10cd337bd4ae72d80594288e07c74e59191e6add10b4ebe7140da49148fc"
+    },
+    {
+      "bytes": 34043,
+      "path": "llama.cpp/src/llama-model.h",
+      "sha256": "7d4fdabd9378746ce4622ef1e1681998967c8e5b5cfde778f307c8896053aab3"
+    },
+    {
+      "bytes": 29721,
+      "path": "llama.cpp/src/llama.cpp",
+      "sha256": "23345076cd3e1a46cea277c575a4be9339e558b4eb03a409c706336711d2735a"
+    },
+    {
+      "bytes": 15706,
+      "path": "llama.cpp/src/models/lfm2.cpp",
+      "sha256": "68d5c78164a762238194302011b0ad19287e5d5da614d1a0a41bfb89665fa14d"
+    },
+    {
+      "bytes": 10693,
+      "path": "llama.cpp/src/ua50/cache_trace.h",
+      "sha256": "28125bb8069fcb92196078f06461b5ad3df3a04cb526f4198aeb0dac39693302"
+    },
+    {
+      "bytes": 1741,
+      "path": "llama.cpp/src/ua50/cross_arm_observer.h",
+      "sha256": "834b3303aa625dd2644c24802b0ffbcca927860bc5040a65ee2496d0e02dc629"
+    },
+    {
+      "bytes": 1289,
+      "path": "llama.cpp/src/ua50/dispatch_observer.h",
+      "sha256": "c54114dd468cffd9cfacb8be06479bd0d49a58c2dc1320586b2a80adff812bc9"
+    },
+    {
+      "bytes": 11741,
+      "path": "llama.cpp/src/ua50/expert_cache.h",
+      "sha256": "182675028fa46e37d740ce79870e4cd5a9915f3190d3e047d00c0313bf5f2546"
+    },
+    {
+      "bytes": 2052,
+      "path": "llama.cpp/src/ua50/expert_diagnostics.h",
+      "sha256": "c98977a794d4ee1b58f436093063bad825b41a8b67d4777e2ba7c574eb68aba8"
+    },
+    {
+      "bytes": 8643,
+      "path": "llama.cpp/src/ua50/expert_gpu.h",
+      "sha256": "b4da61c11b8ce71506a0024e549688cf735aeef3cb120bd120220f8e4c18b810"
+    },
+    {
+      "bytes": 1665,
+      "path": "llama.cpp/src/ua50/ggml-ua50.h",
+      "sha256": "fdcb58fa3545d4be568edb34aee25779fd34811c1cc40ab4fda7363896119038"
+    },
+    {
+      "bytes": 17922,
+      "path": "llama.cpp/src/ua50/native_provider.cpp",
+      "sha256": "68c1620153d1137e9a10249c9bd6a0faa015ebc0a8ebdc69b12fc5dc48bb5268"
+    },
+    {
+      "bytes": 5341,
+      "path": "llama.cpp/src/ua50/native_provider.h",
+      "sha256": "40b6108dddd3e17c17a43e1edd17a319110409a94f8bde6183ef49fef4a0645b"
+    },
+    {
+      "bytes": 1531,
+      "path": "llama.cpp/src/ua50/owned_expert_load.h",
+      "sha256": "669e841c03ab1c31386fcc5fb13b2a8de89141da0362c553f7bd657898e6150d"
+    },
+    {
+      "bytes": 1103,
+      "path": "scripts/apply-uwp-patches.sh",
+      "sha256": "8d16c43a8705be00bf218d50370c327561cd6f3f0bec486b91d735e3c9104a10"
+    },
+    {
+      "bytes": 2825,
+      "path": "scripts/check-uwp-sources.sh",
+      "sha256": "01936e630eae70a958f7fe355d78172993d933355ce98b0bc71a022f1bae81de"
+    },
+    {
+      "bytes": 4838,
+      "path": "scripts/compile-gpugemv-shader.sh",
+      "sha256": "cca70f6577f1e5546e597cf3c8c8cab1b2088273559dffcb9ec1d6076897272c"
+    },
+    {
+      "bytes": 52733,
+      "path": "shaders/generated/ggml_d3d12_mmv_q4_k_t64_dxil.h",
+      "sha256": "fecdb4b4a0996e47a2c9c00fe2c51e04880e15108fb56a8956dc6ecd1259c791"
+    },
+    {
+      "bytes": 59130,
+      "path": "shaders/generated/ggml_d3d12_mmv_q4_k_trace64_dxil.h",
+      "sha256": "7901fc68290c51f6ae9b922fc0119f416d3f3761557cbca220fcb54d468f3ce5"
+    },
+    {
+      "bytes": 59373,
+      "path": "shaders/generated/ggml_d3d12_mmv_q6_k_t64_dxil.h",
+      "sha256": "35e6a921c1e21c8b0cbcb6ae47e8682287f37187de321eaea332cec66fbe22fd"
+    },
+    {
+      "bytes": 65720,
+      "path": "shaders/generated/ggml_d3d12_mmv_q6_k_trace64_dxil.h",
+      "sha256": "c9d226cde71ae6591b378a620f25da35b26b3f086b21037b4827948a4817e61e"
+    },
+    {
+      "bytes": 4522,
+      "path": "shaders/ggml_d3d12_common.hlsli",
+      "sha256": "54cdef75e4aa304c95c3259c5c994e78287d67332404832f3f5e9ee6949c7235"
+    },
+    {
+      "bytes": 13097,
+      "path": "src/bridge/chat_prompt.cpp",
+      "sha256": "bc70ba4579da92ecfcf12934595320c01fe60057e0d82c3b5e53ab3e3689e096"
+    },
+    {
+      "bytes": 7775,
+      "path": "src/bridge/cpu_expert_app_session.inc",
+      "sha256": "e5d53c08725a4ec1625038312cb2d0b6bd0810469147104bc445b23f334cbefe"
+    },
+    {
+      "bytes": 21987,
+      "path": "src/bridge/cpu_expert_session.cpp",
+      "sha256": "3299daa8cf9e9150059df6ebcf177291e6bd2c274de62f351acaa8fdd739f744"
+    },
+    {
+      "bytes": 6068,
+      "path": "src/bridge/d3d12_compute.cpp",
+      "sha256": "60a98a7d8222f902a24e1707e5bd1eac28e4b4bdd2c0003efc8a5016040f2078"
+    },
+    {
+      "bytes": 2675,
+      "path": "src/bridge/d3d12_compute.h",
+      "sha256": "ef5e602ff278696db1c4cf1719ef7f4f1b6a2e835e16b61f11b920a28083d4cb"
+    },
+    {
+      "bytes": 19440,
+      "path": "src/bridge/expert_gpu_d3d12.inc",
+      "sha256": "a40037a28e318ebc280376720fd01df6cf1f2684997693e40f66c4163a20de3c"
+    },
+    {
+      "bytes": 61033,
+      "path": "src/bridge/ggml_d3d12.cpp",
+      "sha256": "5abab217fb1f4f77c63209a171c2ba87af8f11bcc4b95c59a3a83d8a55830ba1"
+    },
+    {
+      "bytes": 5359,
+      "path": "src/bridge/gpu_identity_d3d12.inc",
+      "sha256": "4c53907ca54ae611860af72128956ead24fb8f6b5a9bfd2188f027e3884b6bad"
+    },
+    {
+      "bytes": 4858,
+      "path": "src/bridge/held_file_sha256_win.cpp",
+      "sha256": "d46d89a96b0b700159e494eefb13fbb272036cea2e15855632a1a9358d297f00"
+    },
+    {
+      "bytes": 64030,
+      "path": "src/bridge/session.cpp",
+      "sha256": "31da412f7c13fca79585c1a05e585991cf03db0b76af68f86f87e05f8f18ea56"
+    },
+    {
+      "bytes": 2392,
+      "path": "src/bridge/session_factory.inc",
+      "sha256": "580971e21f7fda10c1f3ad0279b6026a9eaba227ffd678eaf2659f2b1200d5e9"
+    },
+    {
+      "bytes": 6053,
+      "path": "src/platform/ua50/dev_run_io.h",
+      "sha256": "44dc3a58d59a86a312770638a56ba0a5508244131923f37965ed65159ab0e948"
+    },
+    {
+      "bytes": 4963,
+      "path": "src/platform/ua50/staged_reader_core.h",
+      "sha256": "c50f4128d08520a1b67ecc440d2fe6cfba9b806c9c8ec118478edf416f954f87"
+    },
+    {
+      "bytes": 10274,
+      "path": "src/platform/ua50/windows_held_reader.cpp",
+      "sha256": "94a1cd8a368f5f7a65ce5fe774d6ab1351bb7eba746480bde7fe4f55324ec410"
+    },
+    {
+      "bytes": 2259,
+      "path": "src/platform/ua50/windows_held_reader.h",
+      "sha256": "1e42fc3a6bdb075b02935ba83b76500fc5f87d9723d3749aa9f79de6d3e739d4"
+    },
+    {
+      "bytes": 23567,
+      "path": "uwp/App.cpp",
+      "sha256": "02a8be02d639a015a71c409b278da687514b1463db1e954051060573560b35a6"
+    },
+    {
+      "bytes": 206092,
+      "path": "uwp/MainPage.cpp",
+      "sha256": "ce4d018dc12fea1849230e393c7041a7d896bac6d33e374ca00278765cf649be"
+    },
+    {
+      "bytes": 16980,
+      "path": "uwp/MainPage.h",
+      "sha256": "1544fa83a976086b086b905b4287c407dd1345a9d9868fb6ca6bf6bfefb562c7"
+    },
+    {
+      "bytes": 100514,
+      "path": "uwp/api-server.cpp",
+      "sha256": "0ca48a6dc2399ed56f01a1262e838e925274fe7d48799a48c27d78b7a75a286d"
+    },
+    {
+      "bytes": 2009,
+      "path": "uwp/api-server.h",
+      "sha256": "a14a787445c3f5ba67dabc8db30caaf82cb0a8fb38e2f13fc658e126eebbccb0"
+    },
+    {
+      "bytes": 2016,
+      "path": "uwp/bounded-capture-output.h",
+      "sha256": "94b1583a6f3c64a7ec9bcb5a1baec5f56ab48a6ee03640fe42f0d185ff175f93"
+    },
+    {
+      "bytes": 35404,
+      "path": "uwp/cpu-expert-pilot.cpp",
+      "sha256": "1c32b650547de74dfcc4d0b5daace1cf2f240fae1b8c28f4985e4c06d1bc2fd7"
+    },
+    {
+      "bytes": 17295,
+      "path": "uwp/dev-run-input.h",
+      "sha256": "7d136ec4041628ac13862dba0a3a8e19dc723269f8664f843a9b90b8a2304667"
+    },
+    {
+      "bytes": 24535,
+      "path": "uwp/generation-runner.inc",
+      "sha256": "8f4b554fadb229eeb1d09e33cc76092f7704f712be6d51361d203757a89cc71f"
+    },
+    {
+      "bytes": 10498,
+      "path": "uwp/ggml-uwp.vcxproj",
+      "sha256": "c923feeb2d75cb9ce092582f9bd3df6e3d6b76948d8b82c1ca4e48745c991910"
+    },
+    {
+      "bytes": 3355,
+      "path": "uwp/gpu-identity-input.h",
+      "sha256": "d437a603d1d4012ef45b3fe05ac56334f69507eb25f3b75b49b8672bd1387c34"
+    },
+    {
+      "bytes": 11704,
+      "path": "uwp/gpu-identity-pilot.inc",
+      "sha256": "8edc0b5ca2700af40ced7ae5b4563b38390999bdbbc2bd92f5d7d3d817fa9aeb"
+    },
+    {
+      "bytes": 3380,
+      "path": "uwp/gpu-proof-input.h",
+      "sha256": "5986eced345e32dcf9ba8097ecf270bb2615ad075c5e95a9db5375598b1a7bb6"
+    },
+    {
+      "bytes": 35207,
+      "path": "uwp/gpu-proof-pilot.inc",
+      "sha256": "5ea6ad9c3894aa6fd5973625516469919ee009beea6fb757cd2268e117bcf89c"
+    },
+    {
+      "bytes": 6006,
+      "path": "uwp/inference-bridge.h",
+      "sha256": "4c8140688b40fddde73a04989589073252c36592024b20726b858d6c183d3b96"
+    },
+    {
+      "bytes": 1386,
+      "path": "uwp/ingress-route-budget.h",
+      "sha256": "6d4ff0ba7fb52411666bac126b309725b1050ab8ac30aa2a044fd6a579385c03"
+    },
+    {
+      "bytes": 10658,
+      "path": "uwp/ingress-v2-scanner.h",
+      "sha256": "6b7852d303daf25b4132c5b947265f8b0f321efe0d32bfb59b7927bfd3e790a4"
+    },
+    {
+      "bytes": 7312,
+      "path": "uwp/llama-common-uwp.vcxproj",
+      "sha256": "96a71bb48d2c098df0d26f45ca21e462ab13a32aafdb5f87d2de9b3f088e1f74"
+    },
+    {
+      "bytes": 435,
+      "path": "uwp/packages.config",
+      "sha256": "ca6ab5b987d67ee565150d5e8d67d886985be1c67de7ea16625c218325156ba0"
+    },
+    {
+      "bytes": 6970,
+      "path": "uwp/protected-ui-v2-scan.h",
+      "sha256": "0b934d6844db76d1a59c106ead6168304489a6173f218283230d76a1a9c06240"
+    },
+    {
+      "bytes": 366,
+      "path": "uwp/protected-ui-v2.h",
+      "sha256": "0efca113be78bf6a62a2d2cd7a21173170468f84a8e323138922b2cae672db93"
+    },
+    {
+      "bytes": 22280,
+      "path": "uwp/qualification-shell.h",
+      "sha256": "0f01597857b2a057c93c0a91ecdaa1086584988a2b5bb19044554de701dc2408"
+    },
+    {
+      "bytes": 1587,
+      "path": "uwp/xllama.sln",
+      "sha256": "37cedfbb825aadc9590e0f0e197403e429c72d8f0bf831e91411a9e6beb1a593"
+    },
+    {
+      "bytes": 23771,
+      "path": "uwp/xllama.vcxproj",
+      "sha256": "8b7d5c42502e5594332c65907da783d43cc1a4694e6c36717724871a003550da"
+    }
+  ],
+  "schema": "xllama-bounded-windows-source-v1",
+  "xllama": "4db51522c850e62d0bb24234dfeb48e55f4017d7"
+}
