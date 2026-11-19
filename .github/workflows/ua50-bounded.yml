@@ -50,7 +50,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           & ./operator/ua50/build_unsigned.ps1 -Source product -Output result -Track patch
-          Copy-Item product/BOUNDED-SHADER-RECEIPT.json result/
+          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE/product/BOUNDED-SHADER-RECEIPT.json" -Destination "$env:GITHUB_WORKSPACE/result/"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: bounded-unsigned-${{ github.run_id }}
