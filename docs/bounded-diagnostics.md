@@ -5,8 +5,14 @@
 The bounded diagnostics implementation is complete at **source/local fixture**
 scope. One consolidated independent review and its focused worker-endpoint
 correction have no remaining findings. The selected Windows SDK/D3D12
-compile/link/unsigned-package build is pending; its actual run is recorded in
-[issue #7](https://github.com/vetax-by/xllama/issues/7). This is not a target
+[compile/link/unsigned-package run 44577045317](https://github.com/vetax-by/xllama/actions/runs/44577045317)
+succeeded on source/build commit `0553a90b48fc71515396bdf5a947ea3412b13634`.
+Independent saved-artifact QA **passed with no findings**, limited to unsigned
+Windows compile/link/package and saved artifact integrity. Review result SHA-256:
+`d28ea44752412a023083f9d27840f89ebf1d5cb09851a9a81e3df72bbe6c3cda`. The unsigned x64 package is 20,306,364
+bytes, SHA-256 `05c9d3d14cd6ea1b674918b9d5e87489b66aa6d6c06a1ee95aa85daef4115cb4`.
+The public issue status is [#7](https://github.com/vetax-by/xllama/issues/7).
+This is not a target
 correctness, numerical parity, observer neutrality, memory peak or performance
 acceptance. Historical accepted identity/primitive results apply only to their
 own signed artifact. Model2 remains numerically unaccepted.
@@ -98,3 +104,19 @@ Current build source lock:
 The public fork root still contains the historical application tree; the bounded
 build source is the explicit lock/postimage composition, not an implicit build
 of that root. See [ua50 build notes](../ua50/README.md).
+
+### Actual build evidence boundary
+
+Windows MSVC/v143 and SDK 22621 compiled and linked the selected source with no
+compiler errors; warnings remain recorded. Four pinned-DXC Windows validation
+compiles passed. Their output bytes differ from the frozen Linux/historical
+shipping DXIL and were not substituted. All four exact frozen base/trace shader
+arrays are present in the packaged x64 EXE; that is a static artifact fact, not
+proof of runtime PSO selection or hardware behavior.
+
+Two preparation/transport failures were preserved: one ignored source file
+stopped the first job before compilation, and a relative post-build receipt
+copy prevented artifact upload after a successful second compilation/package.
+The final job corrects those transport errors without changing the reviewed
+native bytes. Actions was restored to its original disabled state. No signing,
+installation, console execution or public binary release occurred.
