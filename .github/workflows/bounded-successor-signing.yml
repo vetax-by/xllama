@@ -1,0 +1,122 @@
+name: Bounded diagnostics signed successor copies
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ua50-successor-signing
+  cancel-in-progress: false
+jobs:
+  sign-copies:
+    if: github.ref == 'refs/heads/codex/ua50-ssd-moe'
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+      GIT_CONFIG_KEY_1: core.eol
+      GIT_CONFIG_VALUE_1: lf
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Verify LF checkout policy
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $a = git config --get core.autocrlf
+          if ($LASTEXITCODE -ne 0 -or $a.Trim() -ne 'false') { throw 'LF policy required' }
+          $e = git config --get core.eol
+          if ($LASTEXITCODE -ne 0 -or $e.Trim() -ne 'lf') { throw 'LF policy required' }
+      - name: Checkout reviewed signing sources
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          path: operator
+      - name: Verify script bytes and parse PowerShell before any key operation
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pins = @{
+            'package_copy.py' = 'f4ee7c692e7194f3ebc97ee38f8537e29ec6a618ccde74126a37e260710492ce'
+            'sign_copy.ps1' = 'cbc6aee4ad865a1a31949567d831801465115ed623fd1108863f1b776848dac8'
+            'sign_ephemeral_pair.ps1' = '121ef0d2ea6d0ce7b2fc91926abc49f1274e19544951a2998c77cbda174334b1'
+            'validate_pair_inputs.py' = 'daea296087ada83a8f54b1132384c38a5c2ef45dc4b0c156d4963c5305771fa1'
+            'input-template.json' = 'b917e4247126d50d811f165288a35cc59197a73edfc153eea1f50347ac4cfe6e'
+          }
+          foreach ($name in $pins.Keys) {
+            $path = Join-Path 'operator/ua50/signing/bounded' $name
+            if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pins[$name]) { throw "Source pin mismatch: $name" }
+            if ($name.EndsWith('.ps1')) {
+              $tokens = $null; $errors = $null
+              [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path).Path, [ref]$tokens, [ref]$errors)
+              if ($errors.Count -ne 0) { throw "PowerShell parse refused: $name" }
+            }
+          }
+      # Independent unsigned QA RESULT SHA256: d28ea44752412a023083f9d27840f89ebf1d5cb09851a9a81e3df72bbe6c3cda.
+      - name: Download two exact accepted unsigned artifacts
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair'
+          if (Test-Path -LiteralPath $root) { throw 'Exclusive artifact root required' }
+          New-Item -ItemType Directory -Path $root | Out-Null
+          gh run download 44577045317 --repo vetax-by/xllama --name bounded-unsigned-44577045317 --dir (Join-Path $root 'patched')
+          if ($LASTEXITCODE -ne 0) { throw 'Exact patched artifact download failed; no retry' }
+          $patchedPackage = Join-Path $root 'patched/xllama_1.7.0.0_x64.msix'
+          $patchedReceipt = Join-Path $root 'patched/UA50-SOURCE-RECEIPT.json'
+          $buildReceipt = Join-Path $root 'patched/BUILD-RECEIPT.json'
+          if ((Get-FileHash -LiteralPath $patchedPackage -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05c9d3d14cd6ea1b674918b9d5e87489b66aa6d6c06a1ee95aa85daef4115cb4') { throw 'Patched package SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $patchedReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c6b85941113c79dc992e735c220c8342ce2e9756304b88ef104736755ab0d6a1') { throw 'Patched receipt SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $buildReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne '7ad1ef8a72d7f5fa991ad9ffa94b12a591e9ab3aa2876cac463894c1d1c954e5') { throw 'Patched build receipt SHA mismatch' }
+          $shaderReceipt = Join-Path $root 'patched/BOUNDED-SHADER-RECEIPT.json'
+          if ((Get-FileHash -LiteralPath $shaderReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne '6b442043f8d8e994ae6391c13cd7634984018648fd23d607924dee4d7890c0dc') { throw 'Bounded shader receipt SHA mismatch' }
+          # Byte-exact retained archive from accepted run43592901046; transport mirror only, no rebuild.
+          $transport = Join-Path $root 'stock-transport'
+          New-Item -ItemType Directory -Path $transport | Out-Null
+          gh release download ua50-accepted-stock-43592901046-v1 --repo vetax-by/xllama --pattern ua50-accepted-stock-43592901046-e4e4d8a2.zip --dir $transport
+          if ($LASTEXITCODE -ne 0) { throw 'Exact retained stock archive download failed; no retry' }
+          $archive = Join-Path $transport 'ua50-accepted-stock-43592901046-e4e4d8a2.zip'
+          if ((Get-Item -LiteralPath $archive).Length -ne 20926013) { throw 'Retained stock archive size mismatch' }
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'e4e4d8a257befd33b4630f52e13edd797d560c2e56f5970c8771f4fdf054bae9') { throw 'Retained stock archive SHA mismatch' }
+          $members = @{
+            'BUILD-RECEIPT.json' = 1600
+            'UA50-SOURCE-RECEIPT.json' = 42707
+            'xllama_1.7.0.0_x64.msix' = 20987510
+          }
+          $zip = [IO.Compression.ZipFile]::OpenRead($archive)
+          try {
+            if ($zip.Entries.Count -ne 3) { throw 'Retained stock archive member count mismatch' }
+            $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            foreach ($entry in $zip.Entries) {
+              if (-not $members.ContainsKey($entry.FullName) -or -not $seen.Add($entry.FullName)) { throw 'Retained stock archive member refused' }
+              if ($entry.Length -ne $members[$entry.FullName]) { throw 'Retained stock member length mismatch' }
+            }
+          } finally { $zip.Dispose() }
+          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $root 'stock')
+          # Existing independent Python and PowerShell gates still verify exact stock package/source SHA before keys.
+      - name: Sign preserving update and stock forward-recovery copies
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $plan = Get-Content -LiteralPath 'operator/ua50/signing/bounded/input-template.json' -Raw | ConvertFrom-Json
+          if ($plan.InstalledVersion -cne '1.7.0.1524' -or $plan.PatchedVersion -cne '1.7.0.1526' -or $plan.RecoveryVersion -cne '1.7.0.1527') { throw 'Selected version triplet changed' }
+          $planPath = Join-Path $env:RUNNER_TEMP 'selected-signing-inputs.json'
+          if (Test-Path -LiteralPath $planPath) { throw 'Exclusive input plan required' }
+          $plan | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $planPath -Encoding utf8NoBOM
+          $planSha = (Get-FileHash -LiteralPath $planPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin/10.0.22621.0/x64'
+          & operator/ua50/signing/bounded/sign_ephemeral_pair.ps1 -InputPlan $planPath -InputPlanSha256 $planSha `
+            -ArtifactRoot (Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair') `
+            -PrivateRoot (Join-Path $env:RUNNER_TEMP 'owned-signing-private') `
+            -Output (Join-Path $env:RUNNER_TEMP 'public-signed-pair') -SdkBin $sdk -PublicTrustScope LocalMachine
+      - name: Upload only public signed copies and certificate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ua50-successor-signed-pair-${{ github.run_id }}
+          path: ${{ runner.temp }}/public-signed-pair/
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: false
