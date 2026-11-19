@@ -23,6 +23,31 @@ show both incoming drift and additional small local execution differences;
 neither proves the cause of the final tolerance failure. Existing spent runs and
 raw evidence are unchanged.
 
+## Signed successor and preserving installation — 2026-11-19
+
+The [selected signing run 44581718753](https://github.com/vetax-by/xllama/actions/runs/44581718753)
+succeeded. Signed-artifact review passed with no findings for successor
+**1.7.0.1526** (SHA-256
+`e07463b633a580fdaeab505ec45f2a8bb3d71487eb485e943697d948120bf6c7`).
+The separate stock forward-recovery package **1.7.0.1527** is retained and was
+not installed. Signing review result SHA-256:
+`ab4226176c728fe86085717d88f9e5efeedc296a01e7e78813fc27942a385496`.
+
+The selected in-place installation completed successfully: the sole registered
+package is 1526, both prior owners remain registered, and no app process was
+running afterward. Independent saved-outcome review passed with no findings,
+limited to **metadata preservation**. The before/after LocalState responses are
+byte-identical (230 entries), including the selected model's name, size and date.
+Install review result SHA-256:
+`bd511a36f6258b117e0fd2d9f458efe3eb50b32ac2a18335e3e0870ed8a24168`.
+
+No app/model activation, reset, uninstall, recovery installation or weights
+transfer occurred. Model contents were not read or hashed: metadata preservation
+does not establish physical data integrity, all-user storage preservation,
+runtime quota or numerical correctness. Historical 1524 identity/primitive
+acceptance does not transfer to 1526. New target execution and genuine
+same-artifact prerequisites remain separate; model2 remains unaccepted.
+
 ## Selectable capture families
 
 The config-v6 / bounded-plan-v2 interface admits closed, bounded profiles R0
@@ -118,5 +143,7 @@ Two preparation/transport failures were preserved: one ignored source file
 stopped the first job before compilation, and a relative post-build receipt
 copy prevented artifact upload after a successful second compilation/package.
 The final job corrects those transport errors without changing the reviewed
-native bytes. Actions was restored to its original disabled state. No signing,
-installation, console execution or public binary release occurred.
+native bytes. Actions was restored to its original disabled state. That unsigned-build
+workflow performed no signing or installation. The separately selected signing
+and preserving installation are recorded above; no public binary release or
+model execution is claimed.
