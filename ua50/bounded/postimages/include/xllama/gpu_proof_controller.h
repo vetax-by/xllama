@@ -72,8 +72,10 @@ class Controller {
   if(witness_){if(!eval_)eval_=std::make_shared<EvalMux>(EvalMux{witness_,sweep_,graph_});opt.context.cb_eval=&layer_eval;opt.context.cb_eval_user_data=eval_.get();opt.eval_callback_owner=eval_;}
   return opt;
  }
- void decode(std::shared_ptr<CpuExpertSession>s,llama_token token,uint32_t position,uint32_t phase){
-  gate("proof-before-decode");if(bounded_)bounded_->frame(phase,position,token);if(witness_)witness_->begin(phase,position);if(sweep_)sweep_->begin(phase,position);if(graph_)graph_->begin(phase,position,token);if(vectors_)vectors_->begin(phase,position);if(selected_vectors_)selected_vectors_->begin(phase,position);if(cross_||bounded_)s->diagnostic_frame(phase,position,token);trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
+ void decode(std::shared_ptr<CpuExpertSession>s,llama_token token,uint32_t position,uint32_t phase,bool prefill_token=false){
+  gate("proof-before-decode");
+  if(bounded_){auto io=bounded_->dispatch_observer();if(io&&io->io_timing_enabled())io->io_phase(prefill_token);}
+  if(bounded_)bounded_->frame(phase,position,token);if(witness_)witness_->begin(phase,position);if(sweep_)sweep_->begin(phase,position);if(graph_)graph_->begin(phase,position,token);if(vectors_)vectors_->begin(phase,position);if(selected_vectors_)selected_vectors_->begin(phase,position);if(cross_||bounded_)s->diagnostic_frame(phase,position,token);trace_->begin(phase,position,phase==2?gpu_->counts():ua50::GpuCounts{});
   // Every proof frame must execute the final MoE layer, including prefill tokens.
   int32_t nseq=1;llama_seq_id sequence=0;llama_seq_id*sequence_ptr=&sequence;int8_t logits=1;llama_pos pos=llama_pos(position);
   llama_batch b{};b.n_tokens=1;b.token=&token;b.pos=&pos;b.n_seq_id=&nseq;b.seq_id=&sequence_ptr;b.logits=&logits;
@@ -82,7 +84,7 @@ class Controller {
   trace_->end(phase==2?gpu_->counts():ua50::GpuCounts{});gate("proof-after-decode");
  }
  static llama_token greedy(const float*row){llama_token best=0;for(size_t i=0;i<vocab;++i){if(!std::isfinite(row[i]))throw std::runtime_error("nonfinite native row");if(row[i]>row[size_t(best)])best=llama_token(i);}return best;}
- void prefill(std::shared_ptr<CpuExpertSession>s,uint32_t phase){s->begin_fresh_turn();for(size_t i=0;i<prompt_count_;++i)decode(s,prompt_[i],uint32_t(i),phase);}
+ void prefill(std::shared_ptr<CpuExpertSession>s,uint32_t phase){s->begin_fresh_turn();for(size_t i=0;i<prompt_count_;++i)decode(s,prompt_[i],uint32_t(i),phase,true);}
 public:
  Controller(std::shared_ptr<Proof>proof,std::shared_ptr<Trace>trace,std::shared_ptr<ua50::ExpertGpu>gpu,std::function<void(const char*)> progress,std::shared_ptr<VectorWitness> vectors={},std::shared_ptr<SweepWitness>sweep={},std::shared_ptr<SelectedVectorWitness>selected={},std::shared_ptr<CrossArmWitness>cross={},std::shared_ptr<GraphWitness>graph={},std::shared_ptr<capture::GraphCapture>bounded={}):gpu_(std::move(gpu)),proof_(std::move(proof)),trace_(std::move(trace)),vectors_(std::move(vectors)),sweep_(std::move(sweep)),selected_vectors_(std::move(selected)),cross_(std::move(cross)),graph_(std::move(graph)),progress_(std::move(progress)),bounded_(std::move(bounded)){
   if(!gpu_||!proof_||!trace_||!progress_)throw std::invalid_argument("proof complete ownership required");

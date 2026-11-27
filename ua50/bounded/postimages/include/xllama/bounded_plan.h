@@ -1,6 +1,7 @@
 #pragma once
 #include "bounded_capture.h"
 #include "bounded_catalog.h"
+#include "ggml-cpu.h"
 #include "dev_run_config.h"
 namespace xllama::capture {
 struct Selection {
@@ -9,19 +10,31 @@ struct Selection {
  uint32_t cell=0,cells=1,element=0,elements=1;
 };
 struct Plan {
+ uint32_t worker_events=0;
  bool worker_fp=false,observer_control=false,gpu_input_echo=false,io_cache=false,shader_trace=false;std::string profile;Limits limits;std::vector<Selection> selections;
  uint64_t gpu_memory()const{return (gpu_input_echo?131072ull:0)+(shader_trace?(8ull<<20):0);}
  size_t owned_bytes()const{return sizeof(*this)+profile.capacity()+selections.capacity()*sizeof(Selection);}
 };
+// The admitted proof executor is single-worker. No nth=64 assumption or
+// graph-window/output-row reduction discounts actual full-node receipts.
+inline uint32_t worker_groups_per_arm(const Selection&x){return x.kind=="RESIDUAL_CVEC"?2:x.kind=="ARITHMETIC"&&x.point=="moe_aggregate"?3:1;}
+inline uint32_t worker_samples_per_endpoint(const Selection&x){
+ if(x.kind=="EXPERT_DISPATCH")return 6;
+ if(x.kind=="PARAMETER_ROWS")return x.point=="result_output"?6:2;
+ const auto*p=graph_point(x.point);return p&&p->op==30?12:p&&p->op==29?6:2;
+}
+inline uint32_t worker_sample_forecast(const Selection&x){return 2*worker_groups_per_arm(x)*worker_samples_per_endpoint(x);}
+inline constexpr size_t worker_index_sample_bound=512,worker_index_group_bound=2048;
 inline Plan parse_plan(const dev_run::Json&j){
- j.keys({"schema","profile","limits","selectors","extensions"});j.at("schema").eq("xllama-bounded-diagnostics-plan-v2");
+ j.keys({"schema","profile","limits","selectors","extensions"});j.at("schema").eq("xllama-bounded-diagnostics-plan-v3");
  Plan p;p.profile=j.at("profile").text;need(p.profile=="R0"||p.profile=="E0"||p.profile=="S0"||p.profile=="G0","bounded profile");
  const auto&ex=j.at("extensions");ex.keys({"worker_fp","observer_control","gpu_input_echo","io_cache","shader_trace"});
  auto flag=[&](const char*key){const auto&v=ex.at(key);need(v.type==dev_run::Json::Type::boolean,"bounded extension boolean");return v.flag;};p.worker_fp=flag("worker_fp");p.observer_control=flag("observer_control");p.gpu_input_echo=flag("gpu_input_echo");p.io_cache=flag("io_cache");p.shader_trace=flag("shader_trace");need((!p.gpu_input_echo&&!p.io_cache&&!p.shader_trace)||p.profile=="E0","expert-only extension");
- const auto&l=j.at("limits");l.keys({"records","raw_bytes","bundle_bytes","index_bytes","owner_bytes","reference_work","time_ms"});
+ const auto&l=j.at("limits");l.keys({"records","raw_bytes","bundle_bytes","index_bytes","owner_bytes","reference_work","time_ms","worker_events"});
  p.limits.records=uint32_t(l.at("records").range(1,64));p.limits.raw=l.at("raw_bytes").range(1,1048576);p.limits.bundle=l.at("bundle_bytes").range(248,1081344);p.limits.index=l.at("index_bytes").range(4096,262144);p.limits.owner=l.at("owner_bytes").range(1048576,16777216);p.limits.work=l.at("reference_work").range(1,120000000);p.limits.time_ms=uint32_t(l.at("time_ms").range(1,120000));
+ p.worker_events=uint32_t(l.at("worker_events").range(0,256));need(p.worker_fp?(p.worker_events>0):(p.worker_events==0),"explicit selected worker event budget");
  const auto&s=j.at("selectors");need(s.type==dev_run::Json::Type::array&&!s.array.empty()&&s.array.size()<=16,"bounded selector cap");
- uint64_t worst_raw=0,records=0,weight_bytes=0,weight_rows=0,weight_spans=0,state_scalars=0;size_t primary=0,side=0;
+ uint64_t worst_raw=0,records=0,weight_bytes=0,weight_rows=0,weight_spans=0,state_scalars=0,oracle_work=0;size_t primary=0,side=0;
  for(const auto&v:s.array){Selection x;x.kind=v.at("kind").text;
   if(x.kind=="RESIDUAL_CVEC")v.keys({"kind","layer","position","token","occurrence"});
   else if(x.kind=="ARITHMETIC")v.keys({"kind","point","layer","position","token","occurrence"});
@@ -51,13 +64,27 @@ inline Plan parse_plan(const dev_run::Json&j){
    x.weight_row=uint32_t(v.at("weight_row_start").range(0,n-1));x.weight_rows=uint32_t(v.at("weight_row_count").range(1,16));x.block=uint32_t(v.at("block_start").range(0,k/256-1));x.blocks=uint32_t(v.at("block_count").range(1,k/256));x.output_row=uint32_t(v.at("output_row_start").range(0,n-1));x.output_rows=uint32_t(v.at("output_row_count").range(1,n));
    need(x.weight_row+x.weight_rows<=n&&x.block+x.blocks<=k/256&&x.output_row+x.output_rows<=n,"expert selected ranges");
    const uint64_t weights=uint64_t(x.weight_rows)*x.blocks*(x.role%3==1?210:144);need(weights<=262144,"selected weight cap");
+   oracle_work+=2*mul(k,x.output_rows);
    weight_bytes+=weights*2;weight_rows+=x.weight_rows*2;weight_spans+=2;
    worst_raw+=2*(k*4+k/256*292+weights+x.output_rows*4*3);records+=12;if(p.gpu_input_echo){worst_raw+=weights+k/256*292;records+=2;weight_bytes+=weights;weight_rows+=x.weight_rows;++weight_spans;}if(p.shader_trace){need(x.output_rows<=64,"shader trace selected rows cap");worst_raw+=uint64_t(x.output_rows)*64*8;records+=2;}
   }else{need(p.profile=="S0","state profile");++primary;x.cell=uint32_t(v.at("cell_start").range(0,511));x.cells=uint32_t(v.at("cell_count").range(1,32));x.element=uint32_t(v.at("element_start").range(0,65535));x.elements=uint32_t(v.at("element_count").range(1,16384));need(x.cell+x.cells<=512,"state cell range");const size_t bytes=mul(mul(x.cells,x.elements),x.kind=="SHORTCONV"?4:2);need(mul(mul(x.cells,x.elements),4)<=65536,"state source record window");worst_raw+=bytes*(x.kind=="SHORTCONV"?8:10);records+=8;state_scalars+=2*x.cells*(x.kind=="KV_V_TRANSPOSED"?3+2*x.elements:5);}
   for(const auto&old:p.selections)need(!(old.kind==x.kind&&old.point==x.point&&(x.kind!="GRAPH_EDGE"||old.element==x.element)&&old.layer==x.layer&&old.position==x.position&&old.role==x.role&&old.expert==x.expert&&old.occurrence==x.occurrence),"duplicate bounded selector");p.selections.push_back(x);
  }
  need((p.profile=="G0"||primary>0)&&(p.profile!="R0"||primary==1),"primary profile selection missing");
- size_t group_bound=2*p.selections.size()+2,fp_bound=0;for(const auto&x:p.selections){if(p.worker_fp){group_bound+=x.kind=="RESIDUAL_CVEC"?4:x.kind=="ARITHMETIC"&&x.point=="moe_aggregate"?6:2;fp_bound+=(x.kind=="EXPERT_DISPATCH"||x.kind=="PARAMETER_ROWS"||(graph_point(x.point)&&graph_point(x.point)->op==29))?12:x.kind=="RESIDUAL_CVEC"?8:x.kind=="ARITHMETIC"&&x.point=="moe_aggregate"?12:4;}if(p.io_cache&&x.kind=="EXPERT_DISPATCH")group_bound+=2;if((p.gpu_input_echo||p.shader_trace)&&x.kind=="EXPERT_DISPATCH")++group_bound;}if(p.observer_control)group_bound+=2*p.selections.size();need(group_bound<=64&&fp_bound<=64,"bounded auxiliary group/worker receipt preflight");
+ size_t group_bound=2*p.selections.size()+2,fp_bound=0,worker_groups=0,io_groups=0;
+ for(const auto&x:p.selections){
+  if(p.worker_fp){const size_t n=2*worker_groups_per_arm(x);group_bound+=n;worker_groups+=n;fp_bound+=worker_sample_forecast(x);}
+  if(p.io_cache&&x.kind=="EXPERT_DISPATCH"){group_bound+=2;io_groups+=2;}
+  if((p.gpu_input_echo||p.shader_trace)&&x.kind=="EXPERT_DISPATCH")++group_bound;
+ }
+ if(p.observer_control)group_bound+=2*p.selections.size();
+ need(group_bound<=64&&fp_bound<=p.worker_events,"bounded auxiliary group/selected worker receipt preflight");
+ // Explicit maximum worker JSON section reservation. Other index metadata still
+ // consumes the SAME bounded index buffer and final serialization may refuse.
+ const size_t worker_index=mul(p.worker_events,worker_index_sample_bound)+mul(worker_groups,worker_index_group_bound);
+ need(io_groups<=8&&worker_index+mul(io_groups,4096)<=p.limits.index,"IO and worker index reservation");
+ need(oracle_work+mul(p.worker_events,2*sizeof(ggml_capture_worker_event))+mul(p.limits.index,2)<=p.limits.work,"worker receipt/serialization work preflight");
+
  need(weight_bytes<=262144&&weight_rows<=16&&weight_spans<=8&&state_scalars<=1024,"bounded shared mapping caps");
  need(worst_raw<=p.limits.raw&&records<=p.limits.records,"bounded raw/record preflight");
  need(96+records*96+worst_raw+56<=p.limits.bundle,"bounded binary preflight");

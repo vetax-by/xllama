@@ -24,19 +24,58 @@ inline constexpr bool stage_handlers=true;
 inline constexpr bool stage_handlers=false;
 #endif
 inline std::filesystem::path path(const std::filesystem::path&r,const std::string&name){return r/std::filesystem::path(std::wstring(name.begin(),name.end()));}
-inline bool present(const std::filesystem::path&p){const auto a=GetFileAttributesW(p.c_str());if(a==INVALID_FILE_ATTRIBUTES){dev_run::need(GetLastError()==ERROR_FILE_NOT_FOUND,"mailbox file state unknown");return false;}dev_run::need(!(a&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DEVICE)),"mailbox file shape");return true;}
+inline std::string mailbox_leaf(const std::filesystem::path& path) {
+ const auto name = path.filename().u8string();
+ return std::string(name.begin(), name.end());
+}
+inline std::runtime_error mailbox_error(const char* operation, const std::filesystem::path& path, DWORD code) {
+ return std::runtime_error(std::string(operation) + " win32_error=" + std::to_string(code) +
+                           " file=" + mailbox_leaf(path));
+}
+inline bool present(const std::filesystem::path& path) {
+ const auto attributes = GetFileAttributesW(path.c_str());
+ if (attributes == INVALID_FILE_ATTRIBUTES) {
+  const DWORD code = GetLastError();
+  if (code == ERROR_FILE_NOT_FOUND) return false;
+  throw mailbox_error("GetFileAttributesW", path, code);
+ }
+ dev_run::need(!(attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE)),
+               "mailbox file shape");
+ return true;
+}
 inline void absent(const std::filesystem::path&p){dev_run::need(!present(p),"spent namespace retained; use new run");}
-inline std::string read(DevHandle&h,const std::filesystem::path&p,size_t cap){open_dev_file(h,p,false);auto raw=read_dev_file(h,cap);
+inline std::string read(DevHandle&h,const std::filesystem::path&p,size_t cap,DevOpenContext context=DevOpenContext::ordinary){open_dev_file(h,p,false,context);auto raw=read_dev_file(h,cap);
  alignas(FILE_NAME_INFO) std::array<unsigned char,4096> storage{};
  dev_run::need(GetFileInformationByHandleEx(h.value,FileNameInfo,storage.data(),DWORD(storage.size())),"mailbox canonical held name unavailable");
  const auto*info=reinterpret_cast<const FILE_NAME_INFO*>(storage.data());dev_run::need(info->FileNameLength%sizeof(wchar_t)==0&&info->FileNameLength<=storage.size()-offsetof(FILE_NAME_INFO,FileName),"mailbox held name length");
  const std::wstring final_name(info->FileName,info->FileNameLength/sizeof(wchar_t));dev_run::need(std::filesystem::path(final_name).filename().native()==p.filename().native(),"mailbox noncanonical case/name");return raw;}
 inline DevHandle write_new(const std::filesystem::path&p,const std::string&b,size_t cap,bool ticket=false){
  dev_run::need(!b.empty()&&b.size()<=cap,"native mailbox receipt cap");
- DevHandle h(CreateFile2(p.c_str(),GENERIC_READ|GENERIC_WRITE|(ticket?DELETE:0),0,CREATE_NEW,nullptr));
- dev_run::need(h.value!=INVALID_HANDLE_VALUE,"native mailbox CREATE_NEW unavailable");DWORD n=0;
- dev_run::need(WriteFile(h.value,b.data(),DWORD(b.size()),&n,nullptr)&&n==b.size()&&FlushFileBuffers(h.value),"native mailbox durable publication failed");
- LARGE_INTEGER zero{};dev_run::need(SetFilePointerEx(h.value,zero,nullptr,FILE_BEGIN),"native mailbox rewind");return h;
+ DevHandle h;
+ h.value = CreateFile2(p.c_str(), GENERIC_READ|GENERIC_WRITE|(ticket?DELETE:0), 0, CREATE_NEW, nullptr);
+ if (h.value == INVALID_HANDLE_VALUE) {
+  const DWORD code = GetLastError();
+  throw mailbox_error("CreateFile2 CREATE_NEW", p, code);
+ }
+ DWORD written = 0;
+ if (!WriteFile(h.value, b.data(), DWORD(b.size()), &written, nullptr)) {
+  const DWORD code = GetLastError();
+  throw mailbox_error("WriteFile", p, code);
+ }
+ if (written != b.size()) {
+  throw std::runtime_error("WriteFile short write expected=" + std::to_string(b.size()) +
+                           " written=" + std::to_string(written) + " file=" + mailbox_leaf(p));
+ }
+ if (!FlushFileBuffers(h.value)) {
+  const DWORD code = GetLastError();
+  throw mailbox_error("FlushFileBuffers", p, code);
+ }
+ LARGE_INTEGER zero{};
+ if (!SetFilePointerEx(h.value, zero, nullptr, FILE_BEGIN)) {
+  const DWORD code = GetLastError();
+  throw mailbox_error("SetFilePointerEx", p, code);
+ }
+ return h;
 }
 inline std::string random_hex(size_t n){dev_run::need(n<=32,"entropy cap");std::array<unsigned char,32>b{};dev_run::need(BCryptGenRandom(nullptr,b.data(),ULONG(n),BCRYPT_USE_SYSTEM_PREFERRED_RNG)>=0,"native entropy unavailable");std::string out;for(size_t i=0;i<n;++i){out+="0123456789abcdef"[b[i]>>4];out+="0123456789abcdef"[b[i]&15];}return out;}
 struct QuotaBracket {
@@ -59,6 +98,18 @@ struct Runtime:std::enable_shared_from_this<Runtime> {
   const auto b=qualification::control_body(session,GetCurrentProcessId(),status,command_sha,completion_nonce,qualification::run_guard.reasons.stop_observed_mask.load(),detail);
   auto h=write_new(path(root,leaf(session.selected.run,suffix)),b,receipt_cap);h.close();
  }
+ // Preserve both errors if writing the one-shot refusal itself fails.
+ std::string refusal_detail(const char* suffix, const char* state, const char* primary) {
+  try { receipt(suffix, state, primary); }
+  catch (const std::exception& secondary) {
+   return bounded_detail(primary) + " | receipt: " + bounded_detail(secondary.what());
+  }
+  return bounded_detail(primary);
+ }
+ void show_failure(const std::string& detail) {
+  status(L"Qualification stopped. " + std::wstring(winrt::to_hstring(detail).c_str()));
+ }
+ std::string worker_refusal_detail;
  // Completion/UNKNOWN is a control receipt. Existing native stage output,
  // trace, SHA/numerical/closure gates remain the acceptance authority.
  void start(){
@@ -86,7 +137,7 @@ struct Runtime:std::enable_shared_from_this<Runtime> {
    session.manual_fallback(session.prework_mask?0:(pending_reason?pending_reason:io_unknown),e.what());
   }
   try{const auto b=ready_body(session,GetCurrentProcessId(),stage_handlers);auto h=write_new(path(root,leaf(session.selected.run,"ready.json")),b,receipt_cap);h.close();session.ready_sha=dev_sha(b);}
-  catch(...){session.note(receipt_unavailable,"native critical readiness publication unavailable");session.state=Phase::manual;status(L"Qualification shell — manual. Receipt unavailable; no diagnostics.");return;}
+  catch(const std::exception& e){session.note(receipt_unavailable,e.what());session.state=Phase::manual;show_failure(session.prework_detail);return;}
   if(session.state!=Phase::ready){status(L"Qualification shell — immutable manual mode. No model or diagnostics.");return;}
   status(L"Qualification shell — diagnostic READY. Waiting for one exact instance command.");
   timer=winrt::Windows::UI::Xaml::DispatcherTimer();timer.Interval(std::chrono::milliseconds(poll_ms));
@@ -95,7 +146,7 @@ struct Runtime:std::enable_shared_from_this<Runtime> {
  void tick(){
   try{
    if(qualification::run_guard.abort.load()){session.refuse();throw std::runtime_error("qualification instance hidden/suspended");}
-   if(!session.poll(qualification_now())){timer.Stop();status(L"Readiness expired — no work. Use a new selection.");try{receipt("refusal.json","READY_EXPIRED");}catch(...){}return;}
+   if(!session.poll(qualification_now())){timer.Stop();status(L"Readiness expired — no work. Use a new selection.");show_failure(refusal_detail("refusal.json","READY_EXPIRED","Readiness expired"));return;}
    if(present(path(root,leaf(session.selected.run,"abandon.json")))){
     DevHandle h;const auto raw=read(h,path(root,leaf(session.selected.run,"abandon.json")),command_cap);const auto j=dev_run::Parser(raw).parse(command_cap);
     j.keys({"schema","run_id","instance_id","ready_sha256","selection_receipt_sha256"});j.at("schema").eq("xllama-qualification-abandon-v1");j.at("run_id").eq(session.selected.run.c_str());j.at("instance_id").eq(session.instance.c_str());j.at("ready_sha256").eq(session.ready_sha.c_str());j.at("selection_receipt_sha256").eq(session.selected.selection_sha.c_str());
@@ -104,7 +155,7 @@ struct Runtime:std::enable_shared_from_this<Runtime> {
    const auto cp=path(root,leaf(session.selected.run,"command.json"));if(!present(cp))return;
    // First visible command is acquired ONCE. Any sharing/partial/parse/SHA
    // error spends this instance; no poll retry of an uncertain publication.
-   timer.Stop();DevHandle held;const auto raw=read(held,cp,command_cap);const auto c=qualification::command(raw);session.validate(c,qualification_now());command_sha=dev_sha(raw);
+   timer.Stop();DevHandle held;const auto raw=read(held,cp,command_cap,DevOpenContext::first_command);const auto c=qualification::command(raw);session.validate(c,qualification_now());command_sha=dev_sha(raw);
    DevHandle config;const auto config_raw=read(config,path(root,leaf(c.run,"config.json")),profile_cap);dev_run::need(dev_sha(config_raw)==c.config_sha,"command final CONFIG SHA");
    DevHandle permit;std::string permit_raw;
    if(c.work==Stage::generation){
@@ -124,21 +175,21 @@ struct Runtime:std::enable_shared_from_this<Runtime> {
       qualification::run_guard.start(self->session.clock);
       self->dispatch(c,raw,config_raw,std::move(held),std::move(config));
      });self->completion_nonce=random_hex(32);self->receipt("receipt.json","WORK_RETURNED_NOT_ACCEPTED");
-    },[&](const char*error){if(!self->session.claim_attempted)self->session.note(worker_setup,error);self->session.refuse();self->receipt("refusal.json","UNKNOWN_NO_RETRY",error);});
+    },[&](const char*error){if(!self->session.claim_attempted)self->session.note(worker_setup,error);self->session.refuse();self->worker_refusal_detail=self->refusal_detail("refusal.json","UNKNOWN_NO_RETRY",error);});
     self->work_done.store(true,std::memory_order_release);
     try{self->label.Dispatcher().RunAsync(winrt::Windows::UI::Core::CoreDispatcherPriority::Normal,[self]{self->begin_release_wait();});}catch(...){}
     // No further work command is accepted in this process, even after return.
    }).detach();
-  }catch(const std::exception&e){session.refuse();if(timer)timer.Stop();try{receipt("refusal.json","UNKNOWN_NO_RETRY",e.what());}catch(...){}status(L"Command refused/unknown. No retry; preserve evidence.");}
+  }catch(const std::exception&e){session.refuse();if(timer)timer.Stop();show_failure(refusal_detail("refusal.json","UNKNOWN_NO_RETRY",e.what()));}
  }
  void release_failure(const char*detail,const qualification::ReleaseObservation*observation=nullptr){
   if(timer)timer.Stop();
   // Structured release-local stop is critical and never hidden in bounded detail.
   if(observation)try{const auto raw=qualification::release_stop_body(session,GetCurrentProcessId(),*observation,command_sha,completion_nonce);auto h=write_new(path(root,leaf(session.selected.run,"release-window-refusal.json")),raw,release_window_cap);h.close();}catch(...){}
-  try{receipt("release-refusal.json","RELEASE_UNKNOWN_NO_RETRY",detail);}catch(...){}
-  status(L"Release refused/unknown — shell retained. No force-exit or retry.");
+  show_failure(refusal_detail("release-refusal.json","RELEASE_UNKNOWN_NO_RETRY",detail));
  }
  void begin_release_wait(){
+  if(work_done.load(std::memory_order_acquire) && !worker_refusal_detail.empty()){show_failure(worker_refusal_detail);return;}
   if(!capture::publication_resources_closed()||!work_done.load(std::memory_order_acquire)||session.state!=Phase::returned){status(L"Worker unavailable/UNKNOWN — preserve evidence; no automatic exit.");return;}
   status(L"Work returned. Collect native evidence; explicit reviewed release required for process exit.");
   try{release_window.start(qualification_now());timer=winrt::Windows::UI::Xaml::DispatcherTimer();timer.Interval(std::chrono::milliseconds(1000));

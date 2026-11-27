@@ -46,7 +46,9 @@ public:
   if(a.adapter_luid.empty()||a.shader_sha256.empty()||!a.admit||!g.ok)throw std::invalid_argument("GPU exact identity/admission missing");
   std::lock_guard<std::mutex> guard(g.mu);char luid[32];std::snprintf(luid,sizeof(luid),"%08x:%08x",unsigned(g.luid.HighPart),unsigned(g.luid.LowPart));info_.adapter_luid=luid;info_.shader_sha256=expert_shader_sha();info_.cache_coherent_uma=true;
   info_.init_observed_app_delta=init_delta;info_.app_limit=winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();
-  if(info_.adapter_luid!=a.adapter_luid||info_.shader_sha256!=a.shader_sha256)throw std::runtime_error("constructed GPU identity mismatch");
+  if(info_.adapter_luid!=a.adapter_luid||info_.shader_sha256!=a.shader_sha256)throw std::runtime_error(
+      "constructed GPU identity mismatch expected_luid=" + a.adapter_luid + " actual_luid=" + info_.adapter_luid +
+      " expected_shader=" + a.shader_sha256 + " actual_shader=" + info_.shader_sha256);
   auto wd=desc(2580480+16,D3D12_RESOURCE_FLAG_NONE),qd=desc(1u<<20,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),od=desc(8192+64,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   auto &l=info_.resources;
   for(auto b:{std::pair<const char*,ID3D12Resource*>{"stock_upload",g.staging.Get()}, {"stock_readback",g.readback.Get()}}){if(!b.second)throw std::runtime_error("stock resource absent");l.add(b.first,allocation(b.second->GetDesc()),true);}

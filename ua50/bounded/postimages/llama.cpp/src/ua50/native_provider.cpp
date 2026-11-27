@@ -133,9 +133,41 @@ void NativeProvider::release() noexcept {
  if(dispatch_observer_&&active_tensor_)dispatch_observer_->released();
  active_.reset(); active_tensor_=nullptr;
 }
+// Diagnostic-only. Both arms use the same trait and their own current lease/Q8 row.
+void NativeProvider::selected_cpu_dot(const ggml_tensor* t, const unsigned char* q8,
+                                      size_t bytes, uint32_t first, uint32_t count) noexcept {
+ const auto started = std::chrono::steady_clock::now();
+ try {
+  std::array<float,2048> result;
+  const auto k = t->ne[0], rows = t->ne[1];
+  if (active_tensor_ != t || !q8 || !active_.data() ||
+      (t->type != GGML_TYPE_Q4_K && t->type != GGML_TYPE_Q6_K) ||
+      (k != 1536 && k != 2048) || rows < 1 || rows > int64_t(result.size()) ||
+      bytes != ggml_row_size(GGML_TYPE_Q8_K,k) || t->nb[1] != ggml_row_size(t->type,k) ||
+      active_.size() != size_t(rows)*t->nb[1] || !count || first >= rows || count > rows-first)
+   throw std::runtime_error("selected CPU control extent");
+  const auto* trait = ggml_get_type_traits_cpu(t->type);
+  if (!trait || trait->vec_dot_type != GGML_TYPE_Q8_K || !trait->vec_dot)
+   throw std::runtime_error("selected CPU control trait");
+  for (uint32_t i=0; i<count; ++i) {
+   const auto* weights = active_.data() + size_t(first+i)*t->nb[1];
+   trait->vec_dot(int(k),result.data()+i,0,weights,0,q8,0,1);
+  }
+  const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::steady_clock::now()-started).count();
+  dispatch_observer_->oracle(result.data(),count,first,uint64_t(count)*k,ns<0?UINT64_MAX:uint64_t(ns));
+ } catch (...) { dispatch_observer_->unavailable("DISPATCH_ORACLE_EXCEPTION"); }
+}
 void NativeProvider::diagnostic_input(const ggml_tensor*t,uint32_t slot,uint32_t row,
                                       const float*f32,size_t k,const unsigned char*q8,size_t bytes) noexcept{
- if(dispatch_observer_){if(active_tensor_==t&&f32&&q8)dispatch_observer_->input(slot,row,f32,k,q8,bytes);else dispatch_observer_->unavailable("LEASE_OR_INPUT");}
+ if (dispatch_observer_) {
+  if (active_tensor_==t && f32 && q8) {
+   dispatch_observer_->input(slot,row,f32,k,q8,bytes);
+   uint32_t first=0, count=0;
+   if (!gpu_ && dispatch_observer_->cpu_control_range(slot,row,first,count))
+    selected_cpu_dot(t,q8,bytes,first,count);
+  } else dispatch_observer_->unavailable("LEASE_OR_INPUT");
+ }
  if(!cross_arm_observer_)return;
  if(active_tensor_!=t||!f32||!q8){cross_arm_observer_->unavailable("LEASE_OR_INPUT");return;}
  for(size_t i=0;i<count_;++i)if(records_[i].tensor==t){
@@ -205,15 +237,11 @@ bool NativeProvider::gpu_vector(const ggml_tensor*t,const void*q,size_t bytes,fl
    });
    // A separately selected bounded CPU reference uses the SAME held W/Q8.
    // Its output range and work/time are reported; it never changes dispatch.
-   if(dispatch_observer_){uint32_t first=0,count=0;if(dispatch_observer_->oracle_range(first,count)){
-    const auto started=std::chrono::steady_clock::now();std::array<float,2048> bounded_oracle{};
-    try{if(!count||first>d.rows||count>d.rows-first)throw std::runtime_error("dispatch oracle range");
-     const auto*trait=ggml_get_type_traits_cpu(t->type);if(!trait||trait->vec_dot_type!=GGML_TYPE_Q8_K||!trait->vec_dot)throw std::runtime_error("dispatch oracle type");
-     for(uint32_t row=0;row<count;++row)trait->vec_dot(int(request.k),bounded_oracle.data()+row,0,request.weights+size_t(first+row)*d.nb01,0,request.q8,0,1);
-     const auto ns=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-started).count();
-     dispatch_observer_->oracle(bounded_oracle.data(),count,first,uint64_t(count)*request.k,ns<0?UINT64_MAX:uint64_t(ns));
-    }catch(...){dispatch_observer_->unavailable("DISPATCH_ORACLE_EXCEPTION");}
-   }}
+   if (dispatch_observer_) {
+    uint32_t first=0, count=0;
+    if (dispatch_observer_->oracle_range(first,count))
+     selected_cpu_dot(t,request.q8,request.q8_bytes,first,count);
+   }
    const float* result=gpu_->execute(request);
    if(dispatch_observer_)dispatch_observer_->pre_publish(result,n,gpu_->terminal());
    if(held_ready){if(gpu_->terminal()&&result)cross_arm_observer_->held_result(
@@ -244,6 +272,10 @@ extern "C" bool ggml_ua50_has_gpu(const ggml_tensor*t){auto*p=owner(t);return p&
 extern "C" bool ggml_ua50_gpu_vector(const ggml_tensor*t,const void*q,uint64_t bytes,float*dst,uint64_t n){auto*p=owner(t);return p&&bytes<=SIZE_MAX&&n<=SIZE_MAX&&p->gpu_vector(t,q,size_t(bytes),dst,size_t(n));}
 extern "C" bool ggml_ua50_has_cross_arm_observer(const ggml_tensor*t){auto*p=owner(t);return p&&p->has_cross_arm_observer();}
 extern "C" void ggml_ua50_diagnostic_unavailable(const ggml_tensor*t,const char*reason){auto*p=owner(t);if(p)p->diagnostic_unavailable(reason);}
+extern "C" void ggml_ua50_io_known(const ggml_tensor*t,const int64_t*counts,int64_t experts){
+    if(auto*p=owner(t))p->io_known(t,counts,experts);
+}
+extern "C" void ggml_ua50_io_consumer(const ggml_tensor*t){if(auto*p=owner(t))p->io_consumer(t);}
 extern "C" void ggml_ua50_diagnostic_binding(const ggml_tensor*w,const ggml_tensor*i,const ggml_tensor*o){auto*p=owner(w);if(p)p->diagnostic_binding(w,i,o);}
 extern "C" void ggml_ua50_diagnostic_input(const ggml_tensor*t,uint32_t slot,uint32_t row,const float*f32,uint64_t k,const void*q8,uint64_t bytes){
  auto*p=owner(t);if(p){if(k>SIZE_MAX||bytes>SIZE_MAX)p->diagnostic_input(t,slot,row,nullptr,0,nullptr,0);

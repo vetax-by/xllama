@@ -29,6 +29,7 @@ class NativeProvider {
     char error_[256]{};
     std::function<void(uint32_t,uint64_t,uint64_t,uint64_t)> trace_;
     ggml_backend_buffer_type buft_{};
+    void selected_cpu_dot(const ggml_tensor*, const unsigned char*, size_t, uint32_t, uint32_t) noexcept;
 public:
     NativeProvider(Reader &,uint64_t file_bytes,size_t slots,size_t max_expert,size_t total_owned_budget);
     NativeProvider(std::shared_ptr<Reader>,uint64_t file_bytes,size_t slots,size_t max_expert,size_t total_owned_budget);
@@ -50,6 +51,20 @@ public:
     void set_cross_arm_observer(std::shared_ptr<CrossArmObserver> v){if(active_tensor_||!v)throw std::logic_error("cross-arm witness setup on busy provider");cross_arm_observer_=std::move(v);}
     void set_dispatch_observer(std::shared_ptr<DispatchObserver> v){if(active_tensor_||!v)throw std::logic_error("dispatch observer setup on busy provider");dispatch_observer_=std::move(v);if(gpu_)gpu_->set_diagnostic_observer(dispatch_observer_);if(cache_)cache_->set_observer([](const CacheEvent&e,void*p)noexcept{auto*self=static_cast<NativeProvider*>(p);if(self->dispatch_observer_)self->dispatch_observer_->cache_event(e);},this);}
     void diagnostic_frame(uint32_t phase,uint32_t position,int32_t token) noexcept {if(cross_arm_observer_)cross_arm_observer_->frame(phase,position,token);if(dispatch_observer_)dispatch_observer_->frame(phase,position,token);}
+    void io_known(const ggml_tensor *tensor,const int64_t *counts,int64_t experts) noexcept {
+        if (!dispatch_observer_ || !dispatch_observer_->io_timing_enabled()) return;
+        for (size_t i=0;i<count_;++i) if (records_[i].tensor==tensor) {
+            dispatch_observer_->io_route(records_[i].layout.id,counts,experts);
+            return;
+        }
+    }
+    void io_consumer(const ggml_tensor *tensor) noexcept {
+        if (!dispatch_observer_ || !dispatch_observer_->io_timing_enabled() || tensor!=active_tensor_) return;
+        for (size_t i=0;i<count_;++i) if (records_[i].tensor==tensor) {
+            dispatch_observer_->io_consumer(records_[i].layout.id,uint32_t(active_expert_));
+            return;
+        }
+    }
     void diagnostic_binding(const ggml_tensor*weight,const ggml_tensor*input,const ggml_tensor*output){if(dispatch_observer_&&active_tensor_==weight)dispatch_observer_->binding(weight,input,output);}
     void diagnostic_input(const ggml_tensor*,uint32_t slot,uint32_t row,const float*,size_t,const unsigned char*,size_t) noexcept;
     void diagnostic_output(const ggml_tensor*,uint32_t slot,uint32_t row,const float*,size_t) noexcept;

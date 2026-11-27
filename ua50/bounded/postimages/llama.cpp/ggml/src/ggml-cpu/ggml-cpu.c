@@ -1753,6 +1753,8 @@ static void ggml_compute_forward_mul_mat_id(
                 matrix_row_counts[i02] += 1;
             }
         }
+        // All expert IDs for this MMID have been grouped, before any acquire.
+        if (ggml_ua50_is_external(src0)) ggml_ua50_io_known(src0, matrix_row_counts, n_as);
     }
 
     // reset current_chunk
@@ -1796,6 +1798,7 @@ static void ggml_compute_forward_mul_mat_id(
         }
 
         const char * src0_cur = external_expert ? ggml_ua50_data(src0) : (const char *) src0->data + cur_a * nb02;
+        if (external_expert && ith == 0 && src0_cur) ggml_ua50_io_consumer(src0);
         const void * wdata = (src1->type == vec_dot_type) ? src1->data : params->wdata;
         const size_t row_size = ggml_row_size(vec_dot_type, ne10);
 

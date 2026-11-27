@@ -18,6 +18,8 @@ bool ggml_ua50_gpu_vector(const struct ggml_tensor * tensor,const void * q8,uint
 // Synchronous, optional diagnostic copies at the already-held expert lease.
 bool ggml_ua50_has_cross_arm_observer(const struct ggml_tensor * tensor);
 void ggml_ua50_diagnostic_unavailable(const struct ggml_tensor * tensor,const char * reason);
+void ggml_ua50_io_known(const struct ggml_tensor * tensor,const int64_t * rows,int64_t experts);
+void ggml_ua50_io_consumer(const struct ggml_tensor * tensor);
 void ggml_ua50_diagnostic_binding(const struct ggml_tensor * weight,const struct ggml_tensor * input,const struct ggml_tensor * output);
 void ggml_ua50_diagnostic_input(const struct ggml_tensor * tensor,uint32_t slot,uint32_t input_row,
                                 const float * f32,uint64_t k,const void * q8,uint64_t q8_bytes);

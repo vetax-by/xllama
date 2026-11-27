@@ -1,9 +1,9 @@
 {
   "base_patch_lock_sha256": "ee2b5f939e2ec7b069453ab8d8a3e4693e75258b256727264e757b5987cd3da9",
-  "engine_sha256": "3ff871e42a535507f089e94c567375984a480b85ce4feef1eb843d21ec26f868",
-  "focused_source_review_sha256": "9515d10730a6eb63356a2095552457936bd64a69e251ac5fe815d48a2ef5032a",
+  "engine_sha256": "50f33f1edd0fdc5909fe9e60eaa3cb7e907511fe8d9cf3d0f6fb641c252c723b",
   "llama": "d81235049384534c167caea52b85a694f6103d14",
-  "native_manifest_sha256": "48c3e5e31dc2d3e17e7f588ce18a793e1ee1bb5c097afa9019bcbedf9b375610",
+  "native_manifest_sha256": "99bf12ae36b425247c28cabcfe0fca8bf1103ea2ca2ff28cb482c4069de3c9bb",
+  "packer_source_sha256": "d8f4693e29c9266bb14ed5b573d60a858dfb9eaf7523343b2020daa975b738bf",
   "postimages": [
     {
       "bytes": 6282,
@@ -28,7 +28,7 @@
     {
       "bytes": 234,
       "path": "include/xllama/bounded_contract.h",
-      "sha256": "e7161689d898175d659bb206a972670181832222107c033ca91420f66e0effd2"
+      "sha256": "db24ffe9a5c9e3c999d0832d8d2e0335aaf5f8e94558cd3fa9097db349fafba5"
     },
     {
       "bytes": 6226,
@@ -36,14 +36,14 @@
       "sha256": "57527e23a7c5cd51d64c8fb042110bb1a029e7dd50dd9d878b3457177b4886ba"
     },
     {
-      "bytes": 20853,
+      "bytes": 23861,
       "path": "include/xllama/bounded_expert_capture.h",
-      "sha256": "3e28cb2db2f75cfad72c44c63511875e3c63b440faf44f3c69026bdc7a397cd9"
+      "sha256": "96d85861bc4f6f8d8811f59efb4f87909a704108a7c4b19fb1a4a175163e2a38"
     },
     {
-      "bytes": 14012,
+      "bytes": 14042,
       "path": "include/xllama/bounded_graph_capture.h",
-      "sha256": "08e0b1ce35fbc5153df89c7b1269d439c9c988a3a4b9b3e50b0f1e1054d21bfa"
+      "sha256": "0ce0b74b957b6b0e1416247bd39834371c802a9cb4f57db3449700337e2cc6b8"
     },
     {
       "bytes": 7140,
@@ -61,9 +61,9 @@
       "sha256": "6ff9a9685bfe6be133a50aad9757904a8879226b0c45fe772fbbc296f6fc2928"
     },
     {
-      "bytes": 9106,
+      "bytes": 10583,
       "path": "include/xllama/bounded_plan.h",
-      "sha256": "99c855128e07d96044fe25bf0c88253fc91ba47e676a62b5f5bd116f4146ecda"
+      "sha256": "ce1394103ea4840ff65ba56aca4a683621d6ad0dbc7e61ec7ede0e974e5d26d1"
     },
     {
       "bytes": 3508,
@@ -76,9 +76,9 @@
       "sha256": "82c8329c8c05435e30b70d6615e816a84d580a64250e1df0a5db610a7c22031d"
     },
     {
-      "bytes": 6381,
+      "bytes": 10017,
       "path": "include/xllama/bounded_worker_capture.h",
-      "sha256": "71be0fe75377f6474d6b6dc1afc055580edd576b4dcde903576981ea9b159a45"
+      "sha256": "a75c41564e997a76eccbb639c6fe44d94be2fe5aa66bd03b2631b47783d8411a"
     },
     {
       "bytes": 6750,
@@ -191,9 +191,9 @@
       "sha256": "78d0def57a6a32b4afe20cc066c37da433baf080c44bf31744e8b4fe84130f45"
     },
     {
-      "bytes": 15051,
+      "bytes": 15198,
       "path": "include/xllama/gpu_proof_controller.h",
-      "sha256": "67caebb8a1cd4cbedc9e70f4b1c6af7cfe12721cae8bdd9a00c94642aae614bf"
+      "sha256": "47beee3398fafc2e4c03fd430213b3dfd77c768dac4876b3a5fb4557f427cf34"
     },
     {
       "bytes": 7392,
@@ -203,7 +203,7 @@
     {
       "bytes": 8868,
       "path": "include/xllama/gpu_run_config.h",
-      "sha256": "7ed17b0642b9b574273f25f2bd25ee56910e77351aa28f26bd89d60028d762df"
+      "sha256": "b2a02ec726bff6c50c1607ef7002b244905a503b1383e6e1bc8b9a72d5047adc"
     },
     {
       "bytes": 6563,
@@ -326,9 +326,9 @@
       "sha256": "b13ae319d8ed141dd3fe22969bb349dddf7a1a948ffbeb4a80221181f505e24e"
     },
     {
-      "bytes": 142511,
+      "bytes": 142764,
       "path": "llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
-      "sha256": "19451d90e86dd52d68f1b13b661cc93cf7a282ebaedfcfb6487cf17309e20120"
+      "sha256": "1f5cbae8ea618c335222765068fa494eb811008191cef75c3a4bcf70eb2b9791"
     },
     {
       "bytes": 26254,
@@ -411,9 +411,9 @@
       "sha256": "834b3303aa625dd2644c24802b0ffbcca927860bc5040a65ee2496d0e02dc629"
     },
     {
-      "bytes": 1289,
+      "bytes": 1606,
       "path": "llama.cpp/src/ua50/dispatch_observer.h",
-      "sha256": "c54114dd468cffd9cfacb8be06479bd0d49a58c2dc1320586b2a80adff812bc9"
+      "sha256": "d59c9d3a5be188f9559f7a5e8d3e8fa675b3b404049fe7559f19c633ab581316"
     },
     {
       "bytes": 11741,
@@ -431,19 +431,19 @@
       "sha256": "b4da61c11b8ce71506a0024e549688cf735aeef3cb120bd120220f8e4c18b810"
     },
     {
-      "bytes": 1665,
+      "bytes": 1825,
       "path": "llama.cpp/src/ua50/ggml-ua50.h",
-      "sha256": "fdcb58fa3545d4be568edb34aee25779fd34811c1cc40ab4fda7363896119038"
+      "sha256": "6267ae056cbadcdd017ff739b882fc03d60072c781d51f654970a69114bed316"
     },
     {
-      "bytes": 17922,
+      "bytes": 19099,
       "path": "llama.cpp/src/ua50/native_provider.cpp",
-      "sha256": "68c1620153d1137e9a10249c9bd6a0faa015ebc0a8ebdc69b12fc5dc48bb5268"
+      "sha256": "1507ba4d2bc5fef4bf7c14e2dff133d81dabdec5cc5abbc03c18710f40f9bca8"
     },
     {
-      "bytes": 5341,
+      "bytes": 6185,
       "path": "llama.cpp/src/ua50/native_provider.h",
-      "sha256": "40b6108dddd3e17c17a43e1edd17a319110409a94f8bde6183ef49fef4a0645b"
+      "sha256": "c6db9ffd35843dcb64133c13294a46561b14aba6104b9f1c354bde978eceb3ea"
     },
     {
       "bytes": 1531,
@@ -516,9 +516,9 @@
       "sha256": "ef5e602ff278696db1c4cf1719ef7f4f1b6a2e835e16b61f11b920a28083d4cb"
     },
     {
-      "bytes": 19440,
+      "bytes": 19606,
       "path": "src/bridge/expert_gpu_d3d12.inc",
-      "sha256": "a40037a28e318ebc280376720fd01df6cf1f2684997693e40f66c4163a20de3c"
+      "sha256": "fae7c61b4cadec52df288148327b0a5b38ec40bc6527c2c78eefa4c6f734465c"
     },
     {
       "bytes": 61033,
@@ -601,9 +601,9 @@
       "sha256": "1c32b650547de74dfcc4d0b5daace1cf2f240fae1b8c28f4985e4c06d1bc2fd7"
     },
     {
-      "bytes": 17295,
+      "bytes": 17843,
       "path": "uwp/dev-run-input.h",
-      "sha256": "7d136ec4041628ac13862dba0a3a8e19dc723269f8664f843a9b90b8a2304667"
+      "sha256": "94f07724ac990e18b5cb8f0ceef57756922596b01d6b06d3340ffcaf38526e71"
     },
     {
       "bytes": 24535,
@@ -671,9 +671,9 @@
       "sha256": "0efca113be78bf6a62a2d2cd7a21173170468f84a8e323138922b2cae672db93"
     },
     {
-      "bytes": 22280,
+      "bytes": 23943,
       "path": "uwp/qualification-shell.h",
-      "sha256": "0f01597857b2a057c93c0a91ecdaa1086584988a2b5bb19044554de701dc2408"
+      "sha256": "86aca9da62c6ee93fe7deafb1b799a0ff733f4b4468cf98a9a91e1e77b525284"
     },
     {
       "bytes": 1587,

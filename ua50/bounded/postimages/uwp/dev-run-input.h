@@ -33,7 +33,24 @@ inline std::string dev_sha(const std::string& bytes){
  }catch(...){if(hash)BCryptDestroyHash(hash);if(alg)BCryptCloseAlgorithmProvider(alg,0);throw;}
  const char*d="0123456789abcdef";std::string out;out.reserve(64);for(auto x:sum){out+=d[x>>4];out+=d[x&15];}return out;
 }
-inline void open_dev_file(DevHandle& h,const std::filesystem::path& path,bool ticket){CREATEFILE2_EXTENDED_PARAMETERS p{};p.dwSize=sizeof(p);p.dwFileFlags=FILE_FLAG_OPEN_REPARSE_POINT;h.value=CreateFile2(path.c_str(),GENERIC_READ|(ticket?DELETE:0),ticket?0:FILE_SHARE_READ,OPEN_EXISTING,&p);if(h.value==INVALID_HANDLE_VALUE)throw std::runtime_error("config/ticket held open refused");}
+enum class DevOpenContext { ordinary, first_command };
+inline void open_dev_file(DevHandle& h, const std::filesystem::path& path, bool ticket,
+                          DevOpenContext context = DevOpenContext::ordinary) {
+ CREATEFILE2_EXTENDED_PARAMETERS p{};
+ p.dwSize = sizeof(p);
+ p.dwFileFlags = FILE_FLAG_OPEN_REPARSE_POINT;
+ h.value = CreateFile2(path.c_str(), GENERIC_READ | (ticket ? DELETE : 0),
+                       ticket ? 0 : FILE_SHARE_READ, OPEN_EXISTING, &p);
+ if (h.value == INVALID_HANDLE_VALUE) {
+  const DWORD error = GetLastError();
+  const auto leaf = path.filename().u8string();
+  const char* operation = context == DevOpenContext::first_command
+      ? "COMMAND_OPEN CreateFile2 win32_error="
+      : "config/ticket held open refused; CreateFile2 win32_error=";
+  throw std::runtime_error(operation +
+                           std::to_string(error) + " file=" + std::string(leaf.begin(), leaf.end()));
+ }
+}
 inline std::string read_dev_file(DevHandle& h,size_t cap){
  FILE_STANDARD_INFO before{};FILE_ATTRIBUTE_TAG_INFO attr{};FILE_ID_INFO id{},postid{};
  if(GetFileType(h.value)!=FILE_TYPE_DISK||!GetFileInformationByHandleEx(h.value,FileStandardInfo,&before,sizeof(before))||!GetFileInformationByHandleEx(h.value,FileAttributeTagInfo,&attr,sizeof(attr))||!GetFileInformationByHandleEx(h.value,FileIdInfo,&id,sizeof(id))||before.NumberOfLinks!=1||before.Directory||before.DeletePending||(attr.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)||before.EndOfFile.QuadPart<=0||uint64_t(before.EndOfFile.QuadPart)>cap)throw std::runtime_error("config/ticket file shape/bound");

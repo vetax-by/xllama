@@ -1,5 +1,5 @@
 #pragma once
 namespace xllama::capture {
 // Association with frozen source inventory; not runtime executable measurement.
-inline constexpr char packer_source_sha[]="795d71f555dd534b4757718c1c35f43b78749005306c4c89198a8e310a0851ca";
+inline constexpr char packer_source_sha[]="d8f4693e29c9266bb14ed5b573d60a858dfb9eaf7523343b2020daa975b738bf";
 }
