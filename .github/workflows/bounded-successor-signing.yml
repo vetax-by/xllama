@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   sign-copies:
-    if: github.ref == 'refs/heads/codex/ua50-ssd-moe'
+    if: github.ref == 'refs/heads/sign/worker-reuse-20261127-41a549e1'
     runs-on: windows-2022
     timeout-minutes: 20
     env:
@@ -39,13 +39,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $pins = @{
             'package_copy.py' = 'f4ee7c692e7194f3ebc97ee38f8537e29ec6a618ccde74126a37e260710492ce'
-            'sign_copy.ps1' = 'cbc6aee4ad865a1a31949567d831801465115ed623fd1108863f1b776848dac8'
-            'sign_ephemeral_pair.ps1' = '121ef0d2ea6d0ce7b2fc91926abc49f1274e19544951a2998c77cbda174334b1'
-            'validate_pair_inputs.py' = 'daea296087ada83a8f54b1132384c38a5c2ef45dc4b0c156d4963c5305771fa1'
-            'input-template.json' = 'b917e4247126d50d811f165288a35cc59197a73edfc153eea1f50347ac4cfe6e'
+            'sign_copy.ps1' = '303e72e60613d760bd05ea664e264e65942330aade9d793ae44a1401f7d093f1'
+            'sign_ephemeral_pair.ps1' = 'd91735d3dd5251b4637b0d8d33db0f971229cfd402b7d3abcffab78acf252078'
+            'validate_pair_inputs.py' = 'ddf1127acb3ebcce68aa362d1325aa3564643bf7d287eb4fcf695a8fbe65d7ac'
+            'selected-input.json' = '0b239bf63b0a8edb17a72060ad88064c110dd91d21e76761d9d3218f6cc39112'
           }
           foreach ($name in $pins.Keys) {
-            $path = Join-Path 'operator/ua50/signing/bounded' $name
+            $path = Join-Path 'operator/ua50/signing/bounded-20261127' $name
             if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pins[$name]) { throw "Source pin mismatch: $name" }
             if ($name.EndsWith('.ps1')) {
               $tokens = $null; $errors = $null
@@ -53,7 +53,7 @@ jobs:
               if ($errors.Count -ne 0) { throw "PowerShell parse refused: $name" }
             }
           }
-      # Independent unsigned QA RESULT SHA256: d28ea44752412a023083f9d27840f89ebf1d5cb09851a9a81e3df72bbe6c3cda.
+      # Independent unsigned QA RESULT SHA256: 1325dd8951429c4cde0fe4f0ca59f08a495ae15f340c49415c1e9812f18dfd93.
       - name: Download two exact accepted unsigned artifacts
         timeout-minutes: 5
         env:
@@ -63,16 +63,16 @@ jobs:
           $root = Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair'
           if (Test-Path -LiteralPath $root) { throw 'Exclusive artifact root required' }
           New-Item -ItemType Directory -Path $root | Out-Null
-          gh run download 44577045317 --repo vetax-by/xllama --name bounded-unsigned-44577045317 --dir (Join-Path $root 'patched')
+          gh run download 46052799158 --repo vetax-by/xllama --name bounded-unsigned-46052799158 --dir (Join-Path $root 'patched')
           if ($LASTEXITCODE -ne 0) { throw 'Exact patched artifact download failed; no retry' }
           $patchedPackage = Join-Path $root 'patched/xllama_1.7.0.0_x64.msix'
           $patchedReceipt = Join-Path $root 'patched/UA50-SOURCE-RECEIPT.json'
           $buildReceipt = Join-Path $root 'patched/BUILD-RECEIPT.json'
-          if ((Get-FileHash -LiteralPath $patchedPackage -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05c9d3d14cd6ea1b674918b9d5e87489b66aa6d6c06a1ee95aa85daef4115cb4') { throw 'Patched package SHA mismatch' }
-          if ((Get-FileHash -LiteralPath $patchedReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c6b85941113c79dc992e735c220c8342ce2e9756304b88ef104736755ab0d6a1') { throw 'Patched receipt SHA mismatch' }
-          if ((Get-FileHash -LiteralPath $buildReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne '7ad1ef8a72d7f5fa991ad9ffa94b12a591e9ab3aa2876cac463894c1d1c954e5') { throw 'Patched build receipt SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $patchedPackage -Algorithm SHA256).Hash.ToLowerInvariant() -ne '41985537de676280230b6bcd11750ef8ca21630b948772dd4993c87ef163bf4f') { throw 'Patched package SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $patchedReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne '8457d5234f5b0fab80a1a21b164a997735f8a79d01ce0b6288a325f23872d20a') { throw 'Patched receipt SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $buildReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne '8a2535ec7295a1ca260c8d6eb4d8ff5489c0c0e402ad54e0b379fe618f9e92c5') { throw 'Patched build receipt SHA mismatch' }
           $shaderReceipt = Join-Path $root 'patched/BOUNDED-SHADER-RECEIPT.json'
-          if ((Get-FileHash -LiteralPath $shaderReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne '6b442043f8d8e994ae6391c13cd7634984018648fd23d607924dee4d7890c0dc') { throw 'Bounded shader receipt SHA mismatch' }
+          if ((Get-FileHash -LiteralPath $shaderReceipt -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'a1c898687a7037e2ed357492b739601ae642f64d681252125f152f4ac4c86a71') { throw 'Bounded shader receipt SHA mismatch' }
           # Byte-exact retained archive from accepted run43592901046; transport mirror only, no rebuild.
           $transport = Join-Path $root 'stock-transport'
           New-Item -ItemType Directory -Path $transport | Out-Null
@@ -101,14 +101,10 @@ jobs:
         timeout-minutes: 10
         run: |
           $ErrorActionPreference = 'Stop'
-          $plan = Get-Content -LiteralPath 'operator/ua50/signing/bounded/input-template.json' -Raw | ConvertFrom-Json
-          if ($plan.InstalledVersion -cne '1.7.0.1524' -or $plan.PatchedVersion -cne '1.7.0.1526' -or $plan.RecoveryVersion -cne '1.7.0.1527') { throw 'Selected version triplet changed' }
-          $planPath = Join-Path $env:RUNNER_TEMP 'selected-signing-inputs.json'
-          if (Test-Path -LiteralPath $planPath) { throw 'Exclusive input plan required' }
-          $plan | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $planPath -Encoding utf8NoBOM
-          $planSha = (Get-FileHash -LiteralPath $planPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $planPath = (Resolve-Path -LiteralPath 'operator/ua50/signing/bounded-20261127/selected-input.json').Path
+          $planSha = '0b239bf63b0a8edb17a72060ad88064c110dd91d21e76761d9d3218f6cc39112'
           $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin/10.0.22621.0/x64'
-          & operator/ua50/signing/bounded/sign_ephemeral_pair.ps1 -InputPlan $planPath -InputPlanSha256 $planSha `
+          & operator/ua50/signing/bounded-20261127/sign_ephemeral_pair.ps1 -InputPlan $planPath -InputPlanSha256 $planSha `
             -ArtifactRoot (Join-Path $env:RUNNER_TEMP 'accepted-unsigned-pair') `
             -PrivateRoot (Join-Path $env:RUNNER_TEMP 'owned-signing-private') `
             -Output (Join-Path $env:RUNNER_TEMP 'public-signed-pair') -SdkBin $sdk -PublicTrustScope LocalMachine
