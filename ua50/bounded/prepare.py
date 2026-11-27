@@ -7,7 +7,7 @@ import stat
 import subprocess
 import sys
 
-LOCK_SHA = 'e05a3f520f2948cad62feb363652144071c18ec0cf94bfe90b406a9153639d20'
+LOCK_SHA = 'a18d4051e6572291d49b8c0a8c70f5ed7a18739cf1d024040f60e4b070b5affd'
 ROOT = pathlib.Path(__file__).resolve().parent
 
 

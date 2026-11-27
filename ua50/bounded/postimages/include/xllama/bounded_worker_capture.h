@@ -9,10 +9,48 @@ struct WorkerGroup {
  std::string json()const{static const char*stages[]={"QUERY","NODE_BEFORE","NODE_AFTER","PACK_BEFORE","PACK_AFTER","DOT_BEFORE","DOT_AFTER","GPU_HOST_BEFORE","GPU_HOST_AFTER"};std::string rows="[";for(const auto&sample:samples){const auto&e=sample.value;if(rows.size()>1)rows+=',';rows+="{\"sequence\":"+std::to_string(sample.sequence)+",\"stage\":"+quote(stages[e.stage])+",\"worker_index\":"+std::to_string(e.worker_index)+",\"worker_count\":"+std::to_string(e.worker_count)+",\"valid_mask\":"+std::to_string(e.valid_mask)+",\"rounding_mode\":"+std::to_string(e.rounding_mode)+",\"exception_flags\":"+std::to_string(e.exception_flags)+",\"mxcsr\":"+std::to_string(e.mxcsr)+",\"x87_control\":"+std::to_string(e.x87_control)+",\"fused_following\":"+std::to_string(e.fused_following)+",\"expert\":"+std::to_string(e.expert)+"}";}rows+=']';std::string out="{\"id\":"+std::to_string(id)+",\"kind\":\"WORKER_FP\",\"arm\":"+quote(arm)+",\"position\":"+std::to_string(position)+",\"token\":"+std::to_string(token)+",\"layer\":"+std::to_string(layer)+",\"occurrence\":"+std::to_string(occurrence)+",\"point\":"+quote(point)+",\"selector_index\":"+std::to_string(selector)+",\"endpoint\":"+quote(endpoint)+",\"status\":"+quote(status)+",\"source\":"+source_json(source)+",\"sample_limit\":"+std::to_string(sample_limit)+",\"complete\":"+(complete?"true":"false")+",\"capture_failed\":"+(capture_failed?"true":"false")+",\"stop_reason\":"+quote(stop_reason)+",\"samples\":"+rows+"}";need(out.size()<=worker_index_group_bound+samples.size()*worker_index_sample_bound,"worker declared JSON bound");return out;}
 };
 class WorkerCapture {
+ struct Binding{ggml_tensor*t;uint32_t index;const char*point;const char*endpoint;};
  struct Row{Selection selected;uint32_t index=0;std::string point,endpoint;ggml_tensor*t=nullptr;std::array<uint32_t,64>seen{};std::array<bool,64>active{};size_t group=SIZE_MAX;bool pack=false;uint32_t dot_experts=0;};
+ static constexpr size_t binding_cap=64;
  Plan plan_;Owner&owner_;std::vector<Row>rows_;std::vector<WorkerGroup>groups_;uint32_t phase_=0,position_=0,token_=0;uint64_t context_=0,graph_=0;size_t samples_=0;bool failed_=false;
+ std::vector<Binding> building_,built_;
+ const ggml_cgraph* built_graph_=nullptr;
+ bool building_overflow_=false;
  Source source(ggml_tensor*t){Source s;s.node=owner_.register_node(t,context_,graph_);s.op=t->op;s.type=t->type;s.view=t->view_offs;s.context=context_;s.graph=graph_;for(int i=0;i<4;++i){need(t->ne[i]>0,"worker source extent");s.ne[i]=t->ne[i];s.nb[i]=t->nb[i];}return s;}
  void bind(uint32_t index,const Selection&sel,ggml_tensor*t,const std::string&point,const std::string&endpoint){if(!t)return;for(const auto&r:rows_)if(r.index==index&&r.endpoint==endpoint&&r.t==t)return;need(rows_.size()<64,"worker registered endpoint cap");Row row;row.index=index;row.selected=sel;row.t=t;row.point=point;row.endpoint=endpoint;rows_.push_back(std::move(row));}
+ bool selected(const Selection&sel)const{return position_==sel.position&&token_==sel.token;}
+ void register_endpoint(uint32_t index,ggml_tensor*t,const char*point,const char*endpoint){
+  if(!t)return;
+  const auto&sel=plan_.selections[index];
+  // Keep existing registration for a freshly built selected frame.
+  if(selected(sel))bind(index,sel,t,point,endpoint);
+  for(const auto&b:building_)if(b.index==index&&b.t==t&&std::string_view(b.endpoint)==endpoint)return;
+  if(building_.size()==binding_cap){building_overflow_=true;return;}
+  building_.push_back({t,index,point,endpoint});
+ }
+ void logical_graph(const ggml_capture_event&e){
+  if(e.kind==GGML_CAPTURE_LOGICAL_GRAPH){
+   // Emitted after the build, including rebuilds that reuse a graph address.
+   built_.clear();
+   built_graph_=nullptr;
+   if(!e.graph||building_overflow_)return;
+   built_.swap(building_);
+   built_graph_=e.graph;
+   return;
+  }
+  if(!e.graph||e.graph!=built_graph_){
+   built_.clear();
+   built_graph_=nullptr;
+   rows_.clear();
+   return;
+  }
+  // LOGICAL_REFERENCE also runs on reuse. Receipt epochs and stage counters
+  // remain frame-local. The cached pointers only identify tensors in this graph.
+  for(const auto&b:built_){
+   const auto&sel=plan_.selections[b.index];
+   if(selected(sel))bind(b.index,sel,b.t,b.point,b.endpoint);
+  }
+ }
  void stop(const char*reason){
   failed_=true;for(auto&g:groups_){g.capture_failed=true;g.stop_reason=reason;if(!g.complete)g.status=std::string(reason)=="SAMPLE_LIMIT"||std::string(reason)=="OWNER_BUDGET"?"BUDGET_EXHAUSTED":"INCOMPLETE_STAGE_COVERAGE";}
  }
@@ -41,14 +79,18 @@ class WorkerCapture {
  }
 
 public:
- WorkerCapture(const Plan&p,Owner&o):plan_(p),owner_(o){need(p.worker_events<=256&&(!p.worker_fp||p.worker_events),"worker selected event budget");rows_.reserve(64);groups_.reserve(64);}
- void context(uint32_t phase){phase_=phase;++context_;++graph_;rows_.clear();}
- void frame(uint32_t pos,uint32_t token){position_=pos;token_=token;graph_=(context_<<32)|(uint64_t(position_)+1);rows_.clear();}
- void registration(const ggml_capture_event&e){if(!plan_.worker_fp||!phase_)return;for(size_t i=0;i<plan_.selections.size();++i){const auto&s=plan_.selections[i];if(position_!=s.position||token_!=s.token)continue;
-  if(s.kind=="RESIDUAL_CVEC"){if(e.layer!=int32_t(s.layer))continue;if(e.kind==GGML_CAPTURE_REGISTER&&e.semantic&&std::string_view(e.semantic)=="model.layers.{}.post_ffn_residual")bind(i,s,e.tensor,"post_ffn_residual","NODE");if(e.kind==GGML_CAPTURE_CVEC&&e.related[0]!=e.tensor)bind(i,s,e.related[0],"post_ffn_residual","CVEC_ADD");continue;}
-  if(s.kind=="KV_K"||s.kind=="KV_V_TRANSPOSED"||s.kind=="SHORTCONV"){if(e.layer!=int32_t(s.layer))continue;if(e.kind==GGML_CAPTURE_STATE_WRITE&&e.semantic){const std::string_view label(e.semantic);if((s.kind=="KV_K"&&label=="@capture.kv.K.write")||(s.kind=="KV_V_TRANSPOSED"&&label=="@capture.kv.V.write")||(s.kind=="SHORTCONV"&&label=="@capture.shortconv.write"))bind(i,s,e.tensor,s.kind,"NODE");}continue;}
-  const std::string point=s.kind=="PARAMETER_ROWS"?(s.point=="conv_kernel"?"conv_inner_out":"result_output"):s.kind=="EXPERT_DISPATCH"?(s.role%3==0?"moe_gate":s.role%3==1?"moe_down":"moe_up"):s.point;const auto*p=graph_point(point);if(!p||(p->layer?e.layer!=int32_t(s.layer):e.layer!=-1)||e.kind!=GGML_CAPTURE_REGISTER||!e.semantic||std::string_view(e.semantic)!=p->semantic)continue;
-  if(s.kind=="ARITHMETIC"&&point=="moe_aggregate"){auto*last=e.tensor;auto*middle=last?last->src[0]:nullptr;auto*first=middle?middle->src[0]:nullptr;need(first&&first->op==GGML_OP_ADD&&middle->op==GGML_OP_ADD&&last->op==GGML_OP_ADD,"worker slot ADD chain");bind(i,s,first,point,"SLOT_ADD_0");bind(i,s,middle,point,"SLOT_ADD_1");bind(i,s,last,point,"SLOT_ADD_2");}else bind(i,s,e.tensor,point,"NODE");
+ WorkerCapture(const Plan&p,Owner&o):plan_(p),owner_(o){need(p.worker_events<=256&&(!p.worker_fp||p.worker_events),"worker selected event budget");rows_.reserve(binding_cap);groups_.reserve(64);building_.reserve(binding_cap);built_.reserve(binding_cap);}
+ void context(uint32_t phase){phase_=phase;++context_;++graph_;rows_.clear();building_.clear();built_.clear();built_graph_=nullptr;building_overflow_=false;}
+ void frame(uint32_t pos,uint32_t token){position_=pos;token_=token;graph_=(context_<<32)|(uint64_t(position_)+1);rows_.clear();building_.clear();building_overflow_=false;}
+ void registration(const ggml_capture_event&e){
+  if(!plan_.worker_fp||!phase_)return;
+  if(e.kind==GGML_CAPTURE_LOGICAL_GRAPH||e.kind==GGML_CAPTURE_LOGICAL_REFERENCE){logical_graph(e);return;}
+  if(e.kind!=GGML_CAPTURE_REGISTER&&e.kind!=GGML_CAPTURE_CVEC&&e.kind!=GGML_CAPTURE_STATE_WRITE)return;
+  for(uint32_t i=0;i<plan_.selections.size();++i){const auto&s=plan_.selections[i];
+  if(s.kind=="RESIDUAL_CVEC"){if(e.layer!=int32_t(s.layer))continue;if(e.kind==GGML_CAPTURE_REGISTER&&e.semantic&&std::string_view(e.semantic)=="model.layers.{}.post_ffn_residual")register_endpoint(i,e.tensor,"post_ffn_residual","NODE");if(e.kind==GGML_CAPTURE_CVEC&&e.related[0]!=e.tensor)register_endpoint(i,e.related[0],"post_ffn_residual","CVEC_ADD");continue;}
+  if(s.kind=="KV_K"||s.kind=="KV_V_TRANSPOSED"||s.kind=="SHORTCONV"){if(e.layer!=int32_t(s.layer))continue;if(e.kind==GGML_CAPTURE_STATE_WRITE&&e.semantic){const std::string_view label(e.semantic);if((s.kind=="KV_K"&&label=="@capture.kv.K.write")||(s.kind=="KV_V_TRANSPOSED"&&label=="@capture.kv.V.write")||(s.kind=="SHORTCONV"&&label=="@capture.shortconv.write"))register_endpoint(i,e.tensor,s.kind.c_str(),"NODE");}continue;}
+  const std::string_view point=s.kind=="PARAMETER_ROWS"?(s.point=="conv_kernel"?"conv_inner_out":"result_output"):s.kind=="EXPERT_DISPATCH"?(s.role%3==0?"moe_gate":s.role%3==1?"moe_down":"moe_up"):std::string_view(s.point);const auto*p=graph_point(point);if(!p||(p->layer?e.layer!=int32_t(s.layer):e.layer!=-1)||e.kind!=GGML_CAPTURE_REGISTER||!e.semantic||std::string_view(e.semantic)!=p->semantic)continue;
+  if(s.kind=="ARITHMETIC"&&point=="moe_aggregate"){auto*last=e.tensor;auto*middle=last?last->src[0]:nullptr;auto*first=middle?middle->src[0]:nullptr;if(!first||first->op!=GGML_OP_ADD||middle->op!=GGML_OP_ADD||last->op!=GGML_OP_ADD){need(!selected(s),"worker slot ADD chain");continue;}register_endpoint(i,first,p->point,"SLOT_ADD_0");register_endpoint(i,middle,p->point,"SLOT_ADD_1");register_endpoint(i,last,p->point,"SLOT_ADD_2");}else register_endpoint(i,e.tensor,p->point,"NODE");
  }}
 
  bool event(const ggml_capture_worker_event&e){
@@ -87,7 +129,7 @@ public:
  bool failed()const{if(failed_)return true;for(const auto&g:groups_)if(!g.complete)return true;return false;}
  size_t sample_count()const{return samples_;}
 
- size_t owned_bytes()const{size_t n=sizeof(*this)+rows_.capacity()*sizeof(Row)+groups_.capacity()*sizeof(WorkerGroup);for(const auto&g:groups_)n+=g.samples.capacity()*sizeof(WorkerGroup::Sample);return n;}
+ size_t owned_bytes()const{size_t n=sizeof(*this)+rows_.capacity()*sizeof(Row)+groups_.capacity()*sizeof(WorkerGroup)+(building_.capacity()+built_.capacity())*sizeof(Binding);for(const auto&g:groups_)n+=g.samples.capacity()*sizeof(WorkerGroup::Sample);return n;}
  const auto&groups()const{return groups_;}
 };
 }

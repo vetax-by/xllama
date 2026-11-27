@@ -2,7 +2,7 @@
   "base_patch_lock_sha256": "ee2b5f939e2ec7b069453ab8d8a3e4693e75258b256727264e757b5987cd3da9",
   "engine_sha256": "50f33f1edd0fdc5909fe9e60eaa3cb7e907511fe8d9cf3d0f6fb641c252c723b",
   "llama": "d81235049384534c167caea52b85a694f6103d14",
-  "native_manifest_sha256": "99bf12ae36b425247c28cabcfe0fca8bf1103ea2ca2ff28cb482c4069de3c9bb",
+  "native_manifest_sha256": "41a549e1c7df0351d173142d98ea097c30975398d8178f5140dd2ab35db7831f",
   "packer_source_sha256": "d8f4693e29c9266bb14ed5b573d60a858dfb9eaf7523343b2020daa975b738bf",
   "postimages": [
     {
@@ -76,9 +76,9 @@
       "sha256": "82c8329c8c05435e30b70d6615e816a84d580a64250e1df0a5db610a7c22031d"
     },
     {
-      "bytes": 10017,
+      "bytes": 12148,
       "path": "include/xllama/bounded_worker_capture.h",
-      "sha256": "a75c41564e997a76eccbb639c6fe44d94be2fe5aa66bd03b2631b47783d8411a"
+      "sha256": "df431e669883e714bae53ccae952e920f7f90e2cc71a7de1268aebab597ae7c9"
     },
     {
       "bytes": 6750,
